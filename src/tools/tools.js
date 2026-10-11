@@ -11,6 +11,7 @@ const { printDiff } = require("./diff");
 const { normalizeRelative, resolveInWorkspace } = require("./security");
 const memory = require("../project/memory");
 const projectContext = require("../project/project-context");
+const { runCommand } = require("./command");
 
 /* ============================================================
 
@@ -986,6 +987,12 @@ const TOOLS = {
         run: rememberTool,
         check(args) {
             requireString(args.note, "note");
+        }
+    },
+    run_command: {
+        run: runCommand,
+        check(args) {
+            requireString(args.name, "name");
         }
     }
 };

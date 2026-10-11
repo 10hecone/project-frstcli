@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "scripts": {
+    "test": "node --test test/agent-parse.test.js"
+  },
   "keywords": [],
   "author": "Hecone",
   "license": "ISC",

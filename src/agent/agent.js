@@ -15,6 +15,30 @@ const {
     readFile,
     listDirectory
 } = require("../tools/tools");
+const { execFile } = require("node:child_process");
+
+function git(args, cwd) {
+    return new Promise(resolve => {
+        execFile("git", args, { cwd, timeout: 3000, windowsHide: true }, (error, stdout) => {
+            resolve(error ? null : String(stdout).trim());
+        });
+    });
+}
+
+/** Indices concrets sur le terminal, comme le bloc <env> de Claude Code. */
+async function detectEnvironment(workspace) {
+    const inside = await git(["rev-parse", "--is-inside-work-tree"], workspace);
+    const branch = inside === "true" ? await git(["branch", "--show-current"], workspace) : null;
+
+    return {
+        git: inside === "true",
+        branch,
+        node: process.version,
+        shell: process.platform === "win32"
+            ? (process.env.PSModulePath ? "PowerShell" : "cmd")
+            : (process.env.SHELL || null)
+    };
+}
 
 const fmt = n => Number(n).toLocaleString("fr-FR");
 
@@ -123,7 +147,7 @@ function fitPrompt(context) {
 
     if (prompt.length > CONFIG.messageBudget) {
         throw new Error(
-            `Contexte trop volumineux pour la limite de ${fmt(CONFIG.maxMessageChars)} caractères.`
+            `Contexte trop volumineux pour la limite de ${fmt(CONFIG.messageBudget)} caractères.`
         );
     }
 
@@ -234,7 +258,8 @@ async function runAgent(task) {
     const observations = [];
     const changesBefore = memory.sessionChanges();
     const signatures = new Map();
-    const projectText = projectContext.promptContext();
+    const projectText = projectContext.promptContext(CONFIG.agentContextChars);
+    const env = await detectEnvironment(state.workspace);
 
     let planShown = false;
     let stuck = 0;
@@ -266,6 +291,7 @@ async function runAgent(task) {
             for (let attempt = 1; attempt <= CONFIG.maxProtocolAttempts; attempt++) {
                 const prompt = fitPrompt({
                     workspace: state.workspace,
+                    env,
                     task,
                     history: state.history.slice(-6),
                     memorySummary: memory.summary(),

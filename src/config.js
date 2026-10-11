@@ -49,6 +49,7 @@ const CONFIG = {
     summaryChunkChars: 120_000,     // taille d'un envoi pour le résumé
     resumeMaxPromptChars: 60_000,   // résumé injecté dans les prompts
     promptContextChars: 300_000,    // contexte projet max dans un prompt agent
+    agentContextChars: 300_000,     // contexte projet injecté par runAgent (agent.js)
     resumeInProject: process.env.FS_RESUME_IN_PROJECT === "1",
 
     // Persistance (mémoire, corbeille, sauvegardes, session)
@@ -61,7 +62,8 @@ const CONFIG = {
 const KNOWN_MODELS = [
     { id: -1002, name: "GPT 6 Luna" },
     { id: -1003, name: "GPT 6.1 Sol" },
-    { id: -2002, name: "Claude Haiku 5.5" }
+    { id: -2002, name: "Claude Haiku 5.5" },
+    { id: -2001, name: "Claude Opus 5.5" }
 ];
 
 module.exports = { CONFIG, KNOWN_MODELS };

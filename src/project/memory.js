@@ -90,8 +90,8 @@ function save() {
 
             await fs.writeFile(tmp, data);
             await fs.rename(tmp, file);
-        } catch {
-            // la mémoire est un confort : ne jamais faire échouer une action
+        } catch (error) {
+            require("../cli/ui").ui.warn(`Mémoire non enregistrée : ${error.message}`);
         }
     });
 
