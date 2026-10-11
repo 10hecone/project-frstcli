@@ -22,7 +22,7 @@ function activateConversation(mode) {
 
     const settings = state.conversationSettings[key];
     if (settings) {
-        for (const name of ["model", "webSearch", "private", "incognito", "autoApprove"]) {
+        for (const name of ["model", "webSearch", "private", "incognito"]) {
             if (settings[name] !== undefined) state[name] = settings[name];
         }
     }
