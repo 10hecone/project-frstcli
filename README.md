@@ -1,6 +1,6 @@
 # FranceStudent CLI
 
-Interface en ligne de commande pour utiliser l'assistant FranceStudent depuis un terminal. Sans projet sélectionné, le CLI fonctionne en chat normal. Avec `/project`, l'agent peut lire, créer, modifier, déplacer, copier et supprimer des fichiers locaux, après confirmation de chaque écriture.
+Interface en ligne de commande pour utiliser  ia.francestudent depuis un terminal. Sans projet sélectionné, le CLI fonctionne en chat normal. 
 
 ## Fonctionnalités
 
