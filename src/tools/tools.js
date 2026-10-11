@@ -5,13 +5,14 @@ const path = require("node:path");
 const { randomBytes } = require("node:crypto");
 
 const { CONFIG } = require("../config");
-const { state, resetConversation } = require("../state");
+const { state, resetConversation, setConversation } = require("../state");
 const { ui } = require("../cli/ui");
 const { printDiff } = require("./diff");
 const { normalizeRelative, resolveInWorkspace } = require("./security");
 const memory = require("../project/memory");
 const projectContext = require("../project/project-context");
 const { runCommand } = require("./command");
+const conversations = require("../project/conversations");
 
 /* ============================================================
 
@@ -209,7 +210,7 @@ async function walkDirectory(absDir, relDir, depth, maxDepth, out) {
         try {
             normalizeRelative(childRel);
         } catch {
-            continue; // dossier ou fichier masqué (sensible, .git, node_modules…)
+            continue; // dossier ou fichier masqué (sensible, .git, node_modules...)
         }
 
         const isDir = dirent.isDirectory();
@@ -643,7 +644,7 @@ async function movePathTool(args = {}) {
         throw new Error(`${dst.rel} existe déjà.`);
     }
 
-    if (!(await ui.confirm(`Déplacer ${src.rel} → ${dst.rel} ?`))) return denied(src.rel);
+    if (!(await ui.confirm(`Déplacer ${src.rel} -> ${dst.rel} ?`))) return denied(src.rel);
 
     await resolveInWorkspace(state.workspace, src.rel);
     await resolveInWorkspace(state.workspace, dst.rel);
@@ -659,9 +660,9 @@ async function movePathTool(args = {}) {
             from: src.rel,
             to: dst.rel,
             createdDirs: createdRoot ? [createdRoot] : [],
-            label: `déplacé : ${src.rel} → ${dst.rel}`
+            label: `déplacé : ${src.rel} -> ${dst.rel}`
         },
-        `déplacé : ${src.rel} → ${dst.rel}`
+        `déplacé : ${src.rel} -> ${dst.rel}`
     );
 
     return { from: src.rel, to: dst.rel, changed: true, message: "Déplacé." };
@@ -677,7 +678,7 @@ async function copyPathTool(args = {}) {
         ui.result(`Dossier : ${files} fichier(s), ${dirs} sous-dossier(s)`);
     }
 
-    if (!(await ui.confirm(`Copier ${src.rel} → ${dst.rel} ?`))) return denied(src.rel);
+    if (!(await ui.confirm(`Copier ${src.rel} -> ${dst.rel} ?`))) return denied(src.rel);
 
     await resolveInWorkspace(state.workspace, dst.rel);
 
@@ -695,9 +696,9 @@ async function copyPathTool(args = {}) {
             rel: dst.rel,
             from: src.rel,
             createdDirs: createdRoot ? [createdRoot] : [],
-            label: `copié : ${src.rel} → ${dst.rel}`
+            label: `copié : ${src.rel} -> ${dst.rel}`
         },
-        `copié : ${src.rel} → ${dst.rel}`
+        `copié : ${src.rel} -> ${dst.rel}`
     );
 
     return { from: src.rel, to: dst.rel, changed: true, message: "Copié." };
@@ -1017,7 +1018,7 @@ function validateToolCall(action) {
 
 const short = (value, max) => {
     const text = String(value ?? "").replace(/\s+/g, " ");
-    return text.length > max ? `${text.slice(0, max)}…` : text;
+    return text.length > max ? `${text.slice(0, max)}...` : text;
 };
 
 /** Description lisible de l'action, affichée à côté du nom de l'outil. */
@@ -1030,16 +1031,16 @@ function describeCall(action) {
                 ? `${a.path} (lignes ${a.start_line ?? 1} à ${a.end_line ?? "fin"})`
                 : a.path;
         case "edit_file":
-            return `${a.path} : « ${short(a.old_string, 40)} » → « ${short(a.new_string, 40)} »`;
+            return `${a.path} : "${short(a.old_string, 40)}" -> "${short(a.new_string, 40)}"`;
         case "write_file":
             return `${a.path} (${String(a.content ?? "").length} caractères)`;
         case "move_path":
         case "copy_path":
-            return `${a.from} → ${a.to}`;
+            return `${a.from} -> ${a.to}`;
         case "search_files":
-            return `« ${a.query} » dans ${a.path ?? "."}`;
+            return `"${a.query}" dans ${a.path ?? "."}`;
         case "remember":
-            return `« ${short(a.note, 60)} »`;
+            return `"${short(a.note, 60)}"`;
         default:
             return a.path ?? ".";
     }
@@ -1080,6 +1081,11 @@ async function setProject(directory) {
     resetConversation();
     await memory.open(real);
 
+    for (const mode of ["chat", "agent"]) {
+        const saved = await conversations.findForWorkspace(real, mode);
+        if (saved) setConversation(mode, saved.id, saved.settings);
+    }
+
     ui.info(`Projet : ${real}`);
 
     const notes = memory.listNotes().length;
@@ -1094,7 +1100,7 @@ async function setProject(directory) {
     try {
         const report = await projectContext.load(real);
         ui.info(
-            `${report.status} · ${report.files} fichier(s) indexé(s)` +
+            `${report.status} | ${report.files} fichier(s) indexé(s)` +
             (report.skipped ? `, ${report.skipped} ignoré(s)` : "")
         );
     } catch (error) {

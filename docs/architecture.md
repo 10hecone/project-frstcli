@@ -12,6 +12,7 @@ Le CLI est un outil en ligne de commande (Node.js) qui relie un terminal à l'as
 - `api/api.js` : client HTTP pour l'API de chat en flux SSE.
 - `api/auth.js` : session et jetons courts (JWT) obtenus à partir du cookie de session.
 - `project/memory.js` : mémoire persistante par projet (notes, journal, pile d'annulation) et mémoire de session.
+- `project/conversations.js` : conversations persistantes, une par projet et par mode (`chat` ou `agent`).
 - `project/project-context.js` : indexation du projet et génération ou réutilisation de `RESUME.md`.
 - `tools/security.js` : validation des chemins et blocage des accès sensibles.
 - `cli/router.js` : décision entre passage par l'agent et chat normal.
@@ -20,6 +21,5 @@ Le CLI est un outil en ligne de commande (Node.js) qui relie un terminal à l'as
 ## Flux principal
 1. `index.js` charge l'environnement puis appelle `run()` de `src/main.js`.
 2. `main.js` route la saisie : commande, chat normal ou agent.
-3. L'agent envoie le contexte au modèle à chaque tour, exécute un outil, puis enregistre le résultat.
+3. L'agent envoie le contexte au modèle à chaque tour dans sa conversation persistante, exécute un outil, puis enregistre le résultat.
 4. Chaque écriture passe par une confirmation et laisse une entrée annulable avec `/undo`.
-

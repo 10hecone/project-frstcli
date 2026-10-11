@@ -23,7 +23,7 @@ const escapeTag = text =>
 
 function clipText(text, max) {
     const value = String(text);
-    return value.length <= max ? value : `${value.slice(0, max)}\n…[tronqué]`;
+    return value.length <= max ? value : `${value.slice(0, max)}\n... [tronqué]`;
 }
 
 /* ---------- Parcours du projet ---------- */
@@ -46,7 +46,7 @@ async function scan(workspace) {
             const childRel = rel === "." ? entry.name : `${rel}/${entry.name}`;
 
             try {
-                normalizeRelative(childRel); // exclut .env, .git, node_modules, clés…
+                normalizeRelative(childRel); // exclut .env, .git, node_modules, clés...
             } catch {
                 continue;
             }
@@ -168,7 +168,7 @@ async function summarizeChunk(chunk, index, total) {
         "Tu rédiges la documentation interne d'un projet de code. " +
         "Réponds en français, en Markdown, sans JSON.",
 
-        "Pour CHAQUE fichier ci-dessous, écris une section « ### chemin » contenant : " +
+        "Pour CHAQUE fichier ci-dessous, écris une section \"### chemin\" contenant : " +
         "le rôle du fichier, les fonctions, classes ou exports principaux, les dépendances, " +
         "et les points d'attention. 2 à 6 lignes par fichier.",
 

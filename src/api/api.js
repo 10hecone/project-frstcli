@@ -6,6 +6,7 @@ const { ui } = require("../cli/ui");
 const { auth, getAccessToken } = require("./auth");
 
 const fmt = n => Number(n).toLocaleString("fr-FR");
+const MAX_REQUEST_FAILURES = 2;
 
 async function apiHeaders() {
     const token = await getAccessToken();
@@ -24,12 +25,11 @@ async function apiHeaders() {
 }
 
 /**
- * options.fresh   : true = nouvelle conversation à chaque appel (le chatId
- *                   n'est ni envoyé ni mémorisé). Indispensable en mode
- *                   agent : tout le contexte est renvoyé à chaque tour.
+ * options.fresh   : true = nouvelle conversation à chaque appel.
  * options.onDelta : callback appelé à chaque morceau de texte.
  *
- * Sur un 401, le token est renouvelé et la requête retentée une fois.
+ * Toute requête échouée est retentée au maximum deux fois. Sur un 401,
+ * le token est renouvelé avant la tentative suivante.
  */
 async function requestModel(message, options = {}) {
     if (message.length > CONFIG.maxMessageChars) {
@@ -39,16 +39,25 @@ async function requestModel(message, options = {}) {
         );
     }
 
-    try {
-        return await requestModelOnce(message, options);
-    } catch (error) {
-        if (error.status !== 401 || options.retried) throw error;
+    let failures = 0;
 
-        ui.debug("401 reçu : renouvellement du token puis nouvel essai");
+    while (true) {
+        try {
+            return await requestModelOnce(message, options);
+        } catch (error) {
+            if (failures >= MAX_REQUEST_FAILURES) throw error;
 
-        await getAccessToken(true);
+            failures++;
+            ui.debug(
+                `Requête échouée (${failures}/${MAX_REQUEST_FAILURES}) : ${error.message}`,
+            );
 
-        return requestModelOnce(message, { ...options, retried: true });
+            if (error.status === 401) {
+                await getAccessToken(true);
+            }
+
+            ui.debug("Nouvel essai de la requête");
+        }
     }
 }
 
@@ -59,12 +68,13 @@ async function requestModelOnce(message, options) {
     let reader;
 
     try {
+        const conversationMode = options.conversationMode === "agent" ? "agent" : "chat";
         const response = await fetch(`${CONFIG.apiUrl}/chats/stream`, {
             method: "POST",
             headers: await apiHeaders(),
             body: JSON.stringify({
                 agentId: state.model,
-                chatId: options.fresh ? null : state.chatId,
+                chatId: options.fresh ? null : state.chatIds[conversationMode],
                 enableCanvas: false,
                 enableWebSearch: options.fresh ? false : state.webSearch,
                 images: [],
@@ -127,6 +137,7 @@ async function requestModelOnce(message, options) {
             }
 
             if (data.chat_id && !options.fresh) {
+                state.chatIds[conversationMode] = data.chat_id;
                 state.chatId = data.chat_id;
             }
 
@@ -245,4 +256,4 @@ async function requestModelOnce(message, options) {
     }
 }
 
-module.exports = { requestModel };
+module.exports = { requestModel, MAX_REQUEST_FAILURES };

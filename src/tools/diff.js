@@ -99,7 +99,7 @@ function printDiff(oldText, newText, maxLines = 60) {
         });
 
         if (lines.length > maxLines) {
-            console.log(c.dim(`    … ${lines.length - maxLines} lignes de plus`));
+            console.log(c.dim(`    ... ${lines.length - maxLines} lignes de plus`));
         }
 
         return { added: lines.length, removed: 0 };
@@ -149,7 +149,7 @@ function printDiff(oldText, newText, maxLines = 60) {
         else console.log(`    ${c.gray(num)} ${c.dim(`  ${text}`)}`);
     });
 
-    if (hidden) console.log(c.dim(`    … ${hidden} lignes de diff supplémentaires`));
+    if (hidden) console.log(c.dim(`    ... ${hidden} lignes de diff supplémentaires`));
 
     return countChanges(ops);
 }

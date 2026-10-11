@@ -1,10 +1,11 @@
 "use strict";
 
 const { CONFIG } = require("../config");
-const { state, record } = require("../state");
+const { state, record, activateConversation } = require("../state");
 const { ui, c } = require("../cli/ui");
 const api = require("../api/api");
 const memory = require("../project/memory");
+const conversations = require("../project/conversations");
 const projectContext = require("../project/project-context");
 const { buildAgentPrompt } = require("./prompt");
 const {
@@ -44,7 +45,7 @@ const fmt = n => Number(n).toLocaleString("fr-FR");
 
 function clip(text, max) {
     const value = String(text);
-    return value.length <= max ? value : `${value.slice(0, max)}\n… [tronqué]`;
+    return value.length <= max ? value : `${value.slice(0, max)}\n... [tronqué]`;
 }
 
 /* ---------- Analyse de la réponse du modèle ---------- */
@@ -236,7 +237,7 @@ async function fallbackPlainAnswer(task, observations) {
     const spin = ui.spinner("Analyse");
 
     try {
-        const answer = await api.requestModel(prompt, { fresh: true });
+        const answer = await api.requestModel(prompt, { conversationMode: "agent" });
         spin.stop();
         ui.assistant(answer.trim());
         record("assistant", answer.trim());
@@ -248,6 +249,7 @@ async function fallbackPlainAnswer(task, observations) {
 /* ---------- Boucle agent ---------- */
 
 async function runAgent(task) {
+    activateConversation("agent");
     if (task.length > CONFIG.messageBudget / 2) {
         throw new Error(
             `Demande trop longue : ${fmt(task.length)} caractères ` +
@@ -264,16 +266,39 @@ async function runAgent(task) {
     let planShown = false;
     let stuck = 0;
 
-    function finish(message) {
+    async function saveConversation() {
+        if (!state.chatIds.agent) return;
+
+        const settings = {
+            model: state.model,
+            webSearch: state.webSearch,
+            private: state.private,
+            incognito: state.incognito,
+            autoApprove: state.autoApprove,
+        };
+
+        state.conversationSettings.agent = settings;
+        await conversations.touch({
+            id: state.chatIds.agent,
+            firstMessage: task,
+            model: state.model,
+            workspace: state.workspace,
+            mode: "agent",
+            settings,
+        });
+    }
+
+    async function finish(message) {
         ui.assistant(message);
         record("user", task);
         record("assistant", message);
+        await saveConversation();
 
         const changed = memory.sessionChanges() - changesBefore;
 
         if (changed > 0) {
             ui.info(
-                `${changed} modification(s) enregistrée(s) · /undo annule la dernière · /changes en liste l'historique`
+                `${changed} modification(s) enregistrée(s) | /undo annule la dernière | /changes en liste l'historique`
             );
         }
     }
@@ -302,7 +327,7 @@ async function runAgent(task) {
                     correction
                 });
 
-                lastResponse = await api.requestModel(prompt, { fresh: true });
+                lastResponse = await api.requestModel(prompt, { conversationMode: "agent" });
 
                 try {
                     action = parseAgentResponse(lastResponse);
@@ -326,11 +351,12 @@ async function runAgent(task) {
         if (!action) {
             record("user", task);
             await fallbackPlainAnswer(task, observations);
+            await saveConversation();
             return;
         }
 
         if (action.type === "final") {
-            finish(action.message);
+            await finish(action.message);
             return;
         }
 
@@ -362,7 +388,7 @@ async function runAgent(task) {
             });
 
             if (stuck >= 2) {
-                finish("Je tourne en rond : j'arrête ici. Précise ta demande ou le fichier concerné.");
+                await finish("Je tourne en rond : j'arrête ici. Précise ta demande ou le fichier concerné.");
                 return;
             }
 
@@ -398,6 +424,7 @@ async function runAgent(task) {
     ui.warn(message);
     record("user", task);
     record("assistant", message);
+    await saveConversation();
 }
 
 module.exports = { runAgent, parseAgentResponse, extractJsonObject, fitPrompt };
