@@ -60,13 +60,13 @@ async function runCommand(args = {}) {
 
     if (!state.workspace) throw new Error("Aucun projet sélectionné.");
 
-    if (!(await ui.confirm(`Lancer « ${spec.label} » dans le projet ?`))) {
+    if (!(await ui.confirm(`Lancer "${spec.label}" dans le projet ?`))) {
         return { command: args.name, changed: false, denied: true, message: "Action refusée par l'utilisateur. Ne la redemande pas." };
     }
 
     const result = await runProcess(spec.file, spec.args, state.workspace);
     const output = result.output.length > MAX_OUTPUT_CHARS
-        ? `${result.output.slice(0, MAX_OUTPUT_CHARS)}\n…[sortie tronquée]`
+        ? `${result.output.slice(0, MAX_OUTPUT_CHARS)}\n...[sortie tronquée]`
         : result.output;
 
     return {

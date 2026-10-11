@@ -11,7 +11,7 @@ const { ui } = require("../cli/ui");
  * Authentification (constatée sur ia.francestudent.org) :
  *
  *   1. Le navigateur possède un cookie de session longue durée
- *      « next-auth.session-token ».
+ *      "next-auth.session-token".
  *   2. Il appelle GET {origin}/api/auth/api-token (Cookie: session)
  *      et reçoit { accessToken, expiresAt, expiresIn, tokenType }.
  *   3. accessToken est un JWT de courte durée, envoyé en
@@ -261,8 +261,8 @@ async function renewAccessToken() {
     if (!attempts.length) {
         throw new AuthError(
             "Aucune session configurée.\n" +
-            "  Dans ton navigateur : F12 → Stockage (Application) → Cookies →\n" +
-            `  ${CONFIG.origin} → copie la valeur de « ${SESSION_COOKIE} »,\n` +
+            "  Dans ton navigateur : F12 -> Stockage (Application) -> Cookies ->\n" +
+            `  ${CONFIG.origin} -> copie la valeur de "${SESSION_COOKIE}",\n` +
             "  puis mets-la dans .env : FS_SESSION_TOKEN=<valeur>\n" +
             "  (une seule fois : le CLI renouvelle ensuite tout seul)."
         );
@@ -284,7 +284,7 @@ async function renewAccessToken() {
     throw new AuthError(
         "Connexion impossible.\n  " + failures.join("\n  ") +
         "\n  Si ta session a expiré, recopie une nouvelle valeur de " +
-        `« ${SESSION_COOKIE} » dans FS_SESSION_TOKEN.`
+        `"${SESSION_COOKIE}" dans FS_SESSION_TOKEN.`
     );
 }
 

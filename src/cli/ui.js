@@ -81,8 +81,8 @@ const ui = {
     banner() {
         const plain = [
             "✻ FranceStudent CLI",
-            "/help pour l'aide · /project <dossier> pour coder",
-            `agent ${state.model} · web ${state.webSearch ? "on" : "off"} · mode ${state.mode}`
+            "/help pour l'aide | /project <dossier> pour coder",
+            `agent ${state.model} | web ${state.webSearch ? "on" : "off"} | mode ${state.mode}`
         ];
         const styled = [
             `${c.cyan("✻")} ${c.bold("FranceStudent CLI")}`,
@@ -104,12 +104,12 @@ const ui = {
             ? c.dim(path.basename(state.workspace)) + " "
             : "";
         const auto = state.autoApprove ? c.yellow("auto ") : "";
-        return `\n${where}${auto}${c.bold(c.cyan("›"))} `;
+        return `\n${where}${auto}> `;
     },
 
     tool(name, arg) {
         console.log(
-            `\n${c.green("●")} ${c.bold(TOOL_LABELS[name] || name)}` +
+            `\n${c.bold(TOOL_LABELS[name] || name)}` +
             c.gray(`(${arg ?? ""})`)
         );
     },
@@ -119,11 +119,11 @@ const ui = {
     },
 
     info(text) {
-        console.log(`${c.gray("·")} ${c.dim(text)}`);
+        console.log(`${c.dim(text)}`);
     },
 
     debug(text) {
-        if (CONFIG.debug) console.log(`${c.gray("·")} ${c.gray(text)}`);
+        if (CONFIG.debug) console.log(`${c.gray(text)}`);
     },
 
     warn(text) {
@@ -131,15 +131,15 @@ const ui = {
     },
 
     error(text) {
-        console.error(`\n${c.red("✗")} ${c.red(text)}`);
+        console.error(`\n${c.red("Erreur :")} ${c.red(text)}`);
     },
 
     assistant(text) {
-        console.log(`\n${c.cyan("●")} ${renderMarkdownLite(text)}`);
+        console.log(`\n${renderMarkdownLite(text)}`);
     },
 
     plan(items) {
-        console.log(`\n${c.cyan("●")} ${c.bold("Plan")}`);
+        console.log(`\n${c.bold("Plan")}`);
         items.forEach((item, i) => {
             console.log(`  ${c.gray(`${i + 1}.`)} ${c.dim(item)}`);
         });
@@ -160,7 +160,7 @@ const ui = {
             const sec = Math.floor((Date.now() - started) / 1000);
             process.stdout.write(
                 `\r\x1b[2K${c.cyan(frames[i++ % frames.length])} ` +
-                `${c.dim(`${text}… (${sec}s)`)}`
+                `${c.dim(`${text}... (${sec}s)`)}` 
             );
         }, 80);
 
@@ -183,7 +183,7 @@ const ui = {
         if (state.autoApprove) return true;
 
         const raw = await ask(
-            `\n${c.bold(question)} ${c.dim("[o/N · t = tout autoriser]")} `
+            `\n${c.bold(question)} ${c.dim("[o/N | t = tout autoriser]")} `
         );
         const answer = String(raw ?? "").trim().toLowerCase();
 

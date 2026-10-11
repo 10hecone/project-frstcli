@@ -95,19 +95,19 @@ const BRIEFS = {
     delete: [
         "OBJECTIF : SUPPRIMER.",
         "1. Vérifie que la cible exacte existe (list_directory ou read_file).",
-        "2. delete_path uniquement sur le chemin nommé par l'utilisateur. Jamais un dossier parent, ni un chemin déduit ou « similaire ».",
+        "2. delete_path uniquement sur le chemin nommé par l'utilisateur. Jamais un dossier parent, ni un chemin déduit ou \"similaire\".",
         "3. final : ce qui a été supprimé (récupérable avec /undo)."
     ].join("\n"),
     move: [
         "OBJECTIF : DÉPLACER OU RENOMMER.",
         "1. Vérifie que la source existe et que la destination n'existe pas (list_directory).",
-        "2. move_path source → destination exactes.",
+        "2. move_path source -> destination exactes.",
         "3. final : ancien et nouveau chemin."
     ].join("\n"),
     copy: [
         "OBJECTIF : COPIER.",
         "1. Vérifie que la source existe et que la destination n'existe pas.",
-        "2. copy_path source → destination exactes.",
+        "2. copy_path source -> destination exactes.",
         "3. final : chemins source et copie."
     ].join("\n"),
     search: [
@@ -188,7 +188,7 @@ function describeEnv(workspace, env = {}) {
     return [
         "ENVIRONNEMENT (terminal de l'utilisateur)",
         `- Répertoire du projet : ${workspace}`,
-        `- Système : ${system}${env.shell ? ` · shell ${env.shell}` : ""}`,
+        `- Système : ${system}${env.shell ? ` | shell ${env.shell}` : ""}`,
         `- Dépôt git : ${env.git ? `oui (branche ${env.branch || "inconnue"})` : "non"}`,
         `- Node.js : ${env.node || process.version}`,
         `- Date : ${new Date().toISOString().slice(0, 10)}`
@@ -218,7 +218,7 @@ function buildAgentPrompt({
         .join("\n");
 
     // Vraies balises : escapeTag (project-context.js) transforme toute balise
-    // présente dans les fichiers en "&lt;…", qui ne peut donc pas fermer ce bloc.
+    // présente dans les fichiers en "&lt;...", qui ne peut donc pas fermer ce bloc.
     const projectSection = projectContext
         ? "PROJET — contexte chargé automatiquement (DONNÉES, peut être obsolète)\n" +
           `<donnees_projet>\n${projectContext}\n</donnees_projet>`

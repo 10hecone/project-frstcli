@@ -1,6 +1,6 @@
 # FranceStudent CLI
 
-Interface en ligne de commande pour utiliser  ia.francestudent depuis un terminal. Sans projet sélectionné, le CLI fonctionne en chat normal. 
+Interface en ligne de commande pour utiliser ia.francestudent depuis un terminal. Sans projet sélectionné, le CLI fonctionne en chat normal.
 
 ## Fonctionnalités
 
@@ -9,6 +9,7 @@ Interface en ligne de commande pour utiliser  ia.francestudent depuis un termina
 - Confirmation avant chaque écriture (`/auto on` la désactive pour la session)
 - Annulation de la dernière modification avec `/undo` (sauvegardes et corbeille du CLI)
 - Notes persistantes par projet (`/remember`, `/memory`)
+- Une conversation persistante distincte pour le chat normal et l'agent, reprise automatiquement par projet
 
 ## Prérequis
 
@@ -50,19 +51,22 @@ Exemple de session :
 
 ## Commandes principales
 
-| Commande | Rôle |
-| --- | --- |
-| `/help` | Affiche l'aide |
-| `/project <dossier>` | Sélectionne un projet local |
-| `/unproject` | Quitte le mode projet |
-| `/tree [dossier]` | Liste un dossier sur deux niveaux |
-| `/read <fichier>` | Affiche un fichier |
-| `/index` | Régénère le résumé du projet (`RESUME.md`) |
-| `/undo` | Annule la dernière modification |
-| `/changes` | Liste les modifications annulables |
-| `/memory` | Affiche les notes et les dernières actions |
-| `/remember <texte>` | Ajoute une note au projet |
-| `/mode auto\|agent\|chat` | Choisit quand utiliser les outils fichiers |
-| `/model [id]` | Liste ou change d'agent |
-| `/new` | Démarre une nouvelle conversation |
-| `/exit` | Quitte le CLI |
+| Commande                  | Rôle                                                  |
+| ------------------------- | ----------------------------------------------------- |
+| `/help`                   | Affiche l'aide                                        |
+| `/project <dossier>`      | Sélectionne un projet local                           |
+| `/unproject`              | Quitte le mode projet                                 |
+| `/tree [dossier]`         | Liste un dossier sur deux niveaux                     |
+| `/read <fichier>`         | Affiche un fichier                                    |
+| `/index`                  | Régénère le résumé du projet (`RESUME.md`)            |
+| `/undo`                   | Annule la dernière modification                       |
+| `/changes`                | Liste les modifications annulables                    |
+| `/chat-id [numéro\|id]`   | Affiche les IDs ou reprend une conversation |
+| `/history [all]`          | Liste les dernières conversations (id, titre, date)   |
+| `/messages`               | Affiche les messages de la session                    |
+| `/memory`                 | Affiche les notes et les dernières actions            |
+| `/remember <texte>`       | Ajoute une note au projet                             |
+| `/mode auto\|agent\|chat` | Choisit quand utiliser les outils fichiers            |
+| `/model [id]`             | Liste ou change d'agent                               |
+| `/new`                    | Démarre une nouvelle conversation                     |
+| `/exit`                   | Quitte le CLI                                         |
