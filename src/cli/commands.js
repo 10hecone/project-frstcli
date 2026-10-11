@@ -1,18 +1,18 @@
 "use strict";
 
-const { KNOWN_MODELS } = require("./config");
-const { state, resetConversation } = require("./state");
+const { KNOWN_MODELS } = require("../config");
+const { state, resetConversation } = require("../state");
 const { ui, c } = require("./ui");
-const memory = require("./memory");
-const projectContext = require("./project-context");
-const { authStatus, getAccessToken } = require("./auth");
+const memory = require("../project/memory");
+const projectContext = require("../project/project-context");
+const { authStatus, getAccessToken } = require("../api/auth");
 const {
     setProject,
     unsetProject,
     undoLast,
     listDirectory,
     readFile
-} = require("./tools");
+} = require("../tools/tools");
 
 function showHelp() {
     const rows = [

@@ -1,6 +1,6 @@
 "use strict";
 
-const { c } = require("./ui");
+const { c } = require("../cli/ui");
 
 /**
  * Diff ligne à ligne. On retire d'abord le préfixe et le suffixe communs

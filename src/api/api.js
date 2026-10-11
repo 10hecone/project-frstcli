@@ -1,8 +1,8 @@
 "use strict";
 
-const { CONFIG } = require("./config");
-const { state } = require("./state");
-const { ui } = require("./ui");
+const { CONFIG } = require("../config");
+const { state } = require("../state");
+const { ui } = require("../cli/ui");
 const { auth, getAccessToken } = require("./auth");
 
 const fmt = n => Number(n).toLocaleString("fr-FR");

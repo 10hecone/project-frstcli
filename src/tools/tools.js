@@ -4,13 +4,13 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomBytes } = require("node:crypto");
 
-const { CONFIG } = require("./config");
-const { state, resetConversation } = require("./state");
-const { ui } = require("./ui");
+const { CONFIG } = require("../config");
+const { state, resetConversation } = require("../state");
+const { ui } = require("../cli/ui");
 const { printDiff } = require("./diff");
 const { normalizeRelative, resolveInWorkspace } = require("./security");
-const memory = require("./memory");
-const projectContext = require("./project-context");
+const memory = require("../project/memory");
+const projectContext = require("../project/project-context");
 
 /* ============================================================
 

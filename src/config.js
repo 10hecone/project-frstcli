@@ -40,7 +40,7 @@ const CONFIG = {
     maxObservationChars: 40_000,
     maxObservationsInPrompt: 16,
     maxMessageChars: 1_000_000,     // limite de l'API
-    messageBudget: 980_000,         // marge de sécurité
+    messageBudget: 980_000,         
 
     // Contexte projet (indexation automatique)
     contextBudgetChars: 400_000,    // contenu brut total indexé

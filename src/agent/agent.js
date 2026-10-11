@@ -1,11 +1,11 @@
 "use strict";
 
-const { CONFIG } = require("./config");
-const { state, record } = require("./state");
-const { ui, c } = require("./ui");
-const api = require("./api");
-const memory = require("./memory");
-const projectContext = require("./project-context");
+const { CONFIG } = require("../config");
+const { state, record } = require("../state");
+const { ui, c } = require("../cli/ui");
+const api = require("../api/api");
+const memory = require("../project/memory");
+const projectContext = require("../project/project-context");
 const { buildAgentPrompt } = require("./prompt");
 const {
     TOOLS,
@@ -14,7 +14,7 @@ const {
     summarizeResult,
     readFile,
     listDirectory
-} = require("./tools");
+} = require("../tools/tools");
 
 const fmt = n => Number(n).toLocaleString("fr-FR");
 

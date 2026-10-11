@@ -2,8 +2,8 @@
 
 const readline = require("node:readline");
 const path = require("node:path");
-const { CONFIG } = require("./config");
-const { state } = require("./state");
+const { CONFIG } = require("../config");
+const { state } = require("../state");
 
 const COLOR = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
 

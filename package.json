@@ -1,13 +1,10 @@
 {
-  "name": "frances",
+  "name": "project-frstcli",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "keywords": [],
-  "author": "",
+  "author": "Hecone",
   "license": "ISC",
   "dependencies": {
     "dotenv": "^18.0.7"

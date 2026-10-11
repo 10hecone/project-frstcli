@@ -4,11 +4,11 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
 
-const { CONFIG } = require("./config");
-const { normalizeRelative } = require("./security");
+const { CONFIG } = require("../config");
+const { normalizeRelative } = require("../tools/security");
 const memory = require("./memory");
-const api = require("./api");
-const { ui } = require("./ui");
+const api = require("../api/api");
+const { ui } = require("../cli/ui");
 
 const RESUME_NAME = "RESUME.md";
 

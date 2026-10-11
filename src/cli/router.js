@@ -1,6 +1,6 @@
 "use strict";
 
-const { state } = require("./state");
+const { state } = require("../state");
 
 const LETTER = "\\p{L}";
 

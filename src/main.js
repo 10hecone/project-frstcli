@@ -1,17 +1,17 @@
 "use strict";
 
 const { state, record } = require("./state");
-const { ui, c, ask, closeInput } = require("./ui");
-const { initAuth } = require("./auth");
-const api = require("./api");
-const { runAgent } = require("./agent");
-const { handleCommand } = require("./commands");
-const projectContext = require("./project-context");
+const { ui, c, ask, closeInput } = require("./cli/ui");
+const { initAuth } = require("./api/auth");
+const api = require("./api/api");
+const { runAgent } = require("./agent/agent");
+const { handleCommand } = require("./cli/commands");
+const projectContext = require("./project/project-context");
 const {
     isWorkspaceQuestion,
     seemsToRequestLocalFiles,
     shouldUseAgent
-} = require("./router");
+} = require("./cli/router");
 
 async function chatNormally(input) {
     const spin = ui.spinner("Réflexion");
