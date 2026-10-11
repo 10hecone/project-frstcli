@@ -1,0 +1,329 @@
+"use strict";
+
+const { KNOWN_MODELS } = require("./config");
+const { state, resetConversation } = require("./state");
+const { ui, c } = require("./ui");
+const memory = require("./memory");
+const projectContext = require("./project-context");
+const { authStatus, getAccessToken } = require("./auth");
+const {
+    setProject,
+    unsetProject,
+    undoLast,
+    listDirectory,
+    readFile
+} = require("./tools");
+
+function showHelp() {
+    const rows = [
+        ["/help", "Afficher cette aide"],
+        ["/project <dossier>", "Choisir un projet local"],
+        ["/unproject", "Quitter le mode projet"],
+        ["/pwd", "Afficher le projet sélectionné"],
+        ["/tree [dossier]", "Lister un dossier (2 niveaux)"],
+        ["/read <fichier>", "Lire localement un fichier"],
+        ["/index", "Régénérer le résumé du projet (RESUME.md)"],
+        ["/resume", "Afficher le résumé du projet"],
+        ["/undo", "Annuler la dernière modification"],
+        ["/changes", "Historique des modifications annulables"],
+        ["/memory", "Notes et dernières actions du projet"],
+        ["/remember <texte>", "Ajouter une note durable au projet"],
+        ["/forget <n|all>", "Supprimer une note (ou toutes)"],
+        ["/auto on|off", "Autoriser sans confirmation (session)"],
+        ["/mode auto|agent|chat", "Quand utiliser les outils fichiers"],
+        ["/new", "Nouvelle conversation"],
+        ["/chat", "Afficher le chat ID"],
+        ["/model [id]", "Lister / changer d'agent"],
+        ["/web on|off", "Recherche web (chat normal)"],
+        ["/auth [refresh]", "État de la connexion / renouvellement"],
+        ["/history", "Afficher l'historique local"],
+        ["/clear", "Effacer le terminal"],
+        ["/exit", "Quitter"]
+    ];
+
+    console.log(`\n${c.bold("Commandes")}`);
+
+    for (const [cmd, desc] of rows) {
+        console.log(`  ${c.cyan(cmd.padEnd(24))} ${c.dim(desc)}`);
+    }
+
+    console.log(
+        `\n${c.dim("Projet :")} ${state.workspace || "aucun"}  ` +
+        `${c.dim("Agent :")} ${state.model}  ${c.dim("Mode :")} ${state.mode}`
+    );
+    console.log(
+        c.dim(
+            "Sans /project : chat normal. Avec /project : l'agent peut lire, créer, éditer, " +
+            "déplacer, copier et supprimer (corbeille). Chaque écriture est confirmée."
+        )
+    );
+}
+
+const unquote = value =>
+    value.length > 1 && value.startsWith('"') && value.endsWith('"')
+        ? value.slice(1, -1)
+        : value;
+
+function requireProject() {
+    if (!state.workspace) {
+        ui.info("Aucun projet sélectionné. Utilise /project <dossier>.");
+        return false;
+    }
+    return true;
+}
+
+async function handleCommand(input) {
+    const firstSpace = input.search(/\s/);
+    const command = (firstSpace === -1 ? input : input.slice(0, firstSpace)).toLowerCase();
+    const value = firstSpace === -1 ? "" : input.slice(firstSpace).trim();
+
+    switch (command) {
+        case "/help":
+            showHelp();
+            break;
+
+        case "/project":
+            if (!value) {
+                ui.info(`Projet : ${state.workspace || "aucun"}`);
+                break;
+            }
+
+            await setProject(unquote(value));
+            break;
+
+        case "/unproject":
+            unsetProject();
+            ui.info("Projet désélectionné. Retour au chat normal.");
+            break;
+
+        case "/pwd":
+            ui.info(`Projet : ${state.workspace || "aucun projet sélectionné"}`);
+            break;
+
+        case "/tree": {
+            if (!requireProject()) break;
+
+            const result = await listDirectory({ path: unquote(value) || ".", recursive: true });
+
+            console.log(c.bold(result.path));
+
+            for (const entry of result.entries) {
+                const depth = entry.path.split("/").length - (result.path === "." ? 1 : result.path.split("/").length + 1);
+                const name = entry.path.split("/").pop();
+                const indent = "  ".repeat(Math.max(0, depth) + 1);
+
+                console.log(
+                    entry.type === "directory"
+                        ? `${indent}${c.cyan(`${name}/`)}`
+                        : `${indent}${name}`
+                );
+            }
+
+            if (result.truncated) ui.warn("Liste tronquée.");
+            break;
+        }
+
+        case "/read":
+            if (!requireProject()) break;
+
+            if (!value) {
+                ui.info("Usage : /read <fichier>");
+                break;
+            }
+
+            console.log((await readFile({ path: unquote(value) })).content);
+            break;
+
+        case "/index": {
+            if (!requireProject()) break;
+
+            const report = await projectContext.load(state.workspace, { force: true });
+            ui.info(`${report.status} · ${report.files} fichier(s), ${report.skipped} ignoré(s)`);
+            break;
+        }
+
+        case "/resume": {
+            if (!requireProject()) break;
+
+            console.log(projectContext.resumeText() ?? "Aucun résumé chargé.");
+            break;
+        }
+
+        case "/undo":
+            if (!requireProject()) break;
+            ui.info(await undoLast());
+            break;
+
+        case "/changes": {
+            if (!requireProject()) break;
+
+            const list = memory.listUndo();
+
+            if (!list.length) {
+                ui.info("Aucune modification annulable.");
+                break;
+            }
+
+            console.log(c.bold("Modifications (la plus récente en premier)"));
+
+            [...list].reverse().forEach((entry, i) => {
+                console.log(
+                    `  ${c.gray(String(i + 1).padStart(2))} ${entry.label} ` +
+                    c.dim(entry.at.slice(0, 16).replace("T", " "))
+                );
+            });
+            break;
+        }
+
+        case "/memory": {
+            if (!requireProject()) break;
+
+            const notes = memory.listNotes();
+            const actions = memory.listActions().slice(-10);
+
+            console.log(c.bold("Notes"));
+
+            if (!notes.length) console.log(c.dim("  aucune"));
+            notes.forEach((note, i) => console.log(`  ${c.gray(`${i + 1}.`)} ${note}`));
+
+            console.log(`\n${c.bold("Dernières actions")}`);
+
+            if (!actions.length) console.log(c.dim("  aucune"));
+            actions.forEach(a =>
+                console.log(`  ${c.gray(a.at.slice(0, 16).replace("T", " "))} ${a.text}`)
+            );
+            break;
+        }
+
+        case "/remember":
+            if (!requireProject()) break;
+
+            if (!value) {
+                ui.info("Usage : /remember <texte>");
+                break;
+            }
+
+            memory.addNote(value);
+            await memory.save();
+            ui.info("Note enregistrée.");
+            break;
+
+        case "/forget":
+            if (!requireProject()) break;
+
+            if (value === "all") {
+                memory.clearNotes();
+                await memory.save();
+                ui.info("Toutes les notes ont été supprimées.");
+            } else if (memory.removeNote(value)) {
+                await memory.save();
+                ui.info("Note supprimée.");
+            } else {
+                ui.info("Usage : /forget <numéro|all> (voir /memory)");
+            }
+            break;
+
+        case "/auto":
+            if (!["on", "off"].includes(value)) {
+                ui.info(`Auto-approbation : ${state.autoApprove ? "on" : "off"} (usage : /auto on|off)`);
+                break;
+            }
+
+            state.autoApprove = value === "on";
+
+            if (state.autoApprove) {
+                ui.warn("Les écritures seront appliquées SANS confirmation. /undo reste disponible.");
+            } else {
+                ui.info("Confirmation de chaque écriture rétablie.");
+            }
+            break;
+
+        case "/mode":
+            if (!["auto", "agent", "chat"].includes(value)) {
+                ui.info(`Mode : ${state.mode} (usage : /mode auto|agent|chat)`);
+                break;
+            }
+
+            state.mode = value;
+            ui.info(`Mode : ${value}`);
+            break;
+
+        case "/new":
+            resetConversation();
+            ui.info("Nouvelle conversation.");
+            break;
+
+        case "/chat":
+            ui.info(`Chat ID : ${state.chatId || "aucun"}`);
+            break;
+
+        case "/model": {
+            if (!value) {
+                for (const model of KNOWN_MODELS) {
+                    console.log(
+                        `  ${c.cyan(String(model.id).padEnd(7))} ${model.name}` +
+                        (model.id === state.model ? c.dim("  (actuel)") : "")
+                    );
+                }
+                ui.info("Usage : /model <id>");
+                break;
+            }
+
+            const id = Number(value);
+
+            if (!Number.isInteger(id)) {
+                ui.info("Usage : /model -1002");
+                break;
+            }
+
+            state.model = id;
+            resetConversation();
+            ui.info(`Agent sélectionné : ${id}`);
+            break;
+        }
+
+        case "/web":
+            if (!["on", "off"].includes(value)) {
+                ui.info("Usage : /web on|off");
+                break;
+            }
+
+            state.webSearch = value === "on";
+            ui.info(`Recherche web : ${state.webSearch ? "on" : "off"}`);
+            break;
+
+        case "/auth":
+            if (value === "refresh") {
+                await getAccessToken(true);
+                ui.info("Token renouvelé.");
+            }
+
+            authStatus();
+            break;
+
+        case "/history":
+            if (!state.history.length) ui.info("Historique local vide.");
+
+            for (const item of state.history) {
+                console.log(
+                    `\n${item.role === "user" ? c.bold("›") : c.cyan("●")} ${item.content}`
+                );
+            }
+            break;
+
+        case "/clear":
+            console.clear();
+            break;
+
+        case "/exit":
+        case "/quit":
+            return false;
+
+        default:
+            ui.info("Commande inconnue. Utilise /help.");
+    }
+
+    return true;
+}
+
+module.exports = { handleCommand };
