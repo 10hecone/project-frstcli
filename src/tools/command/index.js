@@ -2,8 +2,8 @@
 
 const path = require("path");
 
-const ui = require("../../cli/ui");
-const state = require("../../state");
+const { ui } = require("../../cli/ui");
+const { state } = require("../../state");
 const { parseCommand, formatCommand } = require("./parse");
 const { runProcess } = require("./runner");
 
