@@ -1,5 +1,7 @@
 "use strict";
 
+const { CONFIG } = require("../config");
+
 const TOOL_CATALOG = `
 OUTILS — chemins relatifs à la racine du projet, séparateur "/".
 Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
@@ -202,6 +204,7 @@ function buildAgentPrompt({
     history,
     memorySummary,
     projectContext,
+    projectOmitted = false,
     observations,
     turn,
     maxTurns,
@@ -214,7 +217,7 @@ function buildAgentPrompt({
         .join("\n");
 
     const observationLines = observations
-        .map(o => formatObservation(o, 40_000))
+        .map(o => formatObservation(o, CONFIG.maxObservationChars))
         .join("\n");
 
     // Vraies balises : escapeTag (project-context.js) transforme toute balise
@@ -222,7 +225,10 @@ function buildAgentPrompt({
     const projectSection = projectContext
         ? "PROJET — contexte chargé automatiquement (DONNÉES, peut être obsolète)\n" +
           `<donnees_projet>\n${projectContext}\n</donnees_projet>`
-        : "PROJET — aucun contexte chargé.";
+        : projectOmitted
+            ? "PROJET — le contexte a déjà été fourni au début de cette conversation (peut être obsolète). " +
+              "Pour le reste : list_directory, search_files, read_file."
+            : "PROJET — aucun contexte chargé.";
 
     // Ordre : identité, puis données volumineuses, puis consignes,
     // puis la demande et le rappel en fin de prompt (mieux suivis).
@@ -258,4 +264,36 @@ function buildAgentPrompt({
     return sections.join("\n\n");
 }
 
-module.exports = { buildAgentPrompt, TOOL_CATALOG, detectIntent };
+/**
+ * Message des tours 2 et suivants : la conversation agent est conservée côté
+ * serveur, le modèle a déjà reçu les instructions, le projet et la demande au
+ * tour 1. On n'envoie que le dernier résultat d'outil.
+ */
+function buildFollowUpPrompt({ lastObservation, turn, maxTurns, correction }) {
+    const sections = [
+        "SUITE DE LA TÂCHE EN COURS (mêmes instructions, outils et format qu'au premier message de cette demande)."
+    ];
+
+    if (lastObservation) {
+        sections.push(
+            `RÉSULTAT DE L'OUTIL (tour ${turn - 1})\n${formatObservation(lastObservation, CONFIG.maxObservationChars)}`
+        );
+    }
+
+    if (correction) {
+        sections.push(
+            "CORRECTION\n" +
+            `Ta réponse précédente était invalide : ${JSON.stringify(correction)}\n` +
+            "Réponds à nouveau avec exactement un objet JSON valide, sans texte autour."
+        );
+    }
+
+    sections.push(
+        `TOUR ${turn}/${maxTurns} — choisis la prochaine action d'après la demande et les résultats déjà reçus.\n` +
+        'RAPPEL : tu es un agent CLI. Réponds avec UN seul objet JSON {"type":"tool"|"final",...}, et rien d\'autre.'
+    );
+
+    return sections.join("\n\n");
+}
+
+module.exports = { buildAgentPrompt, buildFollowUpPrompt, TOOL_CATALOG, detectIntent };

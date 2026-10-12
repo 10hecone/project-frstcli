@@ -7,6 +7,7 @@ const memory = require("../project/memory");
 const projectContext = require("../project/project-context");
 const conversations = require("../project/conversations");
 const { authStatus, getAccessToken } = require("../api/auth");
+const { promptAndLogin } = require("../api/login");
 const {
   setProject,
   unsetProject,
@@ -39,6 +40,7 @@ function showHelp() {
     ["/model [id]", "Lister / changer d'agent"],
     ["/web on|off", "Recherche web (chat normal)"],
     ["/auth [refresh]", "État de la connexion / renouvellement"],
+    ["/login", "Se connecter avec e-mail et mot de passe"],
     ["/history", "Afficher l'historique local"],
     ["/clear", "Effacer le terminal"],
     ["/exit", "Quitter"],
@@ -357,6 +359,10 @@ async function handleCommand(input) {
 
       state.webSearch = value === "on";
       ui.info(`Recherche web : ${state.webSearch ? "on" : "off"}`);
+      break;
+
+    case "/login":
+      await promptAndLogin();
       break;
 
     case "/auth":

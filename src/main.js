@@ -3,6 +3,7 @@
 const { state, record, activateConversation, setConversation } = require("./state");
 const { ui, c, ask, closeInput } = require("./cli/ui");
 const { initAuth } = require("./api/auth");
+const { promptAndLogin } = require("./api/login");
 const api = require("./api/api");
 const { runAgent } = require("./agent/agent");
 const { handleCommand } = require("./cli/commands");
@@ -81,9 +82,19 @@ async function main() {
   try {
     await initAuth();
   } catch (error) {
-    ui.error(error.message);
-    process.exitCode = 1;
-    return;
+    if (!error.needsLogin) {
+      ui.error(error.message);
+      process.exitCode = 1;
+      return;
+    }
+
+    ui.warn("Pas de session valide : connexion avec ton compte France Student.");
+
+    if (!(await promptAndLogin({ useEnv: true }))) {
+      ui.error("Connexion impossible. Relance le CLI ou utilise FS_SESSION_TOKEN.");
+      process.exitCode = 1;
+      return;
+    }
   }
 
   ui.info("Connecté (le token se renouvelle automatiquement).");

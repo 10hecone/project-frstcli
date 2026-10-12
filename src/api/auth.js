@@ -41,10 +41,11 @@ const auth = {
 };
 
 class AuthError extends Error {
-    constructor(message, status) {
+    constructor(message, status, needsLogin = false) {
         super(message);
         this.name = "AuthError";
         this.status = status;
+        this.needsLogin = needsLogin;
     }
 }
 
@@ -95,11 +96,11 @@ async function saveSession() {
     }
 }
 
-function cookieHeader() {
-    return [...auth.jar].map(([name, value]) => `${name}=${value}`).join("; ");
+function cookieHeader(jar = auth.jar) {
+    return [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
 }
 
-function captureCookies(response) {
+function captureCookies(response, jar = auth.jar) {
     const list = response.headers.getSetCookie?.() ?? [];
 
     for (const raw of list) {
@@ -119,8 +120,8 @@ function captureCookies(response) {
             (maxAge && Number(maxAge.split("=")[1]) <= 0) ||
             (expires && Date.parse(expires.slice(expires.indexOf("=") + 1)) < Date.now());
 
-        if (dead) auth.jar.delete(name);
-        else auth.jar.set(name, value);
+        if (dead) jar.delete(name);
+        else jar.set(name, value);
     }
 }
 
@@ -173,63 +174,6 @@ async function fetchAccessToken() {
     );
 }
 
-/**
- * Login email / mot de passe via les routes standard Auth.js.
- * NON CONFIRMÉ : la capture ne contient pas de login. Si le site n'utilise
- * que OAuth / lien magique, cette voie échouera : utilise FS_SESSION_TOKEN.
- */
-async function loginWithCredentials() {
-    const email = process.env.FS_EMAIL;
-    const password = process.env.FS_PASSWORD;
-
-    if (!email || !password) {
-        throw new AuthError("FS_EMAIL / FS_PASSWORD absents");
-    }
-
-    const csrfResponse = await fetch(`${CONFIG.origin}/api/auth/csrf`, {
-        headers: browserHeaders({ Cookie: cookieHeader() }),
-        signal: AbortSignal.timeout(30_000)
-    });
-
-    captureCookies(csrfResponse);
-
-    if (!csrfResponse.ok) {
-        throw new AuthError(`csrf : HTTP ${csrfResponse.status}`, csrfResponse.status);
-    }
-
-    const { csrfToken } = await csrfResponse.json();
-
-    const loginResponse = await fetch(
-        `${CONFIG.origin}/api/auth/callback/credentials`,
-        {
-            method: "POST",
-            redirect: "manual",
-            headers: browserHeaders({
-                "Content-Type": "application/x-www-form-urlencoded",
-                Origin: CONFIG.origin,
-                Cookie: cookieHeader()
-            }),
-            body: new URLSearchParams({
-                csrfToken,
-                email,
-                password,
-                callbackUrl: `${CONFIG.origin}/`,
-                json: "true"
-            }),
-            signal: AbortSignal.timeout(30_000)
-        }
-    );
-
-    captureCookies(loginResponse);
-
-    if (!auth.jar.has(SESSION_COOKIE)) {
-        throw new AuthError(
-            `login email/mot de passe refusé ou indisponible (HTTP ${loginResponse.status})`,
-            loginResponse.status
-        );
-    }
-}
-
 async function renewAccessToken() {
     const attempts = [];
 
@@ -247,24 +191,12 @@ async function renewAccessToken() {
         ]);
     }
 
-    if (process.env.FS_EMAIL && process.env.FS_PASSWORD) {
-        attempts.push([
-            "email / mot de passe",
-            async () => {
-                auth.jar.delete(SESSION_COOKIE);
-                await loginWithCredentials();
-                return fetchAccessToken();
-            }
-        ]);
-    }
-
     if (!attempts.length) {
         throw new AuthError(
-            "Aucune session configurée.\n" +
-            "  Dans ton navigateur : F12 -> Stockage (Application) -> Cookies ->\n" +
-            `  ${CONFIG.origin} -> copie la valeur de "${SESSION_COOKIE}",\n` +
-            "  puis mets-la dans .env : FS_SESSION_TOKEN=<valeur>\n" +
-            "  (une seule fois : le CLI renouvelle ensuite tout seul)."
+            "Aucune session : connecte-toi avec /login (e-mail et mot de passe)\n" +
+            `  ou mets le cookie "${SESSION_COOKIE}" du navigateur dans FS_SESSION_TOKEN.`,
+            undefined,
+            true
         );
     }
 
@@ -283,8 +215,9 @@ async function renewAccessToken() {
 
     throw new AuthError(
         "Connexion impossible.\n  " + failures.join("\n  ") +
-        "\n  Si ta session a expiré, recopie une nouvelle valeur de " +
-        `"${SESSION_COOKIE}" dans FS_SESSION_TOKEN.`
+        "\n  Si ta session a expiré, reconnecte-toi avec /login.",
+        undefined,
+        true
     );
 }
 
@@ -335,5 +268,9 @@ module.exports = {
     loadSession,
     getAccessToken,
     browserHeaders,
-    authStatus
+    authStatus,
+    SESSION_COOKIE,
+    cookieHeader,
+    captureCookies,
+    saveSession
 };

@@ -39,7 +39,7 @@ const CONFIG = {
     maxSearchFiles: 3000,
 
     // Prompt
-    maxObservationChars: 40_000,
+    maxObservationChars: envInt("FS_MAX_OBSERVATION_CHARS", 15_000), // résultat d'outil renvoyé au modèle
     maxObservationsInPrompt: 16,
     maxMessageChars: 1_000_000,     // limite de l'API
     messageBudget: 980_000,         
@@ -51,7 +51,7 @@ const CONFIG = {
     summaryChunkChars: 120_000,     // taille d'un envoi pour le résumé
     resumeMaxPromptChars: 60_000,   // résumé injecté dans les prompts
     promptContextChars: 300_000,    // contexte projet max dans un prompt agent
-    agentContextChars: 300_000,     // contexte projet injecté par runAgent (agent.js)
+    agentContextChars: envInt("FS_AGENT_CONTEXT_CHARS", 30_000), // contexte projet, 1er message d'une conversation agent seulement
     resumeInProject: process.env.FS_RESUME_IN_PROJECT === "1",
 
     // Persistance (mémoire, corbeille, sauvegardes, session)

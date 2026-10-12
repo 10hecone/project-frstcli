@@ -52,6 +52,31 @@ function ask(question) {
     });
 }
 
+/** Comme ask, mais sans afficher la saisie (mot de passe). */
+function askSecret(question) {
+    const r = getInterface();
+
+    if (closed) return Promise.resolve(null);
+
+    if (!process.stdin.isTTY) return ask(question);
+
+    const original = r._writeToOutput;
+    let muted = false;
+
+    r._writeToOutput = function (text) {
+        if (!muted) original.call(this, text);
+    };
+
+    const pending = ask(question);
+
+    muted = true;
+
+    return pending.finally(() => {
+        r._writeToOutput = original;
+        process.stdout.write("\n");
+    });
+}
+
 function closeInput() {
     rl?.close();
 }
@@ -199,6 +224,8 @@ const ui = {
         return ["o", "oui", "y", "yes"].includes(answer);
     },
 
+    askSecret,
+
     /**
      * Ctrl+C pendant une commande : appelle handler au lieu de fermer le CLI.
      * Renvoie une fonction qui retire l'écouteur.
@@ -215,4 +242,4 @@ const ui = {
     }
 };
 
-module.exports = { ui, c, ask, closeInput };
+module.exports = { ui, c, ask, askSecret, closeInput };

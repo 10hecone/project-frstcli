@@ -78,19 +78,16 @@ Route standard d'Auth.js. Elle renvoie un jeton CSRF, nécessaire avant une conn
 
 ---
 
-## POST `{origin}/api/auth/callback/credentials` (non confirmé)
+## Connexion e-mail / mot de passe (OAuth WHMCS)
 
-Connexion par email et mot de passe (route standard d'Auth.js). Si le site n'accepte que OAuth ou un lien magique, cette route échoue. Il faut alors utiliser `FS_SESSION_TOKEN`.
+Constaté : un seul fournisseur Auth.js, `whmcs` (type `oauth`, PKCE S256, scope `openid profile email`). Il n'existe pas de route `credentials`.
 
-**En-têtes** : `Content-Type: application/x-www-form-urlencoded`, `Origin: {origin}`, `Cookie` (inclut le cookie CSRF). La requête est envoyée avec `redirect: manual`.
+1. `GET {origin}/api/auth/providers`, puis `GET {origin}/api/auth/csrf` (jeton + cookie).
+2. `POST {origin}/api/auth/signin/whmcs` (`csrfToken`, `callbackUrl`) avec `X-Auth-Return-Redirect: 1` : renvoie l'adresse d'autorisation sur `my.francestudent.org` et pose les cookies `state` et `pkce.code_verifier`.
+3. Sur WHMCS : page de connexion, envoi du formulaire. **Non capturé** : le CLI lit le formulaire dynamiquement (champs cachés, noms des champs, action) et accepte une éventuelle page d'autorisation.
+4. Retour sur `{origin}/api/auth/callback/whmcs` : pose `next-auth.session-token`.
 
-**Corps**
-
-```
-csrfToken=<jeton>&email=<email>&password=<mot de passe>&callbackUrl={origin}/&json=true
-```
-
-**Succès** : la réponse contient un `Set-Cookie` qui définit `next-auth.session-token`.
+Non pris en charge (message d'erreur clair) : captcha, double authentification, blocage Cloudflare. Code : `src/api/login.js`, `src/api/html-forms.js`.
 
 ---
 
