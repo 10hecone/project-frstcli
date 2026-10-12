@@ -137,7 +137,7 @@ francestudent-device-id: <uuid>
 | `isIncognito` | booléen | Mode incognito |
 | `isPrivate` | booléen | Conversation privée (`true` par défaut) |
 
-Limites côté CLI : 1 000 000 caractères par message (`maxMessageChars`) et 310 s pour l'ensemble du flux (`timeoutMs`).
+Limites côté CLI : 1 000 000 caractères par message (`maxMessageChars`), 310 s pour l'ensemble du flux (`timeoutMs`), 60 s pour recevoir la réponse du serveur (`firstByteTimeoutMs`, variable `FS_FIRST_BYTE_TIMEOUT_MS`) et 90 s sans données reçues pendant le flux (`idleTimeoutMs`, variable `FS_IDLE_TIMEOUT_MS`).
 
 **Réponse : flux SSE**
 
@@ -152,12 +152,17 @@ Chaque événement se compose de lignes `event: <nom>` puis `data: <JSON>`, et s
 | `completed` | `{ "message": { "content": "..." } }` | Fin du flux. `content` sert de repli si aucun texte n'a été reçu |
 | (données) `[DONE]` | n/a | Fin du flux |
 
-N'importe quel événement peut contenir `chat_id`. Pour continuer la conversation, renvoie cette valeur dans `chatId`. En mode agent, le CLI ne la conserve pas : chaque tour ouvre une nouvelle conversation.
+N'importe quel événement peut contenir `chat_id`. Pour continuer la conversation, renvoie cette valeur dans `chatId`. Le CLI conserve une conversation distincte pour le chat normal et pour l'agent (state.chatIds), réutilisée d'un tour à l'autre.
 
 **Erreurs**
 
 - Statut différent de 2xx : le corps de la réponse est renvoyé dans le message d'erreur.
-- 401 : le CLI renouvelle le JWT puis réessaie une seule fois.
+- Relances : au maximum 2 (`MAX_REQUEST_FAILURES`), selon le type d'erreur :
+  - 401 : le CLI renouvelle le JWT, puis relance ;
+  - 408, 409 (« A stream is already active for this chat ») et 429 : relance après 3 s, puis après 8 s ;
+  - en mode agent, le premier 409 ouvre immédiatement une nouvelle conversation (`chatIds.agent` et `chatId` remis à `null`) : relance sans attente, non comptée comme un échec, avec un avertissement affiché ;
+  - autres 4xx : aucune relance, l'erreur est renvoyée immédiatement ;
+  - erreurs réseau ou de flux, et 5xx : relance immédiate.
 - Flux vide ou interrompu : erreur « Réponse vide du modèle » ou « Flux interrompu sans réponse ».
 
 ---

@@ -28,8 +28,9 @@ async function apiHeaders() {
  * options.fresh   : true = nouvelle conversation à chaque appel.
  * options.onDelta : callback appelé à chaque morceau de texte.
  *
- * Toute requête échouée est retentée au maximum deux fois. Sur un 401,
- * le token est renouvelé avant la tentative suivante.
+ * Relances (au maximum MAX_REQUEST_FAILURES) : erreurs réseau et 5xx sans
+ * délai ; 401 après renouvellement du token ; 408, 409 et 429 après une
+ * attente croissante. Les autres 4xx ne sont pas relancés.
  */
 async function requestModel(message, options = {}) {
     if (message.length > CONFIG.maxMessageChars) {
@@ -39,21 +40,49 @@ async function requestModel(message, options = {}) {
         );
     }
 
+    // Politique de relance :
+    // - erreurs réseau ou de flux (sans statut) et 5xx : relance immédiate ;
+    // - 401 : jeton renouvelé puis relance ;
+    // - 408, 409, 429 : relance après un délai croissant (le flux précédent
+    //   peut encore être actif côté serveur) ;
+    // - autres 4xx : erreur définitive, pas de relance.
+    const retryableClientStatuses = new Set([401, 408, 409, 429]);
+    const waitDelaysMs = [3000, 8000, 15000];
     let failures = 0;
+    let switched = false;
 
     while (true) {
         try {
             return await requestModelOnce(message, options);
         } catch (error) {
+            const status = error.status;
+            const isClientError = status >= 400 && status < 500;
+
+            if (isClientError && !retryableClientStatuses.has(status)) {
+                throw error;
+            }
+            if (status === 409 && options.conversationMode === "agent" && !switched) {
+                switched = true;
+                state.chatIds.agent = null;
+                state.chatId = null;
+                ui.warn("Un flux est encore actif sur la conversation agent : nouvelle conversation.");
+                continue;
+            }
             if (failures >= MAX_REQUEST_FAILURES) throw error;
 
             failures++;
             ui.debug(
-                `Requête échouée (${failures}/${MAX_REQUEST_FAILURES}) : ${error.message}`,
+                `Requête échouée (${failures}/${MAX_REQUEST_FAILURES})` +
+                    `${status ? ` [HTTP ${status}]` : ""} : ${error.message}`,
             );
 
-            if (error.status === 401) {
+            if (status === 401) {
                 await getAccessToken(true);
+            } else if (status === 408 || status === 409 || status === 429) {
+                const delay =
+                    waitDelaysMs[Math.min(failures, waitDelaysMs.length) - 1];
+                ui.debug(`Attente de ${delay / 1000} s avant le nouvel essai`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
             }
 
             ui.debug("Nouvel essai de la requête");
@@ -64,6 +93,9 @@ async function requestModel(message, options = {}) {
 async function requestModelOnce(message, options) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), CONFIG.timeoutMs);
+    let idle;
+    const armIdle = ms => { clearTimeout(idle); idle = setTimeout(() => controller.abort(), ms); };
+    armIdle(CONFIG.firstByteTimeoutMs);
 
     let reader;
 
@@ -216,6 +248,7 @@ async function requestModelOnce(message, options) {
 
         while (!completed) {
             const { done, value } = await reader.read();
+            armIdle(CONFIG.idleTimeoutMs);
 
             if (done) {
                 buffer += decoder.decode();
@@ -248,6 +281,7 @@ async function requestModelOnce(message, options) {
         return output;
     } finally {
         clearTimeout(timeout);
+        clearTimeout(idle);
 
         if (reader) {
             await reader.cancel().catch(() => {});

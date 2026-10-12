@@ -22,6 +22,8 @@ const CONFIG = {
 
     defaultAgentId: envInt("FS_AGENT_ID", -1002),
     timeoutMs: 310_000,
+    firstByteTimeoutMs: envInt("FS_FIRST_BYTE_TIMEOUT_MS", 60_000),
+    idleTimeoutMs: envInt("FS_IDLE_TIMEOUT_MS", 90_000),
 
     // Agent
     maxAgentTurns: 15,
