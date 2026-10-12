@@ -78,19 +78,16 @@ Route standard d'Auth.js. Elle renvoie un jeton CSRF, nécessaire avant une conn
 
 ---
 
-## POST `{origin}/api/auth/callback/credentials` (non confirmé)
+## Connexion e-mail / mot de passe (OAuth WHMCS)
 
-Connexion par email et mot de passe (route standard d'Auth.js). Si le site n'accepte que OAuth ou un lien magique, cette route échoue. Il faut alors utiliser `FS_SESSION_TOKEN`.
+Constaté : un seul fournisseur Auth.js, `whmcs` (type `oauth`, PKCE S256, scope `openid profile email`). Il n'existe pas de route `credentials`.
 
-**En-têtes** : `Content-Type: application/x-www-form-urlencoded`, `Origin: {origin}`, `Cookie` (inclut le cookie CSRF). La requête est envoyée avec `redirect: manual`.
+1. `GET {origin}/api/auth/providers`, puis `GET {origin}/api/auth/csrf` (jeton + cookie).
+2. `POST {origin}/api/auth/signin/whmcs` (`csrfToken`, `callbackUrl`) avec `X-Auth-Return-Redirect: 1` : renvoie l'adresse d'autorisation sur `my.francestudent.org` et pose les cookies `state` et `pkce.code_verifier`.
+3. Sur WHMCS : page de connexion, envoi du formulaire. **Non capturé** : le CLI lit le formulaire dynamiquement (champs cachés, noms des champs, action) et accepte une éventuelle page d'autorisation.
+4. Retour sur `{origin}/api/auth/callback/whmcs` : pose `next-auth.session-token`.
 
-**Corps**
-
-```
-csrfToken=<jeton>&email=<email>&password=<mot de passe>&callbackUrl={origin}/&json=true
-```
-
-**Succès** : la réponse contient un `Set-Cookie` qui définit `next-auth.session-token`.
+Non pris en charge (message d'erreur clair) : captcha, double authentification, blocage Cloudflare. Code : `src/api/login.js`, `src/api/html-forms.js`.
 
 ---
 
@@ -137,7 +134,7 @@ francestudent-device-id: <uuid>
 | `isIncognito` | booléen | Mode incognito |
 | `isPrivate` | booléen | Conversation privée (`true` par défaut) |
 
-Limites côté CLI : 1 000 000 caractères par message (`maxMessageChars`) et 310 s pour l'ensemble du flux (`timeoutMs`).
+Limites côté CLI : 1 000 000 caractères par message (`maxMessageChars`), 310 s pour l'ensemble du flux (`timeoutMs`), 60 s pour recevoir la réponse du serveur (`firstByteTimeoutMs`, variable `FS_FIRST_BYTE_TIMEOUT_MS`) et 90 s sans données reçues pendant le flux (`idleTimeoutMs`, variable `FS_IDLE_TIMEOUT_MS`).
 
 **Réponse : flux SSE**
 
@@ -152,12 +149,17 @@ Chaque événement se compose de lignes `event: <nom>` puis `data: <JSON>`, et s
 | `completed` | `{ "message": { "content": "..." } }` | Fin du flux. `content` sert de repli si aucun texte n'a été reçu |
 | (données) `[DONE]` | n/a | Fin du flux |
 
-N'importe quel événement peut contenir `chat_id`. Pour continuer la conversation, renvoie cette valeur dans `chatId`. En mode agent, le CLI ne la conserve pas : chaque tour ouvre une nouvelle conversation.
+N'importe quel événement peut contenir `chat_id`. Pour continuer la conversation, renvoie cette valeur dans `chatId`. Le CLI conserve une conversation distincte pour le chat normal et pour l'agent (state.chatIds), réutilisée d'un tour à l'autre.
 
 **Erreurs**
 
 - Statut différent de 2xx : le corps de la réponse est renvoyé dans le message d'erreur.
-- 401 : le CLI renouvelle le JWT puis réessaie une seule fois.
+- Relances : au maximum 2 (`MAX_REQUEST_FAILURES`), selon le type d'erreur :
+  - 401 : le CLI renouvelle le JWT, puis relance ;
+  - 408, 409 (« A stream is already active for this chat ») et 429 : relance après 3 s, puis après 8 s ;
+  - en mode agent, le premier 409 ouvre immédiatement une nouvelle conversation (`chatIds.agent` et `chatId` remis à `null`) : relance sans attente, non comptée comme un échec, avec un avertissement affiché ;
+  - autres 4xx : aucune relance, l'erreur est renvoyée immédiatement ;
+  - erreurs réseau ou de flux, et 5xx : relance immédiate.
 - Flux vide ou interrompu : erreur « Réponse vide du modèle » ou « Flux interrompu sans réponse ».
 
 ---

@@ -8,6 +8,9 @@ const { auth, getAccessToken } = require("./auth");
 const fmt = n => Number(n).toLocaleString("fr-FR");
 const MAX_REQUEST_FAILURES = 2;
 
+// Volume réellement envoyé (chaque tentative HTTP compte, relances comprises).
+const usage = { requests: 0, chars: 0 };
+
 async function apiHeaders() {
     const token = await getAccessToken();
 
@@ -27,9 +30,13 @@ async function apiHeaders() {
 /**
  * options.fresh   : true = nouvelle conversation à chaque appel.
  * options.onDelta : callback appelé à chaque morceau de texte.
+ * options.freshMessage : message complet (ou fonction qui le construit), envoyé
+ *                 à la place de `message` si une nouvelle conversation agent
+ *                 est ouverte après un 409 (la nouvelle n'a pas d'historique).
  *
- * Toute requête échouée est retentée au maximum deux fois. Sur un 401,
- * le token est renouvelé avant la tentative suivante.
+ * Relances (au maximum MAX_REQUEST_FAILURES) : erreurs réseau et 5xx sans
+ * délai ; 401 après renouvellement du token ; 408, 409 et 429 après une
+ * attente croissante. Les autres 4xx ne sont pas relancés.
  */
 async function requestModel(message, options = {}) {
     if (message.length > CONFIG.maxMessageChars) {
@@ -39,21 +46,64 @@ async function requestModel(message, options = {}) {
         );
     }
 
+    // Politique de relance :
+    // - erreurs réseau ou de flux (sans statut) et 5xx : relance immédiate ;
+    // - 401 : jeton renouvelé puis relance ;
+    // - 408, 409, 429 : relance après un délai croissant (le flux précédent
+    //   peut encore être actif côté serveur) ;
+    // - autres 4xx : erreur définitive, pas de relance.
+    const retryableClientStatuses = new Set([401, 408, 409, 429]);
+    const waitDelaysMs = [3000, 8000, 15000];
     let failures = 0;
+    let switched = false;
 
     while (true) {
         try {
             return await requestModelOnce(message, options);
         } catch (error) {
+            const status = error.status;
+            const isClientError = status >= 400 && status < 500;
+
+            if (isClientError && !retryableClientStatuses.has(status)) {
+                throw error;
+            }
+            // Budget de chat épuisé : inutile de relancer avant la réinitialisation.
+            if (status === 429 && /budget exhausted/i.test(String(error.message))) {
+                const reset = /Reset at (\S+?Z)/.exec(String(error.message))?.[1];
+                const when = reset ? new Date(reset) : null;
+                const label = when && !Number.isNaN(when.getTime())
+                    ? ` jusqu'au ${when.toLocaleString("fr-FR")}`
+                    : "";
+                error.message = `Budget de chat épuisé${label}. ${error.message}`;
+                throw error;
+            }
+            if (status === 409 && options.conversationMode === "agent" && !switched) {
+                switched = true;
+                state.chatIds.agent = null;
+                state.chatId = null;
+                if (options.freshMessage) {
+                    message = typeof options.freshMessage === "function"
+                        ? options.freshMessage()
+                        : options.freshMessage;
+                }
+                ui.warn("Un flux est encore actif sur la conversation agent : nouvelle conversation.");
+                continue;
+            }
             if (failures >= MAX_REQUEST_FAILURES) throw error;
 
             failures++;
             ui.debug(
-                `Requête échouée (${failures}/${MAX_REQUEST_FAILURES}) : ${error.message}`,
+                `Requête échouée (${failures}/${MAX_REQUEST_FAILURES})` +
+                    `${status ? ` [HTTP ${status}]` : ""} : ${error.message}`,
             );
 
-            if (error.status === 401) {
+            if (status === 401) {
                 await getAccessToken(true);
+            } else if (status === 408 || status === 409 || status === 429) {
+                const delay =
+                    waitDelaysMs[Math.min(failures, waitDelaysMs.length) - 1];
+                ui.debug(`Attente de ${delay / 1000} s avant le nouvel essai`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
             }
 
             ui.debug("Nouvel essai de la requête");
@@ -62,8 +112,15 @@ async function requestModel(message, options = {}) {
 }
 
 async function requestModelOnce(message, options) {
+    usage.requests++;
+    usage.chars += message.length;
+    ui.debug(`Requête : ${fmt(message.length)} caractères (~${fmt(Math.round(message.length / 3.5))} tokens)`);
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), CONFIG.timeoutMs);
+    let idle;
+    const armIdle = ms => { clearTimeout(idle); idle = setTimeout(() => controller.abort(), ms); };
+    armIdle(CONFIG.firstByteTimeoutMs);
 
     let reader;
 
@@ -216,6 +273,7 @@ async function requestModelOnce(message, options) {
 
         while (!completed) {
             const { done, value } = await reader.read();
+            armIdle(CONFIG.idleTimeoutMs);
 
             if (done) {
                 buffer += decoder.decode();
@@ -248,6 +306,7 @@ async function requestModelOnce(message, options) {
         return output;
     } finally {
         clearTimeout(timeout);
+        clearTimeout(idle);
 
         if (reader) {
             await reader.cancel().catch(() => {});
@@ -256,4 +315,4 @@ async function requestModelOnce(message, options) {
     }
 }
 
-module.exports = { requestModel, MAX_REQUEST_FAILURES };
+module.exports = { requestModel, MAX_REQUEST_FAILURES, usage };

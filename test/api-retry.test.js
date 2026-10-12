@@ -64,3 +64,54 @@ test("requestModel abandonne après deux échecs", { concurrency: false }, async
     await assert.rejects(requestModel("bonjour"), /service indisponible/);
     assert.equal(calls, MAX_REQUEST_FAILURES + 1);
 });
+
+test("requestModel ouvre une nouvelle conversation agent après un 409", { concurrency: false }, async () => {
+    prepareAuth();
+    state.chatId = "agent-1";
+    state.chatIds.agent = "agent-1";
+    const chatIds = [];
+    let calls = 0;
+    global.fetch = async (url, init) => {
+        calls++;
+        chatIds.push(JSON.parse(init.body).chatId);
+        if (calls === 1) return new Response("A stream is already active for this chat", { status: 409 });
+        return successfulResponse();
+    };
+
+    assert.equal(await requestModel("bonjour", { conversationMode: "agent" }), "ok");
+    assert.equal(calls, 2);
+    assert.equal(chatIds[0], "agent-1");
+    assert.ok(chatIds[1] == null);
+});
+
+test("après un 409 agent, le message complet remplace le message « suite »", { concurrency: false }, async () => {
+    prepareAuth();
+    state.chatId = "agent-1";
+    state.chatIds.agent = "agent-1";
+    const sent = [];
+    let calls = 0;
+    global.fetch = async (url, init) => {
+        calls++;
+        sent.push(JSON.parse(init.body).initialContent);
+        if (calls === 1) return new Response("A stream is already active for this chat", { status: 409 });
+        return successfulResponse();
+    };
+
+    await requestModel("suite courte", { conversationMode: "agent", freshMessage: () => "message complet" });
+    assert.deepEqual(sent, ["suite courte", "message complet"]);
+});
+
+test("un 429 « budget épuisé » n'est pas relancé et indique l'heure de reprise", { concurrency: false }, async () => {
+    prepareAuth();
+    let calls = 0;
+    global.fetch = async () => {
+        calls++;
+        return new Response(
+            '{"status":429,"message":"Chat budget exhausted. Reset at 2026-10-13T02:59:59.999087269Z."}',
+            { status: 429 },
+        );
+    };
+
+    await assert.rejects(requestModel("bonjour"), /Budget de chat épuisé jusqu'au/);
+    assert.equal(calls, 1);
+});

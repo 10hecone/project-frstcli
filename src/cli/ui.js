@@ -52,6 +52,31 @@ function ask(question) {
     });
 }
 
+/** Comme ask, mais sans afficher la saisie (mot de passe). */
+function askSecret(question) {
+    const r = getInterface();
+
+    if (closed) return Promise.resolve(null);
+
+    if (!process.stdin.isTTY) return ask(question);
+
+    const original = r._writeToOutput;
+    let muted = false;
+
+    r._writeToOutput = function (text) {
+        if (!muted) original.call(this, text);
+    };
+
+    const pending = ask(question);
+
+    muted = true;
+
+    return pending.finally(() => {
+        r._writeToOutput = original;
+        process.stdout.write("\n");
+    });
+}
+
 function closeInput() {
     rl?.close();
 }
@@ -68,7 +93,8 @@ const TOOL_LABELS = {
     move_path: "Déplacer",
     copy_path: "Copier",
     delete_path: "Supprimer",
-    remember: "Mémoriser"
+    remember: "Mémoriser",
+    run_command: "Commande"
 };
 
 function renderMarkdownLite(text) {
@@ -178,23 +204,42 @@ const ui = {
     /**
      * Demande une confirmation. Réponses : o/oui, t = tout autoriser
      * pour le reste de la session. Toute autre réponse refuse.
+     * Avec { force: true } : ignore l'auto-approbation et ne propose pas "t".
      */
-    async confirm(question) {
-        if (state.autoApprove) return true;
+    async confirm(question, { force = false } = {}) {
+        if (!force && state.autoApprove) return true;
 
+        const hint = force ? "[o/N]" : "[o/N | t = tout autoriser]";
         const raw = await ask(
-            `\n${c.bold(question)} ${c.dim("[o/N | t = tout autoriser]")} `
+            `\n${c.bold(question)} ${c.dim(hint)} `
         );
         const answer = String(raw ?? "").trim().toLowerCase();
 
-        if (["t", "tout", "a", "all"].includes(answer)) {
+        if (!force && ["t", "tout", "a", "all"].includes(answer)) {
             state.autoApprove = true;
             ui.warn("Auto-approbation activée pour cette session (/auto off pour la couper).");
             return true;
         }
 
         return ["o", "oui", "y", "yes"].includes(answer);
+    },
+
+    askSecret,
+
+    /**
+     * Ctrl+C pendant une commande : appelle handler au lieu de fermer le CLI.
+     * Renvoie une fonction qui retire l'écouteur.
+     */
+    onInterrupt(handler) {
+        const r = getInterface();
+        r.on("SIGINT", handler);
+        return () => r.off("SIGINT", handler);
+    },
+
+    /** Ligne de sortie d'une commande, affichée en direct. */
+    commandLine(text) {
+        console.log(c.gray(`    ${text}`));
     }
 };
 
-module.exports = { ui, c, ask, closeInput };
+module.exports = { ui, c, ask, askSecret, closeInput };

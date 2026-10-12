@@ -7,7 +7,7 @@ const api = require("../api/api");
 const memory = require("../project/memory");
 const conversations = require("../project/conversations");
 const projectContext = require("../project/project-context");
-const { buildAgentPrompt } = require("./prompt");
+const { buildAgentPrompt, buildFollowUpPrompt } = require("./prompt");
 const {
     TOOLS,
     validateToolCall,
@@ -46,6 +46,19 @@ const fmt = n => Number(n).toLocaleString("fr-FR");
 function clip(text, max) {
     const value = String(text);
     return value.length <= max ? value : `${value.slice(0, max)}\n... [tronqué]`;
+}
+
+/** Résumé du volume envoyé depuis `before` (snapshot de api.usage). */
+function reportUsage(before) {
+    const requests = api.usage.requests - before.requests;
+    const chars = api.usage.chars - before.chars;
+
+    if (requests <= 0) return;
+
+    ui.info(
+        `Coût de la demande : ${requests} requête(s), ${fmt(chars)} caractères envoyés ` +
+        `(≈ ${fmt(Math.round(chars / 3.5))} tokens)`
+    );
 }
 
 /* ---------- Analyse de la réponse du modèle ---------- */
@@ -257,6 +270,8 @@ async function runAgent(task) {
         );
     }
 
+    const usageBefore = { ...api.usage };
+
     const observations = [];
     const changesBefore = memory.sessionChanges();
     const signatures = new Map();
@@ -294,6 +309,8 @@ async function runAgent(task) {
         record("assistant", message);
         await saveConversation();
 
+        reportUsage(usageBefore);
+
         const changed = memory.sessionChanges() - changesBefore;
 
         if (changed > 0) {
@@ -314,20 +331,41 @@ async function runAgent(task) {
 
         try {
             for (let attempt = 1; attempt <= CONFIG.maxProtocolAttempts; attempt++) {
-                const prompt = fitPrompt({
+                // Message complet : instructions, projet, demande, résultats d'outils.
+                const fullPrompt = withProject => fitPrompt({
                     workspace: state.workspace,
                     env,
                     task,
                     history: state.history.slice(-6),
                     memorySummary: memory.summary(),
-                    projectContext: projectText,
+                    projectContext: withProject ? projectText : "",
+                    projectOmitted: !withProject,
                     observations,
                     turn,
                     maxTurns: CONFIG.maxAgentTurns,
                     correction
                 });
 
-                lastResponse = await api.requestModel(prompt, { conversationMode: "agent" });
+                // Une conversation agent existe côté serveur (identifiant reçu) : elle garde
+                // l'historique. Le contexte projet n'est donc envoyé qu'à son premier message,
+                // et les tours 2 et suivants n'envoient que le dernier résultat d'outil.
+                // Sans conversation (aucun identifiant reçu), on renvoie tout, projet compris.
+                const hasConversation = Boolean(state.chatIds.agent);
+                const prompt = turn > 1 && hasConversation
+                    ? buildFollowUpPrompt({
+                        lastObservation: observations[observations.length - 1],
+                        turn,
+                        maxTurns: CONFIG.maxAgentTurns,
+                        correction
+                    })
+                    : fullPrompt(!hasConversation);
+
+                lastResponse = await api.requestModel(prompt, {
+                    conversationMode: "agent",
+                    // Si un 409 ouvre une nouvelle conversation (sans historique) :
+                    // on renvoie le message complet, projet compris.
+                    freshMessage: () => fullPrompt(true)
+                });
 
                 try {
                     action = parseAgentResponse(lastResponse);
@@ -352,6 +390,7 @@ async function runAgent(task) {
             record("user", task);
             await fallbackPlainAnswer(task, observations);
             await saveConversation();
+            reportUsage(usageBefore);
             return;
         }
 
@@ -425,6 +464,7 @@ async function runAgent(task) {
     record("user", task);
     record("assistant", message);
     await saveConversation();
+    reportUsage(usageBefore);
 }
 
 module.exports = { runAgent, parseAgentResponse, extractJsonObject, fitPrompt };

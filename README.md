@@ -24,13 +24,9 @@ cd project-frstcli
 npm install
 ```
 
-Crée un fichier `.env` à la racine du projet :
+Au premier lancement, le CLI demande ton e-mail et ton mot de passe France Student (saisie masquée). Le mot de passe n'est jamais enregistré : seul le cookie de session l'est, dans `~/.francestudent-cli/session.json` (droits 0600). Commande `/login` pour se reconnecter.
 
-```env
-FS_SESSION_TOKEN=valeur_du_cookie
-```
-
-Pour récupérer la valeur : dans le navigateur, ouvre les outils de développement (F12), va dans Stockage, puis Cookies, sur `https://ia.francestudent.org`, et copie la valeur du cookie `next-auth.session-token`. Ne partage jamais ce fichier `.env`.
+Variantes : `FS_EMAIL` et `FS_PASSWORD` (variables d'environnement) pour une connexion sans saisie, ou `FS_SESSION_TOKEN` (valeur du cookie `next-auth.session-token`, F12 > Stockage > Cookies) si la connexion automatique est bloquée (captcha, double authentification, Cloudflare). Ne partage jamais ces valeurs.
 
 Lancement :
 
