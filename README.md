@@ -62,6 +62,9 @@ Exemple de session :
 | `/messages`               | Affiche les messages de la session                    |
 | `/memory`                 | Affiche les notes et les dernières actions            |
 | `/remember <texte>`       | Ajoute une note au projet                             |
+| `/permissions [remove <n\|préfixe>\|clear]` | Liste ou supprime les règles des commandes autorisées (projet) |
+| `/jobs [stop <id>\|stop-all]` | Liste ou arrête les commandes en arrière-plan        |
+| `/login`                  | Se connecter avec e-mail et mot de passe              |
 | `/mode auto\|agent\|chat` | Choisit quand utiliser les outils fichiers            |
 | `/model [id]`             | Liste ou change d'agent                               |
 | `/new`                    | Démarre une nouvelle conversation                     |
