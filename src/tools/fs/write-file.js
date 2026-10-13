@@ -13,6 +13,7 @@ const { newId, requireString } = require("../core/args");
 const { statOrNull, toRel, denied, firstMissingAncestor, ensureParent } = require("../core/fs-utils");
 const { readTextFile, assertFreshRead } = require("../core/freshness");
 const { finishMutation } = require("../core/journal");
+const { writeAtomic } = require("../core/atomic");
 
 async function writeFile(args = {}) {
     requireString(args.path, "path");
@@ -79,12 +80,12 @@ async function writeFile(args = {}) {
     const createdRoot = await ensureParent(target);
 
     try {
-        // wx : n'écrase jamais un fichier apparu entre-temps.
-        await fs.writeFile(
-            target,
-            content,
-            existing ? "utf8" : { encoding: "utf8", flag: "wx" }
-        );
+        // Nouveau fichier : création exclusive (wx, 0o600), donc jamais d'écrasement d'un fichier apparu entre-temps.
+        // Fichier existant : écriture dans un temporaire, contrôle du contenu attendu, puis rename.
+        await writeAtomic(target, content, {
+            expected: existing ? previous : null,
+            read: readTextFile,
+        });
     } catch (error) {
         if (error.code === "EEXIST") {
             throw new Error("Un fichier est apparu pendant la confirmation. Écriture annulée.");

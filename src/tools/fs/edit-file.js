@@ -1,7 +1,5 @@
 "use strict";
 
-const fs = require("node:fs/promises");
-
 const { CONFIG } = require("../../config");
 const { state } = require("../../state");
 const { ui } = require("../../cli/ui");
@@ -12,6 +10,7 @@ const { newId, requireString, optionalBool } = require("../core/args");
 const { statOrNull, denied } = require("../core/fs-utils");
 const { readTextFile, assertFreshRead } = require("../core/freshness");
 const { finishMutation } = require("../core/journal");
+const { writeAtomic } = require("../core/atomic");
 
 async function editFile(args = {}) {
     requireString(args.path, "path");
@@ -86,7 +85,8 @@ async function editFile(args = {}) {
     const id = newId();
     const backup = await memory.backupFile(id, previous);
 
-    await fs.writeFile(target, updated, "utf8");
+    // Écriture atomique : fichier temporaire, contrôle du contenu attendu, puis rename.
+    await writeAtomic(target, updated, { expected: previous, read: readTextFile });
 
     // Après une édition, le modèle connaît le fichier tel qu'il est maintenant
     // uniquement si sa lecture précédente était complète.
