@@ -26,6 +26,43 @@ function git(args, cwd) {
     });
 }
 
+const fsp = require("node:fs/promises");
+const path = require("node:path");
+
+// Ordre de priorité si plusieurs lockfiles sont présents.
+const LOCKFILES = [
+    ["pnpm-lock.yaml", "pnpm"],
+    ["yarn.lock", "yarn"],
+    ["package-lock.json", "npm"]
+];
+
+/** Gestionnaire de paquets (lockfile) et commande de test (package.json scripts.test). */
+async function detectPackageInfo(workspace) {
+    const info = { packageManager: null, testCommand: null, testScript: null };
+    if (!workspace) return info;
+
+    for (const [file, manager] of LOCKFILES) {
+        const found = await fsp.access(path.join(workspace, file)).then(() => true, () => false);
+        if (found) {
+            info.packageManager = manager;
+            break;
+        }
+    }
+
+    try {
+        const pkg = JSON.parse(await fsp.readFile(path.join(workspace, "package.json"), "utf8"));
+        const script = pkg?.scripts?.test;
+        if (typeof script === "string" && script.trim() && !/no test specified/i.test(script)) {
+            info.testScript = script.trim();
+            info.testCommand = `${info.packageManager || "npm"} test`;
+        }
+    } catch {
+        // Pas de package.json, ou JSON invalide : commande de test inconnue.
+    }
+
+    return info;
+}
+
 /** Indices concrets sur le terminal, comme le bloc <env> de Claude Code. */
 async function detectEnvironment(workspace) {
     const inside = await git(["rev-parse", "--is-inside-work-tree"], workspace);
@@ -37,7 +74,8 @@ async function detectEnvironment(workspace) {
         node: process.version,
         shell: process.platform === "win32"
             ? (process.env.PSModulePath ? "PowerShell" : "cmd")
-            : (process.env.SHELL || null)
+            : (process.env.SHELL || null),
+        ...(await detectPackageInfo(workspace))
     };
 }
 

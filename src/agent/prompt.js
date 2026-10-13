@@ -212,6 +212,8 @@ function describeEnv(workspace, env = {}) {
         `- Système : ${system}${env.shell ? ` | shell ${env.shell}` : ""}`,
         `- Dépôt git : ${env.git ? `oui (branche ${env.branch || "inconnue"})` : "non"}`,
         `- Node.js : ${env.node || process.version}`,
+        `- Gestionnaire de paquets : ${env.packageManager || "inconnu (aucun lockfile)"}`,
+        `- Commande de test : ${env.testCommand ? `${env.testCommand} (scripts.test : ${env.testScript})` : "inconnue"}`,
         `- Date : ${new Date().toISOString().slice(0, 10)}`
     ].join("\n");
 }

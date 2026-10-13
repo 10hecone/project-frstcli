@@ -1,11 +1,10 @@
 "use strict";
 
-const path = require("path");
-
 const { ui } = require("../../cli/ui");
 const { state } = require("../../state");
 const { parseCommand, formatCommand } = require("./parse");
 const { runProcess } = require("./runner");
+const { judge } = require("./policy");
 
 // Anciens noms de l'outil (avant la refonte), conservés pour compatibilité.
 const LEGACY_COMMANDS = new Map([
@@ -14,40 +13,10 @@ const LEGACY_COMMANDS = new Map([
     ["node-version", "node --version"]
 ]);
 
-// Programmes jamais lancés : shells (ils contourneraient l'analyse de la
-// commande), suppression ou formatage, élévation de privilèges, exécution indirecte.
-const DENIED_PROGRAMS = new Set([
-    "bash", "sh", "zsh", "fish", "cmd", "powershell", "pwsh",
-    "rm", "rmdir", "rd", "del", "erase", "format", "mkfs", "dd",
-    "sudo", "su", "xargs", "eval", "env"
-]);
-
-const NODE_EVAL_FLAGS = new Set(["-e", "-p", "--eval", "--print"]);
-
-// "C:\\Tools\\Node.EXE" -> "node", "/usr/bin/rm" -> "rm".
-function programName(file) {
-    const base = path.win32.basename(String(file)).toLowerCase();
-    const ext = path.win32.extname(base);
-    return ext ? base.slice(0, -ext.length) : base;
-}
-
-function isNodeEvalFlag(arg) {
-    const a = String(arg);
-    if (NODE_EVAL_FLAGS.has(a)) return true;
-    if (a.startsWith("--eval=") || a.startsWith("--print=")) return true;
-    // Options courtes groupées, par exemple -pe.
-    return /^-[a-z]{2,}$/i.test(a) && /[ep]/i.test(a);
-}
-
-function denialReason(file, args) {
-    const name = programName(file);
-    if (DENIED_PROGRAMS.has(name)) {
-        return `Programme interdit : ${name}. Utilise les outils de fichiers ou une commande plus ciblée.`;
-    }
-    if (name === "node" && args.some(isNodeEvalFlag)) {
-        return "Exécution de code en ligne (node -e / -p) interdite. Écris un script avec write_file puis lance-le.";
-    }
-    return null;
+// Renvoie le motif de refus de judge(), ou null si la commande n'est pas interdite.
+function denialReason(file, args = [], cwd = state.workspace) {
+    const verdict = judge({ file, args, cwd, workspace: state.workspace || cwd });
+    return verdict.level === "deny" ? verdict.reason : null;
 }
 
 function resolveCommandLine(toolArgs) {

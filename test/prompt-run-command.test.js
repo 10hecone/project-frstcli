@@ -47,3 +47,30 @@ test("le prompt complet : consigne edit, règle truncated et exemple run_command
     assert.match(text, /"exit_code":0/);
     assert.doesNotMatch(text, /npm-test/);
 });
+
+function promptWithEnv(env) {
+    return buildAgentPrompt({
+        workspace: "/projet",
+        env,
+        task: "lis README.md",
+        history: [],
+        memorySummary: "",
+        observations: [],
+        turn: 1,
+        maxTurns: 15
+    });
+}
+
+test("describeEnv affiche la commande de test et le gestionnaire de paquets", () => {
+    const text = promptWithEnv({ packageManager: "pnpm", testCommand: "pnpm test", testScript: "vitest run" });
+
+    assert.match(text, /- Gestionnaire de paquets : pnpm/);
+    assert.match(text, /- Commande de test : pnpm test \(scripts\.test : vitest run\)/);
+});
+
+test("describeEnv indique « inconnue » sans package.json ni lockfile", () => {
+    const text = promptWithEnv({});
+
+    assert.match(text, /- Gestionnaire de paquets : inconnu \(aucun lockfile\)/);
+    assert.match(text, /- Commande de test : inconnue/);
+});
