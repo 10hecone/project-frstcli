@@ -7,13 +7,19 @@ const memory = require("../../project/memory");
 const { requireString, optionalInt } = require("../core/args");
 const { readTextFile } = require("../core/freshness");
 
+function countLines(text) {
+    let count = 1;
+    let i = -1;
+    while ((i = text.indexOf("\n", i + 1)) !== -1) count++;
+    return count;
+}
+
 async function readFile(args = {}) {
     requireString(args.path, "path");
 
     const { rel, target } = await resolveInWorkspace(state.workspace, args.path);
     const text = await readTextFile(target);
-    const lines = text.split("\n");
-    const total = lines.length;
+    const total = countLines(text);
 
     let content = text;
     let partial = false;
@@ -27,6 +33,7 @@ async function readFile(args = {}) {
             throw new Error(`Plage invalide : le fichier a ${total} lignes.`);
         }
 
+        const lines = text.split("\n");
         content = lines.slice(start - 1, end).join("\n");
         partial = start > 1 || end < total;
         range = [start, end];

@@ -1,13 +1,16 @@
 "use strict";
 
 const fs = require("node:fs/promises");
-const path = require("node:path");
 
 const { CONFIG } = require("../../config");
 const { state } = require("../../state");
-const { normalizeRelative, resolveInWorkspace } = require("../security");
+const { resolveInWorkspace } = require("../security");
 const { requireString, optionalString } = require("../core/args");
 const { readTextFile } = require("../core/freshness");
+const { walkFiles } = require("../core/walk");
+
+// Nombre de fichiers lus en même temps.
+const READ_CONCURRENCY = 8;
 
 async function searchFiles(args = {}) {
     const query = requireString(args.query, "query");
@@ -23,57 +26,44 @@ async function searchFiles(args = {}) {
     const full = () =>
         matches.length >= CONFIG.maxSearchResults || scanned >= CONFIG.maxSearchFiles;
 
-    async function visit(dir, relDir) {
-        const dirents = await fs.readdir(dir, { withFileTypes: true });
+    const files = await walkFiles(target, rel, { maxFiles: CONFIG.maxSearchFiles });
 
-        for (const dirent of dirents) {
-            if (full()) return;
-            if (dirent.isSymbolicLink()) continue;
+    for (let i = 0; i < files.length && !full(); i += READ_CONCURRENCY) {
+        const batch = files.slice(i, i + READ_CONCURRENCY);
 
-            const childRel = relDir === "." ? dirent.name : `${relDir}/${dirent.name}`;
+        // binaire, trop grand ou illisible : null
+        const texts = await Promise.all(
+            batch.map(file => readTextFile(file.abs).catch(() => null))
+        );
 
-            try {
-                normalizeRelative(childRel);
-            } catch {
-                continue;
-            }
-
-            const childAbs = path.join(dir, dirent.name);
-
-            if (dirent.isDirectory()) {
-                await visit(childAbs, childRel);
-                continue;
-            }
-
-            if (!dirent.isFile()) continue;
+        for (let j = 0; j < batch.length; j++) {
+            if (full()) break;
 
             scanned++;
 
-            let text;
+            const text = texts[j];
+            if (text === null) continue;
 
-            try {
-                text = await readTextFile(childAbs);
-            } catch {
-                continue; // binaire, trop grand ou illisible
-            }
+            const lower = text.toLowerCase();
+            if (!lower.includes(needle)) continue;
 
+            // toLowerCase ne crée ni ne supprime de \n : les lignes restent alignées.
             const lines = text.split("\n");
+            const lowerLines = lower.split("\n");
 
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].toLowerCase().includes(needle)) {
+            for (let k = 0; k < lowerLines.length; k++) {
+                if (lowerLines[k].includes(needle)) {
                     matches.push({
-                        path: childRel,
-                        line: i + 1,
-                        text: lines[i].trim().slice(0, 200)
+                        path: batch[j].rel,
+                        line: k + 1,
+                        text: lines[k].trim().slice(0, 200)
                     });
 
-                    if (full()) return;
+                    if (matches.length >= CONFIG.maxSearchResults) break;
                 }
             }
         }
     }
-
-    await visit(target, rel);
 
     return {
         query,

@@ -35,6 +35,10 @@ function summarizeResult(name, result) {
         }
         case "search_files":
             return result.message;
+        case "run_command":
+            return result.timed_out
+                ? `${result.command} : délai dépassé`
+                : `${result.command} : code ${result.exit_code}`;
         default:
             return result.message || "OK";
     }

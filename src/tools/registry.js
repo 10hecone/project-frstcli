@@ -15,7 +15,10 @@ const runCommandTool = {
         optionalInt(args.timeout_ms, "timeout_ms");
     },
     describe(a) {
-        return a.path ?? ".";
+        const command = a.command ?? a.name ?? "?";
+        return a.timeout_ms !== undefined
+            ? `${command} (délai ${a.timeout_ms} ms)`
+            : command;
     }
 };
 
