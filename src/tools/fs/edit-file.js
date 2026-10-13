@@ -117,6 +117,10 @@ function check(args) {
         throw new Error("new_string doit être une chaîne.");
     }
 
+    if (args.new_string.length > CONFIG.maxWriteChars) {
+        throw new Error(`new_string trop long : maximum ${CONFIG.maxWriteChars} caractères.`);
+    }
+
     optionalBool(args.replace_all, "replace_all");
 }
 

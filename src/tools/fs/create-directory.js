@@ -33,7 +33,7 @@ async function createDirectory(args = {}) {
     await resolveInWorkspace(state.workspace, rel);
 
     const created = await firstMissingAncestor(target);
-    await fs.mkdir(target, { recursive: true });
+    await fs.mkdir(target, { recursive: true, mode: 0o700 });
 
     await finishMutation(
         {

@@ -45,7 +45,7 @@ async function ensureParent(target) {
     const parent = path.dirname(target);
     const created = await firstMissingAncestor(parent);
 
-    if (created) await fs.mkdir(parent, { recursive: true });
+    if (created) await fs.mkdir(parent, { recursive: true, mode: 0o700 });
 
     return created ? toRel(created) : null;
 }

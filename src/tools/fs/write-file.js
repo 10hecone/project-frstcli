@@ -124,6 +124,10 @@ function check(args) {
     if (typeof args.content !== "string") {
         throw new Error("content doit être une chaîne.");
     }
+
+    if (args.content.length > CONFIG.maxWriteChars) {
+        throw new Error(`content trop long : maximum ${CONFIG.maxWriteChars} caractères.`);
+    }
 }
 
 function describe(a) {

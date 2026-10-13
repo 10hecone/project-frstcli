@@ -34,6 +34,7 @@ const CONFIG = {
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque
     maxReadChars: 40_000,           // caractères renvoyés au modèle par read_file
     maxWriteBytes: 512 * 1024,
+    maxWriteChars: 1_000_000,       // longueur max de content / new_string, vérifiée dès la validation
     maxDirectoryEntries: 300,
     maxSearchResults: 60,
     maxSearchFiles: 3000,
