@@ -42,7 +42,7 @@ test("filterEnv retire les variables sensibles et FS_*", () => {
         FS_ROOT: "r",
         fs_debug: "d"
     };
-    assert.deepEqual(filterEnv(env), { HOME: "h", PATH: "p" });
+    assert.deepEqual(filterEnv(env), { HOME: "h", PATH: "p", NO_COLOR: "1" });
 });
 
 test("resolveProgram lance npm et npx via node", windowsOnly, () => {

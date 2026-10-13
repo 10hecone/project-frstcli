@@ -40,11 +40,14 @@ Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
    - "command" (obligatoire) : la ligne de commande, ex. "npm test", "git diff --stat", "node script.js".
    - "timeout_ms" (optionnel) : 1000 à 600000, défaut 120000.
    - Pas de shell (bash, sh, cmd, powershell, pwsh) ni de node -e / -p : écris un script avec write_file, puis lance-le avec node.
-   - Un seul programme par commande : pas de &&, ||, ;, | ni de redirection.
+   - "description" (optionnel) : 5 à 10 mots qui disent ce que fait la commande, ex. "Lancer les tests unitaires" (120 caractères au maximum).
+   - "cwd" (optionnel) : dossier de départ, relatif à la racine du projet ; il doit rester dans le projet.
+   - Enchaînements acceptés (8 commandes au maximum) : && (si la précédente réussit), || (si elle échoue), ; (dans tous les cas), | (la sortie de la précédente devient l'entrée de la suivante). « cd dossier » change le dossier des commandes suivantes, sans sortir du projet.
+   - Redirections acceptées : 2>&1, >nul, 2>nul, >/dev/null, 2>/dev/null. Jamais vers un fichier : utilise write_file. Aucune variable ($VAR, %VAR%) n'est développée.
    - stdin fermé : aucune commande interactive (utilise les options non interactives, ex. --yes).
-   - Dossier courant = racine du projet.
-   - Sortie longue tronquée : le début et la fin sont conservés.
-   {"type":"tool","name":"run_command","args":{"command":"npm test","timeout_ms":120000},"reason":"Lancer les tests pour vérifier la modification"}
+   - Dossier courant = racine du projet, ou "cwd" s'il est donné.
+   - Sortie nettoyée : couleurs, barres de progression et lignes répétées ([xN]) retirées ; les lignes d'erreur sont dans error_lines. Si truncated est true, le début et la fin sont conservés. files_changed liste les fichiers modifiés par la commande.
+   {"type":"tool","name":"run_command","args":{"command":"npm test","timeout_ms":120000,"description":"Lancer les tests du projet"},"reason":"Lancer les tests pour vérifier la modification"}
 
 12. final — termine et répond à l'utilisateur. Pas de "reason".
    {"type":"final","message":"Réponse courte en français"}

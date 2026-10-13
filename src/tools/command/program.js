@@ -15,8 +15,13 @@ function filterEnv(env = process.env) {
 
     for (const [name, value] of Object.entries(env)) {
         if (/^FS_/i.test(name) || SENSITIVE_NAME.test(name)) continue;
+        // FORCE_COLOR est retiré : avec NO_COLOR, Node afficherait un avertissement sur stderr.
+        if (/^FORCE_COLOR$/i.test(name)) continue;
         out[name] = value;
     }
+
+    // Sortie sans couleurs pour l'agent ; les séquences restantes sont retirées par output.js.
+    out.NO_COLOR = "1";
 
     return out;
 }
