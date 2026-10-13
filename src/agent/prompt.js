@@ -48,8 +48,16 @@ Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
    - Dossier courant = racine du projet, ou "cwd" s'il est donné.
    - Sortie nettoyée : couleurs, barres de progression et lignes répétées ([xN]) retirées ; les lignes d'erreur sont dans error_lines. Si truncated est true, le début et la fin sont conservés. files_changed liste les fichiers modifiés par la commande.
    {"type":"tool","name":"run_command","args":{"command":"npm test","timeout_ms":120000,"description":"Lancer les tests du projet"},"reason":"Lancer les tests pour vérifier la modification"}
+   - "background" (optionnel) : true pour une commande longue qui ne s'arrête pas seule (serveur, watch). Renvoie tout de suite job_id ; 3 jobs en cours au maximum ; délai par défaut 600000.
+   {"type":"tool","name":"run_command","args":{"command":"npm run dev","background":true,"description":"Démarrer le serveur de développement"},"reason":"Lancer le serveur pour le tester"}
 
-12. final — termine et répond à l'utilisateur. Pas de "reason".
+12. job_output — renvoie la sortie produite depuis la dernière lecture d'un job, son statut (running, done, failed, stopped, timed_out) et exit_code.
+   {"type":"tool","name":"job_output","args":{"id":"job-1"},"reason":"Vérifier que le serveur a démarré"}
+
+13. job_stop — arrête un job en cours. Arrête toujours les jobs devenus inutiles avant final.
+   {"type":"tool","name":"job_stop","args":{"id":"job-1"},"reason":"Arrêter le serveur, le test est fini"}
+
+14. final — termine et répond à l'utilisateur. Pas de "reason".
    {"type":"final","message":"Réponse courte en français"}
 `.trim();
 

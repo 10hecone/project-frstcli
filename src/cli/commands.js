@@ -32,6 +32,7 @@ function showHelp() {
     ["/remember <texte>", "Ajouter une note durable au projet"],
     ["/forget <n|all>", "Supprimer une note (ou toutes)"],
     ["/permissions [remove <n|préfixe>|clear]", "Règles des commandes autorisées (projet)"],
+    ["/jobs [stop <id>|stop-all]", "Commandes en arrière-plan (liste / arrêt)"],
     ["/auto on|off", "Autoriser sans confirmation (session)"],
     ["/mode auto|agent|chat", "Quand utiliser les outils fichiers"],
     ["/new", "Nouvelle conversation"],
@@ -274,6 +275,33 @@ async function handleCommand(input) {
         ui.info(`${count} règle(s) supprimée(s).`);
       } else {
         ui.info("Usage : /permissions [remove <numéro|préfixe>|clear]");
+      }
+      break;
+    }
+
+    case "/jobs": {
+      const { manager: jobManager, statusMessage } = require("../tools/command/jobs");
+      const [action, ...rest] = String(value || "").trim().split(/\s+/);
+      const id = rest.join(" ");
+
+      if (!action) {
+        const jobs = jobManager.list();
+        if (!jobs.length) {
+          ui.info("Aucun job en arrière-plan.");
+        } else {
+          jobs.forEach(job => ui.info(`  ${statusMessage(job)} ${job.command}`));
+        }
+      } else if (action === "stop" && id) {
+        try {
+          ui.info(statusMessage(await jobManager.stop(id)));
+        } catch (error) {
+          ui.warn(error.message);
+        }
+      } else if (action === "stop-all") {
+        await jobManager.stopAll();
+        ui.info("Tous les jobs en cours sont arrêtés.");
+      } else {
+        ui.info("Usage : /jobs [stop <id>|stop-all]");
       }
       break;
     }

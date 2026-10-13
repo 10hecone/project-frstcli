@@ -20,7 +20,7 @@ function prompt(task) {
 
 test("le catalogue décrit run_command avec command et timeout_ms", () => {
     const start = TOOL_CATALOG.indexOf("11. run_command");
-    const end = TOOL_CATALOG.indexOf("12. final");
+    const end = TOOL_CATALOG.indexOf("12. job_output");
     assert.ok(start !== -1 && end > start);
     const tool = TOOL_CATALOG.slice(start, end);
 
@@ -28,6 +28,16 @@ test("le catalogue décrit run_command avec command et timeout_ms", () => {
     assert.match(tool, /timeout_ms/);
     assert.match(tool, /600000/);
     assert.match(tool, /"args":\{"command":"npm test"/);
+    assert.match(tool, /"background"/);
+});
+
+test("le catalogue décrit job_output, job_stop puis final", () => {
+    const output = TOOL_CATALOG.indexOf("12. job_output");
+    const stop = TOOL_CATALOG.indexOf("13. job_stop");
+    const final = TOOL_CATALOG.indexOf("14. final");
+    assert.ok(output !== -1 && stop > output && final > stop);
+    assert.match(TOOL_CATALOG, /"name":"job_output","args":\{"id":"job-1"\}/);
+    assert.match(TOOL_CATALOG, /"name":"job_stop","args":\{"id":"job-1"\}/);
 });
 
 test("le catalogue n'impose plus npm-test, git-status ni node-version", () => {

@@ -13,13 +13,35 @@ const runCommandTool = {
             requireString(args.name, "name");
         }
         optionalInt(args.timeout_ms, "timeout_ms");
+        if (args.background !== undefined && typeof args.background !== "boolean") {
+            throw new Error("background doit être true ou false.");
+        }
     },
     describe(a) {
         const command = a.command ?? a.name ?? "?";
+        const suffix = a.background === true ? " (arrière-plan)" : "";
         return a.timeout_ms !== undefined
-            ? `${command} (délai ${a.timeout_ms} ms)`
-            : command;
+            ? `${command} (délai ${a.timeout_ms} ms)${suffix}`
+            : `${command}${suffix}`;
     }
+};
+
+const jobOutputTool = {
+    name: "job_output",
+    run: (args) => require("./command/jobs").jobOutput(args),
+    check(args) {
+        requireString(args.id, "id");
+    },
+    describe: (a) => a.id ?? "?"
+};
+
+const jobStopTool = {
+    name: "job_stop",
+    run: (args) => require("./command/jobs").jobStop(args),
+    check(args) {
+        requireString(args.id, "id");
+    },
+    describe: (a) => a.id ?? "?"
 };
 
 const MODULES = [
@@ -33,7 +55,9 @@ const MODULES = [
     require("./fs/copy-path"),
     require("./fs/delete-path"),
     require("./fs/remember"),
-    runCommandTool
+    runCommandTool,
+    jobOutputTool,
+    jobStopTool
 ];
 
 const TOOLS = {};

@@ -152,6 +152,42 @@ async function runCommand(toolArgs = {}) {
         return { command: display, description, changed: false, denied: true, message: permission.message };
     }
 
+    if (toolArgs.background === true) {
+        const { manager: jobManager } = require("./jobs");
+        const job = jobManager.start({
+            command: display,
+            description,
+            cwd: relativeCwd(startCwd),
+            launch: ({ onLine, signalHandle }) => executePipeline(segments, {
+                cwd: startCwd,
+                workspace: state.workspace,
+                run: (segment, { cwd, input, pipeStdout }) => runProcess({
+                    file: segment.file,
+                    args: segment.args,
+                    cwd,
+                    timeoutMs: toolArgs.timeout_ms ?? 600000,
+                    onLine,
+                    signalHandle,
+                    input,
+                    captureStdout: pipeStdout,
+                    discardStdout: segment.discardStdout,
+                    discardStderr: segment.discardStderr,
+                    stderrToStdout: segment.stderrToStdout
+                })
+            }).then(run => run.last)
+        });
+        return {
+            command: display,
+            description,
+            background: true,
+            job_id: job.id,
+            status: job.status,
+            cwd: job.cwd,
+            changed: false,
+            message: `Lancé en arrière-plan : ${job.id}. Lis la sortie avec job_output, arrête avec job_stop.`
+        };
+    }
+
     const before = await snapshotChanges(runGitStatus, state.workspace);
 
     // runProcess remplace signalHandle.kill par la fonction d'arrêt réelle de chaque segment.
