@@ -141,9 +141,48 @@ async function resolveInWorkspace(workspace, relativePath) {
     return { rel, target };
 }
 
+/**
+ * Vérifie, juste avant l'écriture, que le chemin réel de target (ou de son
+ * premier ancêtre existant) reste dans le projet. Protège contre un lien ou
+ * une jonction créés après resolveInWorkspace (TOCTOU).
+ */
+async function assertRealInside(workspace, target) {
+    const root = await fs.realpath(workspace);
+    let current = target;
+
+    while (true) {
+        let real;
+
+        try {
+            real = await fs.realpath(current);
+        } catch (error) {
+            if (error.code !== "ENOENT") throw error;
+
+            const parent = path.dirname(current);
+            if (parent === current) throw error;
+
+            current = parent;
+            continue;
+        }
+
+        const inside = path.relative(root, real);
+
+        if (
+            inside === ".." ||
+            inside.startsWith(`..${path.sep}`) ||
+            path.isAbsolute(inside)
+        ) {
+            throw new Error("Accès hors du projet interdit (chemin réel).");
+        }
+
+        return real;
+    }
+}
+
 module.exports = {
     normalizeRelative,
     resolveInWorkspace,
+    assertRealInside,
     BLOCKED_SEGMENTS,
     BLOCKED_FILES,
     BLOCKED_PATHS,

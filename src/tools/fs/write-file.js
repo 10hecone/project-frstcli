@@ -7,7 +7,7 @@ const { CONFIG } = require("../../config");
 const { state } = require("../../state");
 const { ui } = require("../../cli/ui");
 const { printDiff } = require("../diff");
-const { resolveInWorkspace } = require("../security");
+const { resolveInWorkspace, assertRealInside } = require("../security");
 const memory = require("../../project/memory");
 const { newId, requireString } = require("../core/args");
 const { statOrNull, toRel, denied, firstMissingAncestor, ensureParent } = require("../core/fs-utils");
@@ -78,6 +78,7 @@ async function writeFile(args = {}) {
     const id = newId();
     const backup = existing ? await memory.backupFile(id, previous) : null;
     const createdRoot = await ensureParent(target);
+    await assertRealInside(state.workspace, target);
 
     try {
         // Nouveau fichier : création exclusive (wx, 0o600), donc jamais d'écrasement d'un fichier apparu entre-temps.

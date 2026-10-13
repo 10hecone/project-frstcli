@@ -4,7 +4,7 @@ const { CONFIG } = require("../../config");
 const { state } = require("../../state");
 const { ui } = require("../../cli/ui");
 const { printDiff } = require("../diff");
-const { resolveInWorkspace } = require("../security");
+const { resolveInWorkspace, assertRealInside } = require("../security");
 const memory = require("../../project/memory");
 const { newId, requireString, optionalBool } = require("../core/args");
 const { statOrNull, denied } = require("../core/fs-utils");
@@ -84,6 +84,7 @@ async function editFile(args = {}) {
 
     const id = newId();
     const backup = await memory.backupFile(id, previous);
+    await assertRealInside(state.workspace, target);
 
     // Écriture atomique : fichier temporaire, contrôle du contenu attendu, puis rename.
     await writeAtomic(target, updated, { expected: previous, read: readTextFile });
