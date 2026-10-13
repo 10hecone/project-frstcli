@@ -14,7 +14,7 @@
   - `atomic.js` : writeAtomic(target, content, {expected, read}).
   - `journal.js` : journal des modifications et undoLast.
   - `walk.js` : walkFiles(dir, relDir, {maxFiles}).
-- `command/` : run_command (index.js, parse.js, runner.js).
+- `command/` : run_command (index.js, parse.js, runner.js, program.js). program.js contient filterEnv, killTree et resolveProgram, sortis de runner.js.
 
 ## Ajouter un outil
 
@@ -39,4 +39,4 @@
 
 ## Tests
 
-`npm test` lance `node --test test/*.test.js`. Fichiers liés aux outils : security, atomic, real-inside, search-files et result-shape.
+`npm test` lance `node --test test/*.test.js`. Fichiers liés aux outils : security, atomic, real-inside, search-files, result-shape, command-parse, command-runner et program. Sous Windows, program.test.js utilise un dossier temporaire avec de faux outil.cmd et outil.exe pour tester findOnWindows et resolveProgram ; ces tests sont ignorés sur les autres systèmes.
