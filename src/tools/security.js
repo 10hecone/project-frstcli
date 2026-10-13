@@ -10,8 +10,17 @@ const BLOCKED_SEGMENTS = new Set([
     ".aws",
     ".azure",
     ".gnupg",
-    ".config"
+    ".config",
+    ".kube"
 ]);
+
+const BLOCKED_FILES = new Set([".npmrc", ".netrc", ".pgpass"]);
+
+const BLOCKED_PATHS = [".docker/config.json"];
+
+const PATH_LIMITS = { maxChars: 1024, maxSegments: 40 };
+
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
 /**
  * Valide un chemin relatif et renvoie sa forme normalisée avec "/".
@@ -28,9 +37,17 @@ function normalizeRelative(relativePath) {
         throw new Error("Chemin relatif invalide.");
     }
 
+    if (relativePath.length > PATH_LIMITS.maxChars) {
+        throw new Error(`Chemin trop long : maximum ${PATH_LIMITS.maxChars} caractères.`);
+    }
+
     const segments = relativePath
         .split(/[\\/]+/)
         .filter(segment => segment && segment !== ".");
+
+    if (segments.length > PATH_LIMITS.maxSegments) {
+        throw new Error(`Chemin trop profond : maximum ${PATH_LIMITS.maxSegments} segments.`);
+    }
 
     for (const segment of segments) {
         const lower = segment.toLowerCase();
@@ -43,16 +60,33 @@ function normalizeRelative(relativePath) {
             throw new Error("Le caractère ':' est interdit dans un chemin.");
         }
 
+        if (WINDOWS_RESERVED.test(segment)) {
+            throw new Error(`Nom réservé par Windows : ${segment}`);
+        }
+
+        if (/[. ]$/.test(segment)) {
+            throw new Error(`Nom invalide (point ou espace final) : ${segment}`);
+        }
+
         if (BLOCKED_SEGMENTS.has(lower)) {
             throw new Error(`Accès interdit : ${segment}`);
         }
 
         if (
             lower.startsWith(".env") ||
-            /\.(pem|key|p12|pfx)$/i.test(lower) ||
+            BLOCKED_FILES.has(lower) ||
+            /\.(pem|key|p12|pfx|kdbx|keystore|jks)$/i.test(lower) ||
             /^(id_rsa|id_ed25519|credentials|secrets?)(\.|$)/i.test(lower)
         ) {
             throw new Error(`Fichier sensible interdit : ${segment}`);
+        }
+    }
+
+    const joinedLower = segments.join("/").toLowerCase();
+
+    for (const blocked of BLOCKED_PATHS) {
+        if (joinedLower === blocked || joinedLower.endsWith(`/${blocked}`)) {
+            throw new Error(`Fichier sensible interdit : ${blocked}`);
         }
     }
 
@@ -107,4 +141,50 @@ async function resolveInWorkspace(workspace, relativePath) {
     return { rel, target };
 }
 
-module.exports = { normalizeRelative, resolveInWorkspace };
+/**
+ * Vérifie, juste avant l'écriture, que le chemin réel de target (ou de son
+ * premier ancêtre existant) reste dans le projet. Protège contre un lien ou
+ * une jonction créés après resolveInWorkspace (TOCTOU).
+ */
+async function assertRealInside(workspace, target) {
+    const root = await fs.realpath(workspace);
+    let current = target;
+
+    while (true) {
+        let real;
+
+        try {
+            real = await fs.realpath(current);
+        } catch (error) {
+            if (error.code !== "ENOENT") throw error;
+
+            const parent = path.dirname(current);
+            if (parent === current) throw error;
+
+            current = parent;
+            continue;
+        }
+
+        const inside = path.relative(root, real);
+
+        if (
+            inside === ".." ||
+            inside.startsWith(`..${path.sep}`) ||
+            path.isAbsolute(inside)
+        ) {
+            throw new Error("Accès hors du projet interdit (chemin réel).");
+        }
+
+        return real;
+    }
+}
+
+module.exports = {
+    normalizeRelative,
+    resolveInWorkspace,
+    assertRealInside,
+    BLOCKED_SEGMENTS,
+    BLOCKED_FILES,
+    BLOCKED_PATHS,
+    PATH_LIMITS
+};

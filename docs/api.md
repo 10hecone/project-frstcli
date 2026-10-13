@@ -2,7 +2,7 @@
 
 > Ce document est déduit du code du CLI (`src/api/api.js`, `src/api/auth.js`, `src/config.js`) et d'une capture réseau.
 > L'API n'est pas officielle : elle peut changer sans préavis. Vérifie que ton usage respecte les conditions d'utilisation de FranceStudent.
-> Les routes marquées **non confirmé** n'apparaissent pas dans la capture.
+> Les routes marquées **non confirmé** n'apparaissent pas.
 
 ## Hôtes
 
@@ -84,7 +84,7 @@ Constaté : un seul fournisseur Auth.js, `whmcs` (type `oauth`, PKCE S256, scope
 
 1. `GET {origin}/api/auth/providers`, puis `GET {origin}/api/auth/csrf` (jeton + cookie).
 2. `POST {origin}/api/auth/signin/whmcs` (`csrfToken`, `callbackUrl`) avec `X-Auth-Return-Redirect: 1` : renvoie l'adresse d'autorisation sur `my.francestudent.org` et pose les cookies `state` et `pkce.code_verifier`.
-3. Sur WHMCS : page de connexion, envoi du formulaire. **Non capturé** : le CLI lit le formulaire dynamiquement (champs cachés, noms des champs, action) et accepte une éventuelle page d'autorisation.
+3. Sur WHMCS : page de connexion, envoi du formulaire. : le CLI lit le formulaire dynamiquement (champs cachés, noms des champs, action) et accepte une éventuelle page d'autorisation.
 4. Retour sur `{origin}/api/auth/callback/whmcs` : pose `next-auth.session-token`.
 
 Non pris en charge (message d'erreur clair) : captcha, double authentification, blocage Cloudflare. Code : `src/api/login.js`, `src/api/html-forms.js`.
