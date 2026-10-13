@@ -224,6 +224,16 @@ const ui = {
         return ["o", "oui", "y", "yes"].includes(answer);
     },
 
+    /**
+     * Confirmation d'une commande : o = une fois, t = toujours (règle enregistrée
+     * pour ce projet), toute autre réponse refuse. Renvoie la réponse brute.
+     * N'utilise jamais l'auto-approbation.
+     */
+    async askCommand(question, prefixText) {
+        const hint = `[o/N | t = toujours « ${prefixText} »]`;
+        return ask(`\n${c.bold(question)} ${c.dim(hint)} `);
+    },
+
     askSecret,
 
     /**

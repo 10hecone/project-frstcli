@@ -54,6 +54,8 @@ const CONFIG = {
     promptContextChars: 300_000,    // contexte projet max dans un prompt agent
     agentContextChars: envInt("FS_AGENT_CONTEXT_CHARS", 30_000), // contexte projet, 1er message d'une conversation agent seulement
     resumeInProject: process.env.FS_RESUME_IN_PROJECT === "1",
+    contextIgnoredDirs: ["node_modules", ".git", "dist", "build", "coverage", "debug_src"],
+    contextIgnoredFiles: ["package-lock.json"],
 
     // Persistance (mémoire, corbeille, sauvegardes, session)
     dataDir: process.env.FS_DATA_DIR || path.join(os.homedir(), ".francestudent-cli"),

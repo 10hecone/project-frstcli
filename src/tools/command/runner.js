@@ -101,7 +101,21 @@ function launchError(name, error) {
         : `Lancement impossible (${name}) : ${error ? error.message : "erreur inconnue"}`;
 }
 
-async function runProcess({ file, args = [], cwd = process.cwd(), timeoutMs, onLine, signalHandle } = {}) {
+async function runProcess({
+    file,
+    args = [],
+    cwd = process.cwd(),
+    timeoutMs,
+    onLine,
+    signalHandle,
+    input,
+    captureStdout = false,
+    discardStdout = false,
+    discardStderr = false,
+    stderrToStdout = false
+} = {}) {
+    const MAX_PIPE_CHARS = 1000000;
+    let stdoutText = "";
     if (typeof file !== "string" || !file) throw new Error("file doit être une chaîne non vide.");
 
     const env = filterEnv();
@@ -136,7 +150,8 @@ async function runProcess({ file, args = [], cwd = process.cwd(), timeoutMs, onL
                 timed_out: timedOut,
                 interrupted,
                 duration_ms: Date.now() - started,
-                ...rendered
+                ...rendered,
+                stdout: stdoutText
             });
         }
 
@@ -153,7 +168,7 @@ async function runProcess({ file, args = [], cwd = process.cwd(), timeoutMs, onL
                 cwd,
                 env,
                 shell: false,
-                stdio: ["ignore", "pipe", "pipe"],
+                stdio: [typeof input === "string" ? "pipe" : "ignore", "pipe", "pipe"],
                 windowsHide: true,
                 detached: !IS_WINDOWS,
                 windowsVerbatimArguments: target.verbatim
@@ -163,10 +178,28 @@ async function runProcess({ file, args = [], cwd = process.cwd(), timeoutMs, onL
             return;
         }
 
+        if (typeof input === "string" && child.stdin) {
+            // Le programme peut fermer stdin sans tout lire (EPIPE) : ce n'est pas une erreur de la commande.
+            child.stdin.on("error", () => {});
+            child.stdin.end(input);
+        }
+
+        const capture = text => {
+            if (stdoutText.length < MAX_PIPE_CHARS) stdoutText += text.slice(0, MAX_PIPE_CHARS - stdoutText.length);
+        };
+
         child.stdout?.setEncoding("utf8");
         child.stderr?.setEncoding("utf8");
-        child.stdout?.on("data", text => collector.push(text));
-        child.stderr?.on("data", text => collector.push(text));
+        child.stdout?.on("data", text => {
+            if (discardStdout) return;
+            if (captureStdout) capture(text);
+            else collector.push(text);
+        });
+        child.stderr?.on("data", text => {
+            if (discardStderr) return;
+            if (stderrToStdout && captureStdout && !discardStdout) capture(text);
+            else collector.push(text);
+        });
 
         child.on("error", error => finish(null, null, launchError(file, error)));
         child.on("close", (code, signal) => finish(code, signal));

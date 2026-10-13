@@ -31,6 +31,8 @@ function showHelp() {
     ["/memory", "Notes et dernières actions du projet"],
     ["/remember <texte>", "Ajouter une note durable au projet"],
     ["/forget <n|all>", "Supprimer une note (ou toutes)"],
+    ["/permissions [remove <n|préfixe>|clear]", "Règles des commandes autorisées (projet)"],
+    ["/jobs [stop <id>|stop-all]", "Commandes en arrière-plan (liste / arrêt)"],
     ["/auto on|off", "Autoriser sans confirmation (session)"],
     ["/mode auto|agent|chat", "Quand utiliser les outils fichiers"],
     ["/new", "Nouvelle conversation"],
@@ -242,6 +244,67 @@ async function handleCommand(input) {
         ui.info("Usage : /forget <numéro|all> (voir /memory)");
       }
       break;
+
+    case "/permissions": {
+      if (!requireProject()) break;
+
+      const { getPermissionStore } = require("../tools/command/index");
+      const store = getPermissionStore();
+
+      if (!store) {
+        ui.info("Aucun projet ouvert.");
+        break;
+      }
+
+      const [action, ...rest] = String(value || "").trim().split(/\s+/);
+      const target = rest.join(" ");
+
+      if (!action) {
+        const rules = await store.load();
+        if (!rules.length) {
+          ui.info("Aucune règle : chaque commande non sûre est confirmée (o / n / t).");
+        } else {
+          ui.info(`Règles (${store.file}) :`);
+          rules.forEach((rule, i) => ui.info(`  ${i + 1}. ${rule.text}`));
+        }
+      } else if (action === "remove" && target) {
+        const removed = await store.remove(target);
+        ui.info(removed ? `Règle supprimée : « ${removed} ».` : "Règle introuvable (voir /permissions).");
+      } else if (action === "clear") {
+        const count = await store.clear();
+        ui.info(`${count} règle(s) supprimée(s).`);
+      } else {
+        ui.info("Usage : /permissions [remove <numéro|préfixe>|clear]");
+      }
+      break;
+    }
+
+    case "/jobs": {
+      const { manager: jobManager, statusMessage } = require("../tools/command/jobs");
+      const [action, ...rest] = String(value || "").trim().split(/\s+/);
+      const id = rest.join(" ");
+
+      if (!action) {
+        const jobs = jobManager.list();
+        if (!jobs.length) {
+          ui.info("Aucun job en arrière-plan.");
+        } else {
+          jobs.forEach(job => ui.info(`  ${statusMessage(job)} ${job.command}`));
+        }
+      } else if (action === "stop" && id) {
+        try {
+          ui.info(statusMessage(await jobManager.stop(id)));
+        } catch (error) {
+          ui.warn(error.message);
+        }
+      } else if (action === "stop-all") {
+        await jobManager.stopAll();
+        ui.info("Tous les jobs en cours sont arrêtés.");
+      } else {
+        ui.info("Usage : /jobs [stop <id>|stop-all]");
+      }
+      break;
+    }
 
     case "/auto":
       if (!["on", "off"].includes(value)) {

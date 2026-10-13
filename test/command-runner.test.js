@@ -18,7 +18,7 @@ test("filterEnv retire les variables sensibles", () => {
         DB_PASSWORD: "w"
     });
 
-    assert.deepEqual(env, { PATH: "p", HOME: "h" });
+    assert.deepEqual(env, { PATH: "p", HOME: "h", NO_COLOR: "1" });
 });
 
 test("runProcess renvoie la sortie et le code de sortie", async () => {

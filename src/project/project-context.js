@@ -42,6 +42,8 @@ async function scan(workspace) {
 
         for (const entry of entries) {
             if (entry.isSymbolicLink()) continue;
+            if (entry.isDirectory() && CONFIG.contextIgnoredDirs.includes(entry.name)) continue;
+            if (entry.isFile() && CONFIG.contextIgnoredFiles.includes(entry.name)) continue;
 
             const childRel = rel === "." ? entry.name : `${rel}/${entry.name}`;
 
