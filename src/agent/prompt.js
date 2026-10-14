@@ -153,6 +153,7 @@ Ta réponse est UN SEUL objet JSON valide, et rien d'autre : pas de Markdown, pa
 Forme outil : {"type":"tool","name":"<nom>","args":{...},"reason":"<une phrase : action, cible, but>"}
 Forme finale : {"type":"final","message":"<réponse en français>"}
 - Un seul outil par réponse. "reason" est obligatoire pour un outil.
+- Exception, lecture en lot : jusqu'à 5 appels list_directory, read_file ou search_files dans un seul objet, avec "calls" à la place de "name" et "args" : {"type":"tool","calls":[{"name":"read_file","args":{"path":"src/a.js"}},{"name":"search_files","args":{"query":"login","path":"src"}}],"reason":"<une phrase>"}. Jamais d'outil d'écriture ni de run_command dans "calls".
 - "plan" (3 à 6 étapes courtes) seulement au premier tour, sur un outil.
 - Dans les chaînes JSON, échappe les guillemets (\\") et les retours à la ligne (\\n).
 - Dans write_file et edit_file, mets le code exact, sans commentaire ajouté sauf demande.`;
@@ -200,15 +201,26 @@ function truncate(text, max) {
     return `${value.slice(0, max)}\n...[tronqué, ${value.length - max} caractères]`;
 }
 
+function clipContent(result, max) {
+    if (result && typeof result.content === "string" && result.content.length > max) {
+        return { ...result, content: result.content.slice(0, max), truncated_in_prompt: true };
+    }
+
+    return result;
+}
+
 function formatObservation(observation, maxChars) {
     const copy = { ...observation };
 
-    if (copy.result && typeof copy.result.content === "string" && copy.result.content.length > maxChars) {
+    if (copy.result && Array.isArray(copy.result.results)) {
+        const share = Math.floor(maxChars / Math.max(1, copy.result.results.length));
+
         copy.result = {
             ...copy.result,
-            content: copy.result.content.slice(0, maxChars),
-            truncated_in_prompt: true
+            results: copy.result.results.map(item => ({ ...item, result: clipContent(item.result, share) }))
         };
+    } else {
+        copy.result = clipContent(copy.result, maxChars);
     }
 
     return truncate(JSON.stringify(copy), maxChars + 2_000);

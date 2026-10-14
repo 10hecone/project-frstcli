@@ -170,7 +170,27 @@ function parseAgentResponse(text) {
         return action;
     }
 
-    validateToolCall(action);
+    if (action.calls !== undefined) {
+        // Lecture en lot : jusqu'à MAX_BATCH_CALLS appels en lecture seule dans un seul tour.
+        const MAX_BATCH_CALLS = 5;
+        const BATCH_TOOLS = new Set(["list_directory", "read_file", "search_files"]);
+
+        if (!Array.isArray(action.calls) || action.calls.length < 1 || action.calls.length > MAX_BATCH_CALLS) {
+            throw new Error(`calls doit être une liste de 1 à ${MAX_BATCH_CALLS} appels.`);
+        }
+
+        action.calls = action.calls.map(call => {
+            if (!call || typeof call !== "object" || !BATCH_TOOLS.has(call.name)) {
+                throw new Error(`calls n'accepte que ${[...BATCH_TOOLS].join(", ")}.`);
+            }
+
+            const single = { type: "tool", name: call.name, args: call.args ?? {} };
+            validateToolCall(single);
+            return { name: single.name, args: single.args };
+        });
+    } else {
+        validateToolCall(action);
+    }
 
     if (action.plan !== undefined) {
         action.plan = Array.isArray(action.plan)
@@ -443,6 +463,32 @@ async function runAgent(task) {
         }
 
         if (action.reason) ui.info(action.reason);
+
+        if (action.calls) {
+            const results = [];
+
+            for (const call of action.calls) {
+                ui.tool(call.name, describeCall(call));
+
+                try {
+                    const result = await TOOLS[call.name].run(call.args);
+                    ui.result(summarizeResult(call.name, result));
+                    results.push({ tool: call.name, args: recordArgs(call.args), ok: true, result });
+                } catch (error) {
+                    ui.result(c.red(error.message));
+                    results.push({ tool: call.name, args: recordArgs(call.args), ok: false, error: error.message });
+                }
+            }
+
+            observations.push({
+                tool: "batch",
+                args: { calls: action.calls.length },
+                ok: results.every(item => item.ok),
+                result: { results }
+            });
+
+            continue;
+        }
 
         ui.tool(action.name, describeCall(action));
 
