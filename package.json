@@ -1,12 +1,28 @@
 {
   "name": "project-frstcli",
   "version": "1.0.0",
-  "description": "",
+  "description": "FranceStudent Code : agent de programmation en ligne de commande",
   "main": "index.js",
-  "scripts": {
-    "test": "node --test test/*.test.js"
+  "bin": {
+    "frstcli": "index.js"
   },
-  "keywords": [],
+  "files": [
+    "index.js",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test/*.test.js",
+    "bench:search": "node scripts/bench-search.js"
+  },
+  "keywords": [
+    "cli",
+    "agent",
+    "francestudent"
+  ],
   "author": "Hecone",
   "license": "ISC",
   "dependencies": {

@@ -26,6 +26,7 @@ function showHelp() {
     ["/read <fichier>", "Lire localement un fichier"],
     ["/index", "Régénérer le résumé du projet (RESUME.md)"],
     ["/init", "Créer FRSTCLI.md (instructions du projet)"],
+    ["/plan <demande>", "Plan en lecture seule, sans modification"],
     ["/resume", "Afficher le résumé du projet"],
     ["/undo", "Annuler la dernière modification"],
     ["/changes", "Historique des modifications annulables"],
@@ -170,6 +171,25 @@ async function handleCommand(input) {
         result.created
           ? `FRSTCLI.md créé : ${result.path}. Complète-le, il sera lu à chaque demande de l'agent.`
           : `FRSTCLI.md existe déjà : ${result.path}. Je ne l'ai pas modifié.`,
+      );
+      break;
+    }
+
+    case "/plan": {
+      if (!requireProject()) break;
+
+      if (!value) {
+        ui.info("Usage : /plan <demande>. L'agent explore le projet en lecture seule et propose un plan.");
+        break;
+      }
+
+      const { runAgent } = require("../agent/agent");
+      await runAgent(
+        "MODE PLAN (lecture seule) : explore le projet avec list_directory, read_file et search_files, " +
+          "sans rien modifier ni lancer de commande. Termine avec final : un plan numéroté " +
+          "(fichiers à modifier, changements prévus, tests à ajouter, risques).\n\nDemande : " +
+          value,
+        { readOnly: true },
       );
       break;
     }

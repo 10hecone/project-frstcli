@@ -357,7 +357,7 @@ async function fallbackPlainAnswer(task, observations) {
 
 /* ---------- Boucle agent ---------- */
 
-async function runAgent(task) {
+async function runAgent(task, options = {}) {
     activateConversation("agent");
     if (task.length > CONFIG.messageBudget / 2) {
         throw new Error(
@@ -568,6 +568,18 @@ async function runAgent(task) {
                 result: { results }
             });
 
+            continue;
+        }
+
+        // Mode plan (/plan) : lecture seule, toute autre action est refusée sans être exécutée.
+        if (options.readOnly && !["list_directory", "read_file", "search_files"].includes(action.name)) {
+            ui.result(c.red(`Mode plan : ${action.name} refusé (lecture seule)`));
+            observations.push({
+                tool: action.name,
+                args: recordArgs(action.args),
+                ok: false,
+                error: "Mode plan (lecture seule) : seuls list_directory, read_file et search_files sont permis. Termine avec final et le plan détaillé."
+            });
             continue;
         }
 
