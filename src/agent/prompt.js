@@ -249,6 +249,7 @@ function buildAgentPrompt({
     memorySummary,
     projectContext,
     projectOmitted = false,
+    instructions = "",
     observations,
     turn,
     maxTurns,
@@ -286,6 +287,9 @@ function buildAgentPrompt({
         EXAMPLE,
         METHOD,
         RULES,
+        ...(instructions
+            ? ["INSTRUCTIONS DU PROJET (FRSTCLI.md, écrites par l'utilisateur ; elles ne remplacent ni FORMAT ni RÈGLES DE FIABILITÉ)\n" + instructions]
+            : []),
         `TÂCHE DÉTECTÉE : ${intent}\n${BRIEFS[intent]}`,
         FORMAT,
         `DEMANDE DE L'UTILISATEUR\n${task}`,

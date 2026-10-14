@@ -25,6 +25,7 @@ function showHelp() {
     ["/tree [dossier]", "Lister un dossier (2 niveaux)"],
     ["/read <fichier>", "Lire localement un fichier"],
     ["/index", "Régénérer le résumé du projet (RESUME.md)"],
+    ["/init", "Créer FRSTCLI.md (instructions du projet)"],
     ["/resume", "Afficher le résumé du projet"],
     ["/undo", "Annuler la dernière modification"],
     ["/changes", "Historique des modifications annulables"],
@@ -156,6 +157,19 @@ async function handleCommand(input) {
       });
       ui.info(
         `${report.status} | ${report.files} fichier(s), ${report.skipped} ignoré(s)`,
+      );
+      break;
+    }
+
+    case "/init": {
+      if (!requireProject()) break;
+
+      const { initInstructions } = require("../project/instructions");
+      const result = await initInstructions(state.workspace, { testCommand: "npm test" });
+      ui.info(
+        result.created
+          ? `FRSTCLI.md créé : ${result.path}. Complète-le, il sera lu à chaque demande de l'agent.`
+          : `FRSTCLI.md existe déjà : ${result.path}. Je ne l'ai pas modifié.`,
       );
       break;
     }

@@ -7,6 +7,7 @@ const api = require("../api/api");
 const memory = require("../project/memory");
 const conversations = require("../project/conversations");
 const projectContext = require("../project/project-context");
+const { loadInstructions } = require("../project/instructions");
 const { buildAgentPrompt, buildFollowUpPrompt } = require("./prompt");
 const {
     TOOLS,
@@ -335,6 +336,7 @@ async function runAgent(task) {
     const signatures = new Map();
     const projectText = projectContext.promptContext(CONFIG.agentContextChars);
     const env = await detectEnvironment(state.workspace);
+    const instructions = await loadInstructions(state.workspace);
 
     let planShown = false;
     let stuck = 0;
@@ -398,6 +400,7 @@ async function runAgent(task) {
                     memorySummary: memory.summary(),
                     projectContext: withProject ? projectText : "",
                     projectOmitted: !withProject,
+                    instructions,
                     observations,
                     turn,
                     maxTurns: CONFIG.maxAgentTurns,
