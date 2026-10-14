@@ -46,9 +46,8 @@ function showHelp() {
     ["/web on|off", "Recherche web (chat normal)"],
     ["/auth [refresh]", "État de la connexion / renouvellement"],
     ["/login", "Se connecter avec e-mail et mot de passe"],
-    ["/history", "Afficher l'historique local"],
     ["/clear", "Effacer le terminal"],
-    ["/exit", "Quitter"],
+    ["/exit", "Quitter (alias : /quit)"],
   ];
 
   console.log(`\n${c.bold("Commandes")}`);
