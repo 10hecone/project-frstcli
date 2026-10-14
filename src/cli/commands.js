@@ -41,6 +41,7 @@ function showHelp() {
     ["/chat-id [n|id]", "Voir le chat ID / reprendre une conversation"],
     ["/history [all]", "Dernières conversations (id + titre)"],
     ["/messages", "Messages de la conversation (session)"],
+    ["/usage", "Consommation : session, conversations, limites du compte"],
     ["/model [id]", "Lister / changer d'agent"],
     ["/web on|off", "Recherche web (chat normal)"],
     ["/auth [refresh]", "État de la connexion / renouvellement"],
@@ -445,6 +446,33 @@ async function handleCommand(input) {
       state.model = id;
       resetConversation(state.mode === "agent" ? "agent" : "chat");
       ui.info(`Agent sélectionné : ${id}`);
+      break;
+    }
+
+    case "/usage": {
+      const api = require("../api/api");
+      const account = require("../api/account");
+      const lines = [...account.describeSession(api.usage)];
+
+      for (const mode of ["chat", "agent"]) {
+        const id = state.chatIds[mode];
+        if (!id) continue;
+        const label = mode === "agent" ? "Conversation agent" : "Conversation chat";
+        try {
+          lines.push(...account.describeChatUsage(label, await account.fetchChatUsage(id)));
+        } catch (error) {
+          lines.push(`${label} : ${error.message}`);
+        }
+      }
+
+      try {
+        lines.push(...account.describeUserUsage(await account.fetchUserUsage()));
+      } catch (error) {
+        lines.push(`Compte : ${error.message}`);
+      }
+
+      console.log(c.bold("Consommation"));
+      lines.forEach((line) => console.log(`  ${line}`));
       break;
     }
 
