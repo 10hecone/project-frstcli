@@ -208,14 +208,51 @@ function parseAgentResponse(text) {
 
 /* ---------- Prompt ---------- */
 
-/** Construit le prompt en retirant les observations les plus anciennes si besoin. */
-function fitPrompt(context) {
-    let observations = context.observations.slice(-CONFIG.maxObservationsInPrompt);
-    let prompt = buildAgentPrompt({ ...context, observations });
+/**
+ * Résume en une seule observation les résultats d'outils trop anciens pour le
+ * prompt : outil, arguments et succès, sans le contenu. Le modèle garde ainsi la
+ * trace de ce qu'il a déjà fait (après un 409 ou sans conversation serveur).
+ */
+function compactObservations(list, maxEntries = 60) {
+    const lines = list.slice(-maxEntries).map(o => {
+        const args = JSON.stringify(o.args ?? {}).slice(0, 160);
+        return `${o.tool} ${args} : ${o.ok ? "ok" : `erreur${o.error ? ` (${String(o.error).slice(0, 80)})` : ""}`}`;
+    });
 
-    while (prompt.length > CONFIG.messageBudget && observations.length > 1) {
-        observations = observations.slice(1);
-        prompt = buildAgentPrompt({ ...context, observations });
+    return {
+        tool: "historique_compacté",
+        args: { actions: list.length },
+        ok: true,
+        result: {
+            note: "Résultats plus anciens retirés du prompt (contenu omis). Relis un fichier si tu en as besoin.",
+            omitted_before: Math.max(list.length - maxEntries, 0),
+            actions: lines
+        }
+    };
+}
+
+/**
+ * Construit le prompt : les observations récentes en entier, les plus anciennes
+ * résumées par compactObservations au lieu d'être perdues.
+ */
+function fitPrompt(context) {
+    const all = context.observations;
+    let keep = Math.min(all.length, CONFIG.maxObservationsInPrompt);
+
+    const build = () => {
+        const dropped = all.slice(0, all.length - keep);
+        const observations = [
+            ...(dropped.length ? [compactObservations(dropped)] : []),
+            ...all.slice(all.length - keep)
+        ];
+        return buildAgentPrompt({ ...context, observations });
+    };
+
+    let prompt = build();
+
+    while (prompt.length > CONFIG.messageBudget && keep > 1) {
+        keep--;
+        prompt = build();
     }
 
     if (prompt.length > CONFIG.messageBudget) {
@@ -481,6 +518,33 @@ async function runAgent(task) {
 
         if (action.reason) ui.info(action.reason);
 
+        // Garde-fou : la même action, ou le même lot de lectures, répétée en boucle n'est plus exécutée.
+        const signature = action.calls
+            ? `calls:${JSON.stringify(action.calls)}`
+            : `${action.name}:${JSON.stringify(action.args)}`;
+        const seen = (signatures.get(signature) || 0) + 1;
+
+        signatures.set(signature, seen);
+
+        if (seen >= 3) {
+            stuck++;
+            ui.result(c.red("Action répétée : ignorée"));
+
+            observations.push({
+                tool: action.calls ? "batch" : action.name,
+                args: action.calls ? { calls: action.calls.length } : recordArgs(action.args),
+                ok: false,
+                error: "Action déjà exécutée plusieurs fois avec les mêmes arguments. Change de démarche ou termine avec final."
+            });
+
+            if (stuck >= 2) {
+                await finish("Je tourne en rond : j'arrête ici. Précise ta demande ou le fichier concerné.");
+                return;
+            }
+
+            continue;
+        }
+
         if (action.calls) {
             const results = [];
 
@@ -510,30 +574,6 @@ async function runAgent(task) {
         ui.tool(action.name, describeCall(action));
 
         const recorded = recordArgs(action.args);
-        const signature = `${action.name}:${JSON.stringify(action.args)}`;
-        const seen = (signatures.get(signature) || 0) + 1;
-
-        signatures.set(signature, seen);
-
-        // Garde-fou : la même action répétée en boucle n'est plus exécutée.
-        if (seen >= 3) {
-            stuck++;
-            ui.result(c.red("Action répétée : ignorée"));
-
-            observations.push({
-                tool: action.name,
-                args: recorded,
-                ok: false,
-                error: "Action déjà exécutée plusieurs fois avec les mêmes arguments. Change de démarche ou termine avec final."
-            });
-
-            if (stuck >= 2) {
-                await finish("Je tourne en rond : j'arrête ici. Précise ta demande ou le fichier concerné.");
-                return;
-            }
-
-            continue;
-        }
 
         try {
             const result = await TOOLS[action.name].run(action.args);
@@ -568,4 +608,4 @@ async function runAgent(task) {
     reportUsage(usageBefore);
 }
 
-module.exports = { runAgent, parseAgentResponse, extractJsonObject, fitPrompt };
+module.exports = { runAgent, parseAgentResponse, extractJsonObject, fitPrompt, compactObservations };
