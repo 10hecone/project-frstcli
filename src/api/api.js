@@ -44,6 +44,21 @@ async function apiHeaders() {
     };
 }
 
+/** POST /chats/{chatId}/stream/cancel : arrête la génération côté serveur (idempotent). */
+async function cancelStream(chatId) {
+    if (!chatId) return false;
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/chats/${encodeURIComponent(chatId)}/stream/cancel`, {
+            method: "POST",
+            headers: { ...(await apiHeaders()), Accept: "application/json" },
+            signal: AbortSignal.timeout(10_000)
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
+}
+
 /**
  * options.fresh   : true = nouvelle conversation à chaque appel.
  * options.onDelta : callback appelé à chaque morceau de texte.
@@ -78,6 +93,9 @@ async function requestModel(message, options = {}) {
         try {
             return await requestModelOnce(message, options);
         } catch (error) {
+            // Annulation volontaire (Ctrl+C) : jamais de relance.
+            if (error.cancelled) throw error;
+
             const status = error.status;
             const isClientError = status >= 400 && status < 500;
 
@@ -138,6 +156,22 @@ async function requestModelOnce(message, options) {
     let idle;
     const armIdle = ms => { clearTimeout(idle); idle = setTimeout(() => controller.abort(), ms); };
     armIdle(CONFIG.firstByteTimeoutMs);
+
+    // Ctrl+C : coupe le flux local et demande l'arrêt de la génération côté serveur.
+    let streamChatId = options.fresh ? null : state.chatIds[options.conversationMode === "agent" ? "agent" : "chat"];
+    let cancelled = false;
+    const registerInterrupt = options.onInterrupt ?? (process.stdin.isTTY ? handler => ui.onInterrupt(handler) : null);
+    const offInterrupt = registerInterrupt ? registerInterrupt(() => {
+        if (cancelled) return;
+        cancelled = true;
+        controller.abort();
+        if (streamChatId) {
+            ui.warn("Ctrl+C : arrêt de la génération en cours.");
+            cancelStream(streamChatId).then(ok => {
+                if (!ok) ui.debug(`Annulation du flux ${streamChatId} non confirmée par l'API.`);
+            });
+        }
+    }) : null;
 
     let reader;
 
@@ -209,6 +243,8 @@ async function requestModelOnce(message, options) {
             } catch {
                 throw new Error(`Événement SSE JSON invalide : ${name || "message"}`);
             }
+
+            if (data.chat_id) streamChatId = data.chat_id;
 
             if (data.chat_id && !options.fresh) {
                 state.chatIds[conversationMode] = data.chat_id;
@@ -325,7 +361,15 @@ async function requestModelOnce(message, options) {
         }
 
         return output;
+    } catch (error) {
+        if (cancelled) {
+            const interrupted = new Error("Génération annulée (Ctrl+C).");
+            interrupted.cancelled = true;
+            throw interrupted;
+        }
+        throw error;
     } finally {
+        offInterrupt?.();
         clearTimeout(timeout);
         clearTimeout(idle);
 
@@ -336,4 +380,4 @@ async function requestModelOnce(message, options) {
     }
 }
 
-module.exports = { requestModel, MAX_REQUEST_FAILURES, usage };
+module.exports = { requestModel, cancelStream, MAX_REQUEST_FAILURES, usage };
