@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { state } = require("../src/state");
-const { searchFiles } = require("../src/tools/fs/search-files");
+const { searchFiles, globToRegExp } = require("../src/tools/fs/search-files");
 
 async function withWorkspace(fn) {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "frst-search-"));
@@ -69,4 +69,62 @@ test("searchFiles refuse un fichier comme cible", async () => {
             /doit cibler un dossier/
         );
     });
+});
+
+test("searchFiles regex : ancre de début de ligne, CRLF compris", async () => {
+    await withWorkspace(async (dir) => {
+        await fill(dir);
+        const result = await searchFiles({ query: "^hello", regex: true, path: "." });
+        assert.deepEqual(keys(result), ["a.txt:1", "sub/c.txt:2"]);
+        assert.equal(result.regex, true);
+    });
+});
+
+test("searchFiles regex : fin de ligne et classes de caractères", async () => {
+    await withWorkspace(async (dir) => {
+        await fill(dir);
+        const result = await searchFiles({ query: "hel+o\\s+there$", regex: true, path: "." });
+        assert.deepEqual(keys(result), ["sub/c.txt:2"]);
+    });
+});
+
+test("searchFiles refuse une regex invalide", async () => {
+    await withWorkspace(async (dir) => {
+        await fill(dir);
+        await assert.rejects(
+            searchFiles({ query: "(hello", regex: true, path: "." }),
+            /regex valide/
+        );
+    });
+});
+
+test("searchFiles glob sans « / » : filtre sur le nom du fichier", async () => {
+    await withWorkspace(async (dir) => {
+        await fill(dir);
+        const result = await searchFiles({ query: "hello", glob: "c.*", path: "." });
+        assert.deepEqual(keys(result), ["sub/c.txt:2"]);
+        assert.equal(result.glob, "c.*");
+    });
+});
+
+test("searchFiles glob avec « / » : filtre sur le chemin", async () => {
+    await withWorkspace(async (dir) => {
+        await fill(dir);
+        const inSub = await searchFiles({ query: "hello", glob: "sub/**", path: "." });
+        assert.deepEqual(keys(inSub), ["sub/c.txt:2"]);
+
+        const anyTxt = await searchFiles({ query: "hello", glob: "**/*.txt", path: "." });
+        assert.deepEqual(keys(anyTxt), ["a.txt:1", "a.txt:3", "sub/c.txt:2"]);
+    });
+});
+
+test("globToRegExp gère *, **, ? et {a,b}", () => {
+    assert.ok(globToRegExp("*.{js,ts}").test("x.ts"));
+    assert.ok(!globToRegExp("*.{js,ts}").test("x.md"));
+    assert.ok(!globToRegExp("*.js").test("src/x.js"));
+    assert.ok(globToRegExp("src/**/*.js").test("src/x.js"));
+    assert.ok(globToRegExp("src/**/*.js").test("src/a/b/x.js"));
+    assert.ok(globToRegExp("?.txt").test("a.txt"));
+    assert.ok(!globToRegExp("?.txt").test("ab.txt"));
+    assert.throws(() => globToRegExp("*.{js"), /non fermée/);
 });

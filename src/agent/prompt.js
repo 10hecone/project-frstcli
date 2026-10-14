@@ -12,7 +12,7 @@ Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
 2. read_file — lit un fichier et le mémorise. Gros fichier : start_line / end_line (à partir de 1).
    {"type":"tool","name":"read_file","args":{"path":"src/app.js","start_line":100,"end_line":220},"reason":"Lire la fonction login de src/app.js"}
 
-3. search_files — cherche un texte (insensible à la casse, pas une regex) dans un dossier.
+3. search_files — cherche un texte (insensible à la casse) dans un dossier. Options : "regex": true pour une regex JavaScript (ex. "function\\s+login") ; "glob" pour filtrer les fichiers ("*.js" porte sur le nom, "src/**/*.test.js" sur le chemin).
    {"type":"tool","name":"search_files","args":{"query":"login","path":"."},"reason":"Trouver où la fonction login est utilisée"}
 
 4. create_directory — crée un dossier et ses parents. Confirmation demandée.
