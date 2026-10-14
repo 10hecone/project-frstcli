@@ -13,6 +13,44 @@ test.after(() => {
     global.fetch = originalFetch;
 });
 
+test("requestModel additionne les tokens fournis par response.completed", { concurrency: false }, async () => {
+    prepareAuth();
+    const { usage } = require("../src/api/api");
+    const before = { ...usage };
+    global.fetch = async () => new Response(
+        new ReadableStream({
+            start(controller) {
+                controller.enqueue(
+                    new TextEncoder().encode(
+                        'event: response.output_text.delta\ndata: {"delta":"ok"}\n\n' +
+                        'event: response.completed\ndata: {"response":{"usage":{"input_tokens":120,"output_tokens":7,"input_tokens_details":{"cached_tokens":100}}}}\n\n' +
+                        "data: [DONE]\n\n",
+                    ),
+                );
+                controller.close();
+            },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+    );
+
+    assert.equal(await requestModel("bonjour"), "ok");
+    assert.equal(usage.inputTokens - before.inputTokens, 120);
+    assert.equal(usage.outputTokens - before.outputTokens, 7);
+    assert.equal(usage.cachedTokens - before.cachedTokens, 100);
+    assert.equal(usage.reported - before.reported, 1);
+});
+
+test("sans champ usage, les compteurs de tokens ne bougent pas", { concurrency: false }, async () => {
+    prepareAuth();
+    const { usage } = require("../src/api/api");
+    const before = { ...usage };
+    global.fetch = async () => successfulResponse();
+
+    assert.equal(await requestModel("bonjour"), "ok");
+    assert.equal(usage.reported, before.reported);
+    assert.equal(usage.inputTokens, before.inputTokens);
+});
+
 function successfulResponse() {
     const body = new ReadableStream({
         start(controller) {

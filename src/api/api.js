@@ -9,7 +9,24 @@ const fmt = n => Number(n).toLocaleString("fr-FR");
 const MAX_REQUEST_FAILURES = 2;
 
 // Volume réellement envoyé (chaque tentative HTTP compte, relances comprises).
-const usage = { requests: 0, chars: 0 };
+const usage = { requests: 0, chars: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, reported: 0 };
+
+/** Ajoute à `usage` les tokens réels si l'événement SSE en fournit (format Responses ou Chat Completions). */
+function recordTokens(raw) {
+    if (!raw || typeof raw !== "object") return;
+    const input = Number(raw.input_tokens ?? raw.prompt_tokens);
+    const output = Number(raw.output_tokens ?? raw.completion_tokens);
+    if (!Number.isFinite(input) && !Number.isFinite(output)) return;
+    const cached = Number(
+        raw.input_tokens_details?.cached_tokens ??
+        raw.prompt_tokens_details?.cached_tokens ??
+        raw.cached_tokens
+    );
+    usage.inputTokens += Number.isFinite(input) ? input : 0;
+    usage.outputTokens += Number.isFinite(output) ? output : 0;
+    usage.cachedTokens += Number.isFinite(cached) ? cached : 0;
+    usage.reported++;
+}
 
 async function apiHeaders() {
     const token = await getAccessToken();
@@ -196,6 +213,10 @@ async function requestModelOnce(message, options) {
             if (data.chat_id && !options.fresh) {
                 state.chatIds[conversationMode] = data.chat_id;
                 state.chatId = data.chat_id;
+            }
+
+            if (name === "response.completed" || name === "completed") {
+                recordTokens(data.response?.usage ?? data.usage ?? data.message?.usage);
             }
 
             switch (name) {

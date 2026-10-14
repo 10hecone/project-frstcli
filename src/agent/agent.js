@@ -94,9 +94,23 @@ function reportUsage(before) {
 
     if (requests <= 0) return;
 
+    const reported = (api.usage.reported ?? 0) - (before.reported ?? 0);
+    let tokens;
+
+    if (reported > 0) {
+        const input = (api.usage.inputTokens ?? 0) - (before.inputTokens ?? 0);
+        const output = (api.usage.outputTokens ?? 0) - (before.outputTokens ?? 0);
+        const cached = (api.usage.cachedTokens ?? 0) - (before.cachedTokens ?? 0);
+        tokens =
+            `${fmt(input)} tokens en entrée` +
+            `${cached > 0 ? ` dont ${fmt(cached)} en cache` : ""}, ${fmt(output)} en sortie` +
+            `${reported < requests ? ` ; usage fourni pour ${reported}/${requests} réponse(s)` : ""}`;
+    } else {
+        tokens = `≈ ${fmt(Math.round(chars / 3.5))} tokens`;
+    }
+
     ui.info(
-        `Coût de la demande : ${requests} requête(s), ${fmt(chars)} caractères envoyés ` +
-        `(≈ ${fmt(Math.round(chars / 3.5))} tokens)`
+        `Coût de la demande : ${requests} requête(s), ${fmt(chars)} caractères envoyés (${tokens})`
     );
 }
 
