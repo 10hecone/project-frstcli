@@ -305,11 +305,25 @@ function buildAgentPrompt({
     }
 
     sections.push(
-        `TOUR ${turn}/${maxTurns} — choisis la prochaine action d'après la DEMANDE et les RÉSULTATS DES OUTILS.\n` +
+        `TOUR ${turn} — choisis la prochaine action d'après la DEMANDE et les RÉSULTATS DES OUTILS.\n` +
+        turnWarning(turn, maxTurns) +
         'RAPPEL : tu es un agent CLI. Réponds avec UN seul objet JSON {"type":"tool"|"final",...}, et rien d\'autre.'
     );
 
     return sections.join("\n\n");
+}
+
+/**
+ * Avertissement des derniers tours : le plafond n'est plus affiché au modèle
+ * (« TOUR n » seul) pour ne pas le pousser à conclure trop tôt ; il n'est
+ * prévenu que lorsqu'il reste 2 tours ou moins.
+ */
+function turnWarning(turn, maxTurns) {
+    if (!maxTurns) return "";
+    const remaining = maxTurns - turn;
+    if (remaining > 2) return "";
+    return `ATTENTION : plus que ${Math.max(remaining, 0)} tour(s) après celui-ci. ` +
+        "Termine bientôt avec final : ce qui est fait, ce qui reste à faire.\n";
 }
 
 /**
@@ -337,7 +351,8 @@ function buildFollowUpPrompt({ lastObservation, turn, maxTurns, correction }) {
     }
 
     sections.push(
-        `TOUR ${turn}/${maxTurns} — choisis la prochaine action d'après la demande et les résultats déjà reçus.\n` +
+        `TOUR ${turn} — choisis la prochaine action d'après la demande et les résultats déjà reçus.\n` +
+        turnWarning(turn, maxTurns) +
         'RAPPEL : tu es un agent CLI. Réponds avec UN seul objet JSON {"type":"tool"|"final",...}, et rien d\'autre.'
     );
 

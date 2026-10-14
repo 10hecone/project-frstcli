@@ -382,7 +382,21 @@ async function runAgent(task) {
 
     await preloadContext(task, observations);
 
-    for (let turn = 1; turn <= CONFIG.maxAgentTurns; turn++) {
+    // Limite souple : au plafond, on propose de continuer au lieu d'arrêter.
+    // Les observations et la conversation serveur sont conservées.
+    let maxTurns = CONFIG.maxAgentTurns;
+    const TURN_EXTENSION = 20;
+
+    for (let turn = 1; ; turn++) {
+        if (turn > maxTurns) {
+            const more = await ui.confirm(
+                `Limite de ${maxTurns} tours atteinte. Continuer ${TURN_EXTENSION} tours de plus ?`,
+                { force: true }
+            );
+            if (!more) break;
+            maxTurns += TURN_EXTENSION;
+        }
+
         let action = null;
         let correction = null;
         let lastResponse = "";
@@ -403,7 +417,7 @@ async function runAgent(task) {
                     instructions,
                     observations,
                     turn,
-                    maxTurns: CONFIG.maxAgentTurns,
+                    maxTurns,
                     correction
                 });
 
@@ -416,7 +430,7 @@ async function runAgent(task) {
                     ? buildFollowUpPrompt({
                         lastObservation: observations[observations.length - 1],
                         turn,
-                        maxTurns: CONFIG.maxAgentTurns,
+                        maxTurns,
                         correction
                     })
                     : fullPrompt(!hasConversation);
