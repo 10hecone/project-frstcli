@@ -167,6 +167,7 @@ async function handleCommand(input) {
 
       const { initInstructions } = require("../project/instructions");
       const result = await initInstructions(state.workspace, { testCommand: "npm test" });
+      require("../agent/agent").clearAgentContextCache();
       ui.info(
         result.created
           ? `FRSTCLI.md créé : ${result.path}. Complète-le, il sera lu à chaque demande de l'agent.`
@@ -546,6 +547,7 @@ async function handleCommand(input) {
       break;
 
     case "/clear":
+      require("../agent/agent").clearAgentContextCache();
       console.clear();
       break;
 

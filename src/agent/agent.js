@@ -7,7 +7,7 @@ const api = require("../api/api");
 const memory = require("../project/memory");
 const conversations = require("../project/conversations");
 const projectContext = require("../project/project-context");
-const { loadInstructions } = require("../project/instructions");
+const { loadInstructions, INSTRUCTIONS_NAME } = require("../project/instructions");
 const { buildAgentPrompt, buildFollowUpPrompt } = require("./prompt");
 const {
     TOOLS,
@@ -78,6 +78,51 @@ async function detectEnvironment(workspace) {
             : (process.env.SHELL || null),
         ...(await detectPackageInfo(workspace))
     };
+}
+
+// Cache par workspace : environnement, instructions et contexte projet.
+// Une entrée est invalidée si le mtime de package.json, .git/HEAD ou FRSTCLI.md change, ou après 60 s.
+const AGENT_CONTEXT_TTL_MS = 60_000;
+const agentContextCache = new Map();
+
+async function mtimeOf(file) {
+    try {
+        return (await fsp.stat(file)).mtimeMs;
+    } catch {
+        return null;
+    }
+}
+
+async function agentContextStamp(workspace) {
+    if (!workspace) return "";
+
+    const files = ["package.json", path.join(".git", "HEAD"), INSTRUCTIONS_NAME];
+    const stamps = await Promise.all(files.map(file => mtimeOf(path.join(workspace, file))));
+
+    return stamps.join("|");
+}
+
+async function loadAgentContext(workspace, now = Date.now()) {
+    const key = workspace || "";
+    const stamp = await agentContextStamp(workspace);
+    const cached = agentContextCache.get(key);
+
+    if (cached && cached.stamp === stamp && now - cached.at < AGENT_CONTEXT_TTL_MS) {
+        return cached.value;
+    }
+
+    const value = {
+        projectText: projectContext.promptContext(CONFIG.agentContextChars),
+        env: await detectEnvironment(workspace),
+        instructions: await loadInstructions(workspace)
+    };
+
+    agentContextCache.set(key, { stamp, at: now, value });
+    return value;
+}
+
+function clearAgentContextCache() {
+    agentContextCache.clear();
 }
 
 const fmt = n => Number(n).toLocaleString("fr-FR");
@@ -385,9 +430,7 @@ async function runAgent(task, options = {}) {
     const observations = [];
     const changesBefore = memory.sessionChanges();
     const signatures = new Map();
-    const projectText = projectContext.promptContext(CONFIG.agentContextChars);
-    const env = await detectEnvironment(state.workspace);
-    const instructions = await loadInstructions(state.workspace);
+    const { projectText, env, instructions } = await loadAgentContext(state.workspace);
 
     let planShown = false;
     let stuck = 0;
@@ -640,4 +683,12 @@ async function runAgent(task, options = {}) {
     reportUsage(usageBefore);
 }
 
-module.exports = { runAgent, parseAgentResponse, extractJsonObject, fitPrompt, compactObservations };
+module.exports = {
+    runAgent,
+    parseAgentResponse,
+    extractJsonObject,
+    fitPrompt,
+    compactObservations,
+    loadAgentContext,
+    clearAgentContextCache
+};
