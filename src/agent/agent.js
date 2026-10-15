@@ -560,20 +560,26 @@ async function runAgent(task, options = {}) {
         }
 
         if (action.calls) {
-            const results = [];
+            // Lectures seules : exécutées en parallèle, observations et affichage dans l'ordre des appels.
+            const settled = await Promise.allSettled(
+                action.calls.map(call => Promise.resolve().then(() => TOOLS[call.name].run(call.args)))
+            );
 
-            for (const call of action.calls) {
+            const results = action.calls.map((call, index) => {
+                const outcome = settled[index];
+
                 ui.tool(call.name, describeCall(call));
 
-                try {
-                    const result = await TOOLS[call.name].run(call.args);
-                    ui.result(summarizeResult(call.name, result));
-                    results.push({ tool: call.name, args: recordArgs(call.args), ok: true, result });
-                } catch (error) {
-                    ui.result(c.red(error.message));
-                    results.push({ tool: call.name, args: recordArgs(call.args), ok: false, error: error.message });
+                if (outcome.status === "fulfilled") {
+                    ui.result(summarizeResult(call.name, outcome.value));
+                    return { tool: call.name, args: recordArgs(call.args), ok: true, result: outcome.value };
                 }
-            }
+
+                const message = outcome.reason?.message ?? String(outcome.reason);
+
+                ui.result(c.red(message));
+                return { tool: call.name, args: recordArgs(call.args), ok: false, error: message };
+            });
 
             observations.push({
                 tool: "batch",
