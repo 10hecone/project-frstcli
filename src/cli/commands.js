@@ -97,7 +97,11 @@ async function handleCommand(input) {
         break;
       }
 
-      await setProject(unquote(value));
+      {
+        const newConv = /\s+newconv$/i.test(value);
+        const target = newConv ? value.replace(/\s+newconv$/i, "").trim() : value;
+        await setProject(unquote(target), { newConv });
+      }
       break;
 
     case "/unproject":
