@@ -77,6 +77,207 @@ function askSecret(question) {
     });
 }
 
+const PASTE_GAP_MS = 40;
+
+/** Lit le texte du presse-papier du système, ou "" s'il est vide ou illisible. */
+function readClipboard() {
+    const { execFile } = require("node:child_process");
+    const [cmd, args] = process.platform === "win32"
+        ? ["powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+            "[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-Clipboard -Raw"]]
+        : process.platform === "darwin"
+            ? ["pbpaste", []]
+            : ["sh", ["-c", "wl-paste --no-newline 2>/dev/null || xclip -selection clipboard -o 2>/dev/null || xsel -b -o"]];
+    return new Promise(resolve => {
+        execFile(cmd, args, { encoding: "utf8", windowsHide: true, timeout: 5000, maxBuffer: 10 * 1024 * 1024 },
+            (error, stdout) => resolve(error ? "" : String(stdout || "")));
+    });
+}
+
+/**
+ * Lit un message sur r, ligne par ligne :
+ * - les lignes reçues à moins de gapMs d'intervalle (collage) forment un seul message ;
+ * - si un collage se termine sans retour à la ligne, on attend Entrée ;
+ * - une ligne terminée par « \ » continue sur la ligne suivante ;
+ * - Échap efface toute la saisie en cours.
+ * Renvoie null si l'entrée est fermée.
+ */
+function collectInput(r, question, { gapMs = PASTE_GAP_MS, keys = process.stdin, out = process.stdout, clipboard = readClipboard } = {}) {
+    return new Promise(resolve => {
+        const promptText = String(question).replace(/^\n+/, "");
+        const leading = String(question).slice(0, String(question).length - promptText.length);
+        const lines = [];
+        let timer = null;
+
+        const finish = value => {
+            done = true;
+            clearTimeout(timer);
+            r.off("line", onLine);
+            r.off("close", onClose);
+            detachKeys();
+            resolve(value);
+        };
+
+        const onClose = () => finish(null);
+
+        const flush = () => {
+            if (r.line) return;
+            finish(lines.join("\n"));
+        };
+
+        const onLine = line => {
+            clearTimeout(timer);
+            if (line.endsWith("\\")) {
+                lines.push(line.slice(0, -1));
+                r.setPrompt(c.dim("... "));
+                r.prompt();
+                return;
+            }
+            lines.push(line);
+            timer = setTimeout(flush, gapMs);
+        };
+
+        let allSelected = false;
+        let internal = false;
+
+        const send = key => {
+            internal = true;
+            try { r.write(null, key); } finally { internal = false; }
+        };
+
+        const clearAll = () => {
+            clearTimeout(timer);
+            send({ ctrl: true, name: "e" });
+            send({ ctrl: true, name: "u" });
+            if (lines.length) {
+                lines.length = 0;
+                r.setPrompt(promptText);
+                out?.write(`\n${c.dim("(saisie effacée)")}\n`);
+                r.prompt();
+            }
+        };
+
+        let highlighted = false;
+
+        const paintLine = inverse => {
+            if (!r.line || !out || typeof r.getCursorPos !== "function") return;
+            send({ ctrl: true, name: "e" });
+            const { rows } = r.getCursorPos();
+            if (rows) readline.moveCursor(out, 0, -rows);
+            readline.cursorTo(out, 0);
+            readline.clearScreenDown(out);
+            const shown = typeof r.getPrompt === "function" ? r.getPrompt() : promptText;
+            out.write(shown + (inverse ? `\x1b[7m${r.line}\x1b[27m` : r.line));
+        };
+
+        const redraw = on => {
+            if (highlighted === on) return;
+            highlighted = on;
+            paintLine(on);
+        };
+
+        let done = false;
+
+        const insertText = text => {
+            internal = true;
+            try { r.write(text); } finally { internal = false; }
+        };
+
+        const pasteClipboard = async () => {
+            let text = "";
+            try { text = await clipboard(); } catch { text = ""; }
+            if (done) return;
+            const parts = String(text || "").replace(/\r\n?/g, "\n").replace(/\n+$/, "").split("\n");
+            if (!parts.join("")) {
+                out?.write(`\n${c.dim("(presse-papier vide)")}\n`);
+                r.prompt();
+                return;
+            }
+            if (allSelected) {
+                allSelected = false;
+                highlighted = false;
+                clearAll();
+            }
+            insertText(parts[0]);
+            if (parts.length === 1) return;
+            const first = r.line;
+            send({ ctrl: true, name: "e" });
+            send({ ctrl: true, name: "u" });
+            clearTimeout(timer);
+            lines.push(first, ...parts.slice(1, -1));
+            out?.write(`\n${c.dim(`(${parts.length} lignes collées, Entrée pour envoyer)`)}\n`);
+            r.setPrompt(c.dim("... "));
+            r.prompt();
+            insertText(parts[parts.length - 1]);
+        };
+
+        const handleKey = (s, key) => {
+            if (internal) return false;
+            if (key?.ctrl && key.name === "v") {
+                pasteClipboard();
+                return true;
+            }
+            if (key?.ctrl && key.name === "a") {
+                allSelected = true;
+                redraw(true);
+                return true;
+            }
+            if (key?.name === "escape") {
+                allSelected = false;
+                highlighted = false;
+                clearAll();
+                return true;
+            }
+            if (!allSelected) return false;
+            allSelected = false;
+            if (key?.name === "backspace" || key?.name === "delete") {
+                highlighted = false;
+                clearAll();
+                return true;
+            }
+            const printable = typeof s === "string" && s.length > 0 && !key?.ctrl && !key?.meta &&
+                !["return", "enter", "tab"].includes(key?.name);
+            if (printable) {
+                highlighted = false;
+                clearAll();
+                return false;
+            }
+            redraw(false);
+            return false;
+        };
+
+        let detachKeys = () => {};
+
+        r.on("line", onLine);
+        r.once("close", onClose);
+        if (typeof r._ttyWrite === "function") {
+            const original = r._ttyWrite;
+            r._ttyWrite = function (s, key) {
+                if (!handleKey(s, key)) original.call(this, s, key);
+            };
+            detachKeys = () => { r._ttyWrite = original; };
+        } else if (keys) {
+            const onKey = (s, key) => { handleKey(s, key); };
+            keys.on("keypress", onKey);
+            detachKeys = () => keys.off("keypress", onKey);
+        }
+        if (leading) out?.write(leading);
+        r.setPrompt(promptText);
+        r.prompt();
+    });
+}
+
+/** Saisie du prompt principal : collage multiligne, « \ » en fin de ligne, Échap pour effacer. */
+function askInput(question) {
+    const r = getInterface();
+
+    if (closed) return Promise.resolve(null);
+
+    if (!process.stdin.isTTY) return ask(question);
+
+    return collectInput(r, question);
+}
+
 function closeInput() {
     rl?.close();
 }
@@ -252,4 +453,4 @@ const ui = {
     }
 };
 
-module.exports = { ui, c, ask, askSecret, closeInput };
+module.exports = { ui, c, ask, askInput, collectInput, askSecret, closeInput };

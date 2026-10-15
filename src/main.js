@@ -1,7 +1,7 @@
 "use strict";
 
 const { state, record, activateConversation, setConversation } = require("./state");
-const { ui, c, ask, closeInput } = require("./cli/ui");
+const { ui, c, askInput, closeInput } = require("./cli/ui");
 const { initAuth } = require("./api/auth");
 const { promptAndLogin } = require("./api/login");
 const api = require("./api/api");
@@ -105,7 +105,7 @@ async function main() {
   }
 
   while (true) {
-    const answer = await ask(ui.prompt());
+    const answer = await askInput(ui.prompt());
 
     if (answer === null) break; // Ctrl+D / entrée fermée
 
