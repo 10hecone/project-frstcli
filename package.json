@@ -26,7 +26,6 @@
   "author": "Hecone",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^18.0.7",
-    "francestudent-ai-sdk": "^0.1.0"
+    "dotenv": "^18.0.7"
   }
 }
