@@ -27,6 +27,10 @@ backups/
 trash/
 frstud.sh
 PULL_REQUEST.md
+frstud.bat
+Commit.md
+projects.json
+history.json
 package-lock.json
 AMELIORATIONS.md
 FRSTCLI.md
