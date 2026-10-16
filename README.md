@@ -59,7 +59,7 @@ Exemple de session :
 - Le CLI repère les sujets récurrents de tes demandes (TypeScript, Python, React, tests, documentation, Git). À partir de 3 mentions, un sujet devient un fait dont le poids augmente à chaque nouvelle mention. Les 12 faits les plus lourds sont ajoutés au pré-prompt.
 - `/profil learn <fait>` ajoute ou renforce un fait à la main, `/profil forget <n>` le supprime.
 - Stockage : `~/.francestudent-cli/profile.json` (utilisateur) et `profile.json` dans le dossier de données du projet.
-- Limite actuelle : le pré-prompt et les faits ne sont envoyés qu'en chat normal, pas encore en mode agent.
+- Le pré-prompt et les faits sont envoyés en chat normal (premier message de la conversation) et en mode agent (message complet du premier tour, ou d'une nouvelle conversation agent).
 
 ## Commandes principales
 
