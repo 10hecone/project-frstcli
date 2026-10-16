@@ -12,17 +12,12 @@ const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "fs-ws-"));
 const previousDataDir = process.env.FS_DATA_DIR;
 process.env.FS_DATA_DIR = dataDir;
 
-const { ui } = require("../src/cli/ui");
+const { setUiBackend, getUiBackend } = require("../src/ui-bridge");
 const { state } = require("../src/state");
 const memory = require("../src/project/memory");
 const { runCommand, getPermissionStore } = require("../src/tools/command/index");
 
 const saved = {
-    askCommand: ui.askCommand,
-    info: ui.info,
-    warn: ui.warn,
-    commandLine: ui.commandLine,
-    onInterrupt: ui.onInterrupt,
     workspace: state.workspace,
     autoApprove: state.autoApprove
 };
@@ -35,22 +30,22 @@ test.before(async () => {
     state.workspace = workspace;
     state.autoApprove = false;
     await memory.open(workspace);
-    ui.askCommand = async () => {
-        questions += 1;
-        return answers.shift() ?? "n";
-    };
-    ui.info = () => {};
-    ui.warn = () => {};
-    ui.commandLine = () => {};
-    ui.onInterrupt = () => () => {};
+    const cli = getUiBackend();
+    setUiBackend({
+        ...cli,
+        askCommand: async () => {
+            questions += 1;
+            return answers.shift() ?? "n";
+        },
+        info() {},
+        warn() {},
+        commandLine() {},
+        onInterrupt: () => () => {}
+    });
 });
 
 test.after(() => {
-    ui.askCommand = saved.askCommand;
-    ui.info = saved.info;
-    ui.warn = saved.warn;
-    ui.commandLine = saved.commandLine;
-    ui.onInterrupt = saved.onInterrupt;
+    setUiBackend(null);
     state.workspace = saved.workspace;
     state.autoApprove = saved.autoApprove;
     if (previousDataDir === undefined) delete process.env.FS_DATA_DIR;

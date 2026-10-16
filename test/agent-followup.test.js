@@ -44,7 +44,8 @@ test("le message « suite » ne contient que le dernier résultat, tronqué à m
 
     assert.match(prompt, /SUITE DE LA TÂCHE/);
     assert.match(prompt, /RÉSULTAT DE L'OUTIL \(tour 2\)/);
-    assert.match(prompt, /TOUR 3\/15/);
+    assert.match(prompt, /TOUR 3 —/);
+    assert.ok(!prompt.includes("TOUR 3/15"));
     assert.match(prompt, /truncated_in_prompt/);
     assert.ok(prompt.length < CONFIG.maxObservationChars + 4_000);
     assert.ok(!prompt.includes("OUTILS — chemins relatifs"));
@@ -60,6 +61,17 @@ test("le message « suite » transmet la correction après une réponse invalide
 
     assert.match(prompt, /CORRECTION/);
     assert.match(prompt, /JSON invalide/);
+});
+
+test("l'avertissement de fin n'apparaît qu'à 2 tours ou moins du plafond", () => {
+    const far = buildFollowUpPrompt({ lastObservation: null, turn: 10, maxTurns: 50, correction: null });
+    const near = buildFollowUpPrompt({ lastObservation: null, turn: 48, maxTurns: 50, correction: null });
+    const last = buildAgentPrompt({ ...baseContext, turn: 15, maxTurns: 15 });
+
+    assert.ok(!far.includes("ATTENTION : plus que"));
+    assert.match(near, /plus que 2 tour\(s\)/);
+    assert.match(last, /plus que 0 tour\(s\)/);
+    assert.ok(!last.includes("TOUR 15/15"));
 });
 
 test("projectOmitted remplace « aucun contexte chargé »", () => {

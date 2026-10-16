@@ -1,7 +1,7 @@
 "use strict";
 
 const { state } = require("../../state");
-const { ui } = require("../../cli/ui");
+const { ui } = require("../../ui-bridge");
 const { resolveInWorkspace } = require("../security");
 const memory = require("../../project/memory");
 const { requireString } = require("../core/args");

@@ -1,7 +1,7 @@
 "use strict";
 
 const { CONFIG } = require("../config");
-const { ui, ask } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 const {
     auth,
     AuthError,
@@ -336,7 +336,7 @@ async function promptAndLogin({ useEnv = false } = {}) {
     let email = useEnv ? (process.env.FS_EMAIL || "") : "";
     let password = useEnv ? (process.env.FS_PASSWORD || "") : "";
 
-    if (!email) email = String((await ask("E-mail : ")) ?? "").trim();
+    if (!email) email = String((await ui.ask("E-mail : ")) ?? "").trim();
     if (!email) return false;
 
     if (!password) password = String((await ui.askSecret("Mot de passe (saisie masquée) : ")) ?? "");

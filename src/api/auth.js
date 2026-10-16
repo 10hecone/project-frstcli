@@ -5,7 +5,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
 const { CONFIG } = require("../config");
-const { ui } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 
 /*
  * Authentification (constatée sur ia.francestudent.org) :

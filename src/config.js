@@ -26,7 +26,7 @@ const CONFIG = {
     idleTimeoutMs: envInt("FS_IDLE_TIMEOUT_MS", 90_000),
 
     // Agent
-    maxAgentTurns: 15,
+    maxAgentTurns: envInt("FS_MAX_AGENT_TURNS", 50),
     maxProtocolAttempts: 2,
     maxPreloadFiles: 3,
 

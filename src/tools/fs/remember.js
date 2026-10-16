@@ -1,6 +1,6 @@
 "use strict";
 
-const { ui } = require("../../cli/ui");
+const { ui } = require("../../ui-bridge");
 const memory = require("../../project/memory");
 const { requireString } = require("../core/args");
 const { denied } = require("../core/fs-utils");

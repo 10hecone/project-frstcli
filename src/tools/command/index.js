@@ -2,7 +2,7 @@
 
 const path = require("node:path");
 
-const { ui } = require("../../cli/ui");
+const { ui } = require("../../ui-bridge");
 const { state } = require("../../state");
 const memory = require("../../project/memory");
 const { formatCommand } = require("./parse");

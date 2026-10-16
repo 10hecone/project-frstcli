@@ -2,11 +2,12 @@
 
 const { CONFIG } = require("../config");
 const { state, record, activateConversation } = require("../state");
-const { ui, c } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 const api = require("../api/api");
 const memory = require("../project/memory");
 const conversations = require("../project/conversations");
 const projectContext = require("../project/project-context");
+const { loadInstructions, INSTRUCTIONS_NAME } = require("../project/instructions");
 const { buildAgentPrompt, buildFollowUpPrompt } = require("./prompt");
 const {
     TOOLS,
@@ -79,6 +80,51 @@ async function detectEnvironment(workspace) {
     };
 }
 
+// Cache par workspace : environnement, instructions et contexte projet.
+// Une entrée est invalidée si le mtime de package.json, .git/HEAD ou FRSTCLI.md change, ou après 60 s.
+const AGENT_CONTEXT_TTL_MS = 60_000;
+const agentContextCache = new Map();
+
+async function mtimeOf(file) {
+    try {
+        return (await fsp.stat(file)).mtimeMs;
+    } catch {
+        return null;
+    }
+}
+
+async function agentContextStamp(workspace) {
+    if (!workspace) return "";
+
+    const files = ["package.json", path.join(".git", "HEAD"), INSTRUCTIONS_NAME];
+    const stamps = await Promise.all(files.map(file => mtimeOf(path.join(workspace, file))));
+
+    return stamps.join("|");
+}
+
+async function loadAgentContext(workspace, now = Date.now()) {
+    const key = workspace || "";
+    const stamp = await agentContextStamp(workspace);
+    const cached = agentContextCache.get(key);
+
+    if (cached && cached.stamp === stamp && now - cached.at < AGENT_CONTEXT_TTL_MS) {
+        return cached.value;
+    }
+
+    const value = {
+        projectText: projectContext.promptContext(CONFIG.agentContextChars),
+        env: await detectEnvironment(workspace),
+        instructions: await loadInstructions(workspace)
+    };
+
+    agentContextCache.set(key, { stamp, at: now, value });
+    return value;
+}
+
+function clearAgentContextCache() {
+    agentContextCache.clear();
+}
+
 const fmt = n => Number(n).toLocaleString("fr-FR");
 
 function clip(text, max) {
@@ -93,9 +139,23 @@ function reportUsage(before) {
 
     if (requests <= 0) return;
 
+    const reported = (api.usage.reported ?? 0) - (before.reported ?? 0);
+    let tokens;
+
+    if (reported > 0) {
+        const input = (api.usage.inputTokens ?? 0) - (before.inputTokens ?? 0);
+        const output = (api.usage.outputTokens ?? 0) - (before.outputTokens ?? 0);
+        const cached = (api.usage.cachedTokens ?? 0) - (before.cachedTokens ?? 0);
+        tokens =
+            `${fmt(input)} tokens en entrée` +
+            `${cached > 0 ? ` dont ${fmt(cached)} en cache` : ""}, ${fmt(output)} en sortie` +
+            `${reported < requests ? ` ; usage fourni pour ${reported}/${requests} réponse(s)` : ""}`;
+    } else {
+        tokens = `≈ ${fmt(Math.round(chars / 3.5))} tokens`;
+    }
+
     ui.info(
-        `Coût de la demande : ${requests} requête(s), ${fmt(chars)} caractères envoyés ` +
-        `(≈ ${fmt(Math.round(chars / 3.5))} tokens)`
+        `Coût de la demande : ${requests} requête(s), ${fmt(chars)} caractères envoyés (${tokens})`
     );
 }
 
@@ -170,7 +230,27 @@ function parseAgentResponse(text) {
         return action;
     }
 
-    validateToolCall(action);
+    if (action.calls !== undefined) {
+        // Lecture en lot : jusqu'à MAX_BATCH_CALLS appels en lecture seule dans un seul tour.
+        const MAX_BATCH_CALLS = 5;
+        const BATCH_TOOLS = new Set(["list_directory", "read_file", "search_files"]);
+
+        if (!Array.isArray(action.calls) || action.calls.length < 1 || action.calls.length > MAX_BATCH_CALLS) {
+            throw new Error(`calls doit être une liste de 1 à ${MAX_BATCH_CALLS} appels.`);
+        }
+
+        action.calls = action.calls.map(call => {
+            if (!call || typeof call !== "object" || !BATCH_TOOLS.has(call.name)) {
+                throw new Error(`calls n'accepte que ${[...BATCH_TOOLS].join(", ")}.`);
+            }
+
+            const single = { type: "tool", name: call.name, args: call.args ?? {} };
+            validateToolCall(single);
+            return { name: single.name, args: single.args };
+        });
+    } else {
+        validateToolCall(action);
+    }
 
     if (action.plan !== undefined) {
         action.plan = Array.isArray(action.plan)
@@ -187,14 +267,51 @@ function parseAgentResponse(text) {
 
 /* ---------- Prompt ---------- */
 
-/** Construit le prompt en retirant les observations les plus anciennes si besoin. */
-function fitPrompt(context) {
-    let observations = context.observations.slice(-CONFIG.maxObservationsInPrompt);
-    let prompt = buildAgentPrompt({ ...context, observations });
+/**
+ * Résume en une seule observation les résultats d'outils trop anciens pour le
+ * prompt : outil, arguments et succès, sans le contenu. Le modèle garde ainsi la
+ * trace de ce qu'il a déjà fait (après un 409 ou sans conversation serveur).
+ */
+function compactObservations(list, maxEntries = 60) {
+    const lines = list.slice(-maxEntries).map(o => {
+        const args = JSON.stringify(o.args ?? {}).slice(0, 160);
+        return `${o.tool} ${args} : ${o.ok ? "ok" : `erreur${o.error ? ` (${String(o.error).slice(0, 80)})` : ""}`}`;
+    });
 
-    while (prompt.length > CONFIG.messageBudget && observations.length > 1) {
-        observations = observations.slice(1);
-        prompt = buildAgentPrompt({ ...context, observations });
+    return {
+        tool: "historique_compacté",
+        args: { actions: list.length },
+        ok: true,
+        result: {
+            note: "Résultats plus anciens retirés du prompt (contenu omis). Relis un fichier si tu en as besoin.",
+            omitted_before: Math.max(list.length - maxEntries, 0),
+            actions: lines
+        }
+    };
+}
+
+/**
+ * Construit le prompt : les observations récentes en entier, les plus anciennes
+ * résumées par compactObservations au lieu d'être perdues.
+ */
+function fitPrompt(context) {
+    const all = context.observations;
+    let keep = Math.min(all.length, CONFIG.maxObservationsInPrompt);
+
+    const build = () => {
+        const dropped = all.slice(0, all.length - keep);
+        const observations = [
+            ...(dropped.length ? [compactObservations(dropped)] : []),
+            ...all.slice(all.length - keep)
+        ];
+        return buildAgentPrompt({ ...context, observations });
+    };
+
+    let prompt = build();
+
+    while (prompt.length > CONFIG.messageBudget && keep > 1) {
+        keep--;
+        prompt = build();
     }
 
     if (prompt.length > CONFIG.messageBudget) {
@@ -299,7 +416,7 @@ async function fallbackPlainAnswer(task, observations) {
 
 /* ---------- Boucle agent ---------- */
 
-async function runAgent(task) {
+async function runAgent(task, options = {}) {
     activateConversation("agent");
     if (task.length > CONFIG.messageBudget / 2) {
         throw new Error(
@@ -313,8 +430,7 @@ async function runAgent(task) {
     const observations = [];
     const changesBefore = memory.sessionChanges();
     const signatures = new Map();
-    const projectText = projectContext.promptContext(CONFIG.agentContextChars);
-    const env = await detectEnvironment(state.workspace);
+    const { projectText, env, instructions } = await loadAgentContext(state.workspace);
 
     let planShown = false;
     let stuck = 0;
@@ -360,7 +476,21 @@ async function runAgent(task) {
 
     await preloadContext(task, observations);
 
-    for (let turn = 1; turn <= CONFIG.maxAgentTurns; turn++) {
+    // Limite souple : au plafond, on propose de continuer au lieu d'arrêter.
+    // Les observations et la conversation serveur sont conservées.
+    let maxTurns = CONFIG.maxAgentTurns;
+    const TURN_EXTENSION = 20;
+
+    for (let turn = 1; ; turn++) {
+        if (turn > maxTurns) {
+            const more = await ui.confirm(
+                `Limite de ${maxTurns} tours atteinte. Continuer ${TURN_EXTENSION} tours de plus ?`,
+                { force: true }
+            );
+            if (!more) break;
+            maxTurns += TURN_EXTENSION;
+        }
+
         let action = null;
         let correction = null;
         let lastResponse = "";
@@ -378,9 +508,10 @@ async function runAgent(task) {
                     memorySummary: memory.summary(),
                     projectContext: withProject ? projectText : "",
                     projectOmitted: !withProject,
+                    instructions,
                     observations,
                     turn,
-                    maxTurns: CONFIG.maxAgentTurns,
+                    maxTurns,
                     correction
                 });
 
@@ -393,7 +524,7 @@ async function runAgent(task) {
                     ? buildFollowUpPrompt({
                         lastObservation: observations[observations.length - 1],
                         turn,
-                        maxTurns: CONFIG.maxAgentTurns,
+                        maxTurns,
                         correction
                     })
                     : fullPrompt(!hasConversation);
@@ -444,22 +575,21 @@ async function runAgent(task) {
 
         if (action.reason) ui.info(action.reason);
 
-        ui.tool(action.name, describeCall(action));
-
-        const recorded = recordArgs(action.args);
-        const signature = `${action.name}:${JSON.stringify(action.args)}`;
+        // Garde-fou : la même action, ou le même lot de lectures, répétée en boucle n'est plus exécutée.
+        const signature = action.calls
+            ? `calls:${JSON.stringify(action.calls)}`
+            : `${action.name}:${JSON.stringify(action.args)}`;
         const seen = (signatures.get(signature) || 0) + 1;
 
         signatures.set(signature, seen);
 
-        // Garde-fou : la même action répétée en boucle n'est plus exécutée.
         if (seen >= 3) {
             stuck++;
-            ui.result(c.red("Action répétée : ignorée"));
+            ui.result("Action répétée : ignorée", { tone: "error" });
 
             observations.push({
-                tool: action.name,
-                args: recorded,
+                tool: action.calls ? "batch" : action.name,
+                args: action.calls ? { calls: action.calls.length } : recordArgs(action.args),
                 ok: false,
                 error: "Action déjà exécutée plusieurs fois avec les mêmes arguments. Change de démarche ou termine avec final."
             });
@@ -471,6 +601,54 @@ async function runAgent(task) {
 
             continue;
         }
+
+        if (action.calls) {
+            // Lectures seules : exécutées en parallèle, observations et affichage dans l'ordre des appels.
+            const settled = await Promise.allSettled(
+                action.calls.map(call => Promise.resolve().then(() => TOOLS[call.name].run(call.args)))
+            );
+
+            const results = action.calls.map((call, index) => {
+                const outcome = settled[index];
+
+                ui.tool(call.name, describeCall(call));
+
+                if (outcome.status === "fulfilled") {
+                    ui.result(summarizeResult(call.name, outcome.value));
+                    return { tool: call.name, args: recordArgs(call.args), ok: true, result: outcome.value };
+                }
+
+                const message = outcome.reason?.message ?? String(outcome.reason);
+
+                ui.result(message, { tone: "error" });
+                return { tool: call.name, args: recordArgs(call.args), ok: false, error: message };
+            });
+
+            observations.push({
+                tool: "batch",
+                args: { calls: action.calls.length },
+                ok: results.every(item => item.ok),
+                result: { results }
+            });
+
+            continue;
+        }
+
+        // Mode plan (/plan) : lecture seule, toute autre action est refusée sans être exécutée.
+        if (options.readOnly && !["list_directory", "read_file", "search_files"].includes(action.name)) {
+            ui.result(`Mode plan : ${action.name} refusé (lecture seule)`, { tone: "error" });
+            observations.push({
+                tool: action.name,
+                args: recordArgs(action.args),
+                ok: false,
+                error: "Mode plan (lecture seule) : seuls list_directory, read_file et search_files sont permis. Termine avec final et le plan détaillé."
+            });
+            continue;
+        }
+
+        ui.tool(action.name, describeCall(action));
+
+        const recorded = recordArgs(action.args);
 
         try {
             const result = await TOOLS[action.name].run(action.args);
@@ -484,7 +662,7 @@ async function runAgent(task) {
                 result
             });
         } catch (error) {
-            ui.result(c.red(error.message));
+            ui.result(error.message, { tone: "error" });
 
             observations.push({
                 tool: action.name,
@@ -505,4 +683,12 @@ async function runAgent(task) {
     reportUsage(usageBefore);
 }
 
-module.exports = { runAgent, parseAgentResponse, extractJsonObject, fitPrompt };
+module.exports = {
+    runAgent,
+    parseAgentResponse,
+    extractJsonObject,
+    fitPrompt,
+    compactObservations,
+    loadAgentContext,
+    clearAgentContextCache
+};
