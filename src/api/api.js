@@ -188,7 +188,10 @@ async function requestModelOnce(message, options) {
                 images: [],
                 initialContent: message,
                 isIncognito: state.incognito,
-                isPrivate: state.private
+                isPrivate: state.private,
+                ...(state.frProject?.id && !options.fresh && !state.chatIds[conversationMode]
+                    ? { projectId: state.frProject.id }
+                    : {})
             }),
             signal: controller.signal
         });
@@ -358,6 +361,12 @@ async function requestModelOnce(message, options) {
             throw new Error(
                 completed ? "Réponse vide du modèle." : "Flux interrompu sans réponse."
             );
+        }
+
+        // Rattache explicitement la conversation au projet FranceStudent sélectionné
+        // (le champ projectId de POST /chats/stream ne suffit pas côté site).
+        if (!options.fresh && state.frProject?.id && state.chatIds[conversationMode]) {
+            await require("./fr-projects").ensureAttached(state.chatIds[conversationMode]);
         }
 
         return output;

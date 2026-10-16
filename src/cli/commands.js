@@ -22,6 +22,7 @@ function showHelp() {
     ["/help", "Afficher cette aide"],
     ["/project <dossier>", "Choisir un projet local"],
     ["/unproject", "Quitter le mode projet"],
+    ["/fr-project <nom>|off", "Rattacher les conversations à un projet FranceStudent"],
     ["/pwd", "Afficher le projet sélectionné"],
     ["/tree [dossier]", "Lister un dossier (2 niveaux)"],
     ["/read <fichier>", "Lire localement un fichier"],
@@ -111,6 +112,40 @@ async function handleCommand(input) {
       unsetProject();
       ui.info("Projet désélectionné. Retour au chat normal.");
       break;
+
+    case "/fr-project": {
+      const frProjects = require("../api/fr-projects");
+      const name = unquote(value);
+
+      if (!name) {
+        const current = state.frProject || (await frProjects.loadSelected());
+        ui.info(
+          current
+            ? `Projet FranceStudent : ${current.name} (${current.id})`
+            : "Aucun projet FranceStudent. Usage : /fr-project <nom> | /fr-project off",
+        );
+        break;
+      }
+
+      if (/^(off|none|aucun)$/i.test(name)) {
+        await frProjects.saveSelected(null);
+ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus rattachées à un projet.");
+        break;
+      }
+
+      try {
+        const { project, created } = await frProjects.findOrCreateProject(name);
+        await frProjects.saveSelected(project);
+        resetConversation();
+        ui.info(
+          `${created ? "Projet FranceStudent créé" : "Projet FranceStudent existant"} : ${project.name} (${project.id}). ` +
+            "Les prochaines conversations y seront rattachées.",
+        );
+      } catch (error) {
+        ui.error(`Projet FranceStudent : ${error.message}`);
+      }
+      break;
+    }
 
     case "/pwd":
       ui.info(`Projet : ${state.workspace || "aucun projet sélectionné"}`);

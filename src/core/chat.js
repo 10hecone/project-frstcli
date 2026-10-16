@@ -21,7 +21,18 @@ async function send(input, { onDelta } = {}) {
             ? projectContext.promptContext(150_000)
             : "";
 
-    const message = context ? `${context}\n\nQUESTION : ${input}` : input;
+    // Premier message d'une conversation : pré-prompt utilisateur/projet et faits appris.
+    let preprompt = "";
+    if (!state.chatId) {
+        try {
+            preprompt = require("../project/profile").buildPreprompt();
+        } catch {
+            preprompt = "";
+        }
+    }
+
+    const body = context ? `${context}\n\nQUESTION : ${input}` : input;
+    const message = preprompt ? `${preprompt}\n\n${body}` : body;
 
     const response = await api.requestModel(message, {
         onDelta(text) {
