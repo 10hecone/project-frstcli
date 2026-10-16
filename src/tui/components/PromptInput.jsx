@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text, useInput, useStdout } from "ink";
 import inputModel from "../input-model.js";
+import { useTerminalColumns, usableWidth } from "./LiveMessage.jsx";
 
 const {
     empty,
@@ -167,6 +168,10 @@ export function PromptInput({
         if (input && !key.ctrl && !key.meta) return setModel(insert(model, input));
     }, { isActive: Boolean(isActive) });
 
+    // Largeur fixe (colonnes - 1) recalculée au redimensionnement : les bordures ne se replient pas.
+    const { stdout } = useStdout();
+    const width = usableWidth(useTerminalColumns(stdout));
+
     const { model, hint } = stateRef.current;
     const pad = " ".repeat(label.length);
     const mask = (text) => (secret ? "•".repeat(text.length) : text);
@@ -175,6 +180,7 @@ export function PromptInput({
     return (
         <Box
             flexDirection="column"
+            width={width}
             marginTop={1}
             borderStyle="single"
             borderTop

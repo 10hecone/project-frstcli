@@ -258,3 +258,69 @@ test("LiveMessage : la hauteur suit l'événement resize de stdout", async () =>
     assert.doesNotMatch(frame, /ligne-25/);
     view.unmount();
 });
+
+// ---- Redimensionnement : largeur fixe et action redraw ----
+
+// columns est un getter dans ink-testing-library : on le masque par une propriété propre.
+function setColumns(stdout, columns) {
+    Object.defineProperty(stdout, "columns", { value: columns, configurable: true, writable: true });
+    stdout.emit("resize");
+}
+
+const ruleLines = (frame) => strip(frame).split("\n").map((l) => l.trimEnd()).filter((l) => /^─+$/.test(l));
+
+test("store : l'action redraw garde tout le contenu et incrémente epoch", () => {
+    let s = initialState();
+    s = reducer(s, { type: "append", entry: { type: "info", text: "a" } });
+    s = reducer(s, { type: "commandLine", text: "sortie" });
+    s = reducer(s, { type: "liveAppend", text: "en cours" });
+    const after = reducer(s, { type: "redraw" });
+    assert.deepEqual(after.transcript, s.transcript);
+    assert.deepEqual(after.command, s.command);
+    assert.deepEqual(after.live, s.live);
+    assert.equal(after.nextId, s.nextId);
+    assert.equal(after.epoch, 1);
+    assert.equal(reducer(after, { type: "redraw" }).epoch, 2);
+});
+
+test("PromptInput : les bordures font colonnes - 1 et suivent le redimensionnement", async () => {
+    const { bundle, h, render } = await load();
+    const view = render(h(bundle.PromptInput, { onSubmit: () => {} }));
+    try {
+        setColumns(view.stdout, 60);
+        await tick();
+        let rules = ruleLines(view.lastFrame());
+        assert.equal(rules.length, 2);
+        assert.ok(rules.every((l) => l.length === 59), rules.map((l) => l.length).join(","));
+
+        setColumns(view.stdout, 30);
+        await tick();
+        rules = ruleLines(view.lastFrame());
+        assert.equal(rules.length, 2);
+        assert.ok(rules.every((l) => l.length === 29), rules.map((l) => l.length).join(","));
+    } finally {
+        view.unmount();
+    }
+});
+
+test("StatusBar : reste sur une seule ligne quand la fenêtre est étroite", async () => {
+    const { bundle, h, render } = await load();
+    const view = render(h(bundle.StatusBar, {
+        mode: "code",
+        model: "un-modele-avec-un-nom-assez-long",
+        workspace: "C:\\Users\\x\\Documents\\project-frstcli",
+        branch: "dev",
+        autoApprove: true,
+        jobs: 2,
+        color: false
+    }));
+    try {
+        setColumns(view.stdout, 30);
+        await tick();
+        const rows = strip(view.lastFrame()).split("\n").filter((l) => l.trim());
+        assert.equal(rows.length, 1, rows.join("\n"));
+        assert.ok(rows[0].trimEnd().length <= 29, rows[0]);
+    } finally {
+        view.unmount();
+    }
+});

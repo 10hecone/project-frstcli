@@ -1,4 +1,5 @@
-import { Box, Text } from "ink";
+import { Box, Text, useStdout } from "ink";
+import { useTerminalColumns, usableWidth } from "./LiveMessage.jsx";
 
 /** Nom du projet : dernier segment du chemin du workspace. */
 export function projectName(workspace) {
@@ -41,6 +42,10 @@ export function StatusBar({
     branch = null,
     color = true
 }) {
+    // Hooks avant tout retour anticipé : largeur fixe (colonnes - 1), suivie au redimensionnement.
+    const { stdout } = useStdout();
+    const width = usableWidth(useTerminalColumns(stdout));
+
     const parts = [];
     if (mode) parts.push({ key: "mode", text: mode, color: "cyan" });
     if (model) parts.push({ key: "model", text: String(model) });
@@ -55,13 +60,16 @@ export function StatusBar({
 
     if (parts.length === 0) return null;
 
+    // Une seule ligne, tronquée si la fenêtre est trop étroite (pas de repli sur plusieurs lignes).
     return (
-        <Box>
-            {parts.map((part, index) => (
-                <Text key={part.key} dimColor={!part.color || !color} color={color && part.color ? part.color : undefined}>
-                    {`${index > 0 ? " · " : ""}${part.text}`}
-                </Text>
-            ))}
+        <Box width={width}>
+            <Text wrap="truncate-end">
+                {parts.map((part, index) => (
+                    <Text key={part.key} dimColor={!part.color || !color} color={color && part.color ? part.color : undefined}>
+                        {`${index > 0 ? " · " : ""}${part.text}`}
+                    </Text>
+                ))}
+            </Text>
         </Box>
     );
 }

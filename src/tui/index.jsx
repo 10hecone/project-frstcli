@@ -239,6 +239,30 @@ export async function start() {
     process.once("unhandledRejection", onFatal);
     const renderOptions = { exitOnCtrlC: false, patchConsole: true };
 
+    // Redimensionnement : les lignes déjà affichées se replient dans le terminal
+    // (surtout cmd/conhost) et Ink efface alors un mauvais nombre de lignes, d'où du
+    // texte dupliqué. Après un court délai, on efface l'écran et on redessine tout.
+    let resizeTimer = null;
+    const onResize = () => {
+        if (closed) return;
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            resizeTimer = null;
+            if (closed) return;
+            try {
+                clearScreen();
+            } catch {
+            }
+            store.dispatch({ type: "redraw" });
+        }, 100);
+    };
+    const stopResize = () => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = null;
+        process.stdout.removeListener("resize", onResize);
+    };
+    if (process.stdout.isTTY) process.stdout.on("resize", onResize);
+
     if (!result.ok) {
         instance = render(<App store={store} version={version} cwd={process.cwd()} color={color} />, renderOptions);
         backend.error(result.reason);
@@ -273,6 +297,7 @@ export async function start() {
         backend.error(error && error.message ? error.message : String(error));
         process.exitCode = 1;
     } finally {
+        stopResize();
         shutdown();
         process.removeListener("uncaughtException", onFatal);
         process.removeListener("unhandledRejection", onFatal);

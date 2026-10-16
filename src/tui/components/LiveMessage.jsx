@@ -33,6 +33,36 @@ export function useTerminalRows(stdout) {
     return rows;
 }
 
+const DEFAULT_COLUMNS = 80;
+
+/**
+ * Largeur utile pour les lignes pleine largeur (bordures, barre d'état) :
+ * colonnes - 1. Dans cmd (conhost), écrire jusqu'à la dernière colonne
+ * provoque un retour à la ligne automatique qui fausse l'effacement d'Ink
+ * (texte dupliqué après un redimensionnement).
+ */
+export function usableWidth(columns) {
+    const n = Math.floor(Number(columns) || DEFAULT_COLUMNS);
+    return Math.max(10, n - 1);
+}
+
+/** Largeur du terminal, recalculée à chaque événement « resize » de stdout. */
+export function useTerminalColumns(stdout) {
+    const read = () => (stdout && stdout.columns) || DEFAULT_COLUMNS;
+    const [columns, setColumns] = useState(read);
+    useEffect(() => {
+        if (!stdout || typeof stdout.on !== "function") return undefined;
+        const onResize = () => setColumns(read());
+        onResize();
+        stdout.on("resize", onResize);
+        return () => {
+            if (typeof stdout.off === "function") stdout.off("resize", onResize);
+            else if (typeof stdout.removeListener === "function") stdout.removeListener("resize", onResize);
+        };
+    }, [stdout]);
+    return columns;
+}
+
 /**
  * Message en cours de streaming : seules ses dernières lignes sont affichées
  * (hauteur du terminal via useStdout, mise à jour au redimensionnement).

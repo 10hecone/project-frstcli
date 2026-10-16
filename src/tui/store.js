@@ -154,6 +154,11 @@ function reducer(state, action) {
                 epoch: (state.epoch || 0) + 1
             };
 
+        case "redraw":
+            // Redimensionnement : garde tout le contenu, mais change epoch pour que
+            // <Static> soit remonté et réimprime le transcript après effacement de l'écran.
+            return { ...state, epoch: (state.epoch || 0) + 1 };
+
         default:
             return state;
     }
