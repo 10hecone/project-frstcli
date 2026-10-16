@@ -13,10 +13,20 @@ const { CONFIG } = require("../config");
 
 const STREAM_INTERVAL_MS = 40;
 
-function createTuiBackend(store, { now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+function createTuiBackend(store, {
+    now = Date.now,
+    setTimer = setTimeout,
+    clearTimer = clearTimeout,
+    jobs: jobManager = null,
+    usage: usageObject = null
+} = {}) {
     if (!store || typeof store.dispatch !== "function") {
         throw new TypeError("Adaptateur TUI : un store est requis.");
     }
+
+    // Sources de la barre d'état : injectables (tests), sinon require différé.
+    const jobSource = () => jobManager || require("../tools/command/jobs").manager;
+    const usageSource = () => usageObject || require("../api/api").usage;
 
     const resolvers = new Map();
     const interrupts = [];
@@ -208,6 +218,40 @@ function createTuiBackend(store, { now = Date.now, setTimer = setTimeout, clearT
         },
 
         // ---- Appelées par l'UI (hors port) ----
+
+        /**
+         * Barre d'état : copie dans store.status le mode, le modèle, le workspace,
+         * l'auto-approbation, les jobs actifs et l'usage de la session.
+         * extra permet d'ajouter des champs connus ailleurs (ex. branch).
+         */
+        refreshStatus(extra = {}) {
+            let jobs = 0;
+            let usage = null;
+            try {
+                jobs = jobSource().runningCount();
+            } catch {
+                jobs = 0;
+            }
+            try {
+                const source = usageSource();
+                usage = source ? { ...source } : null;
+            } catch {
+                usage = null;
+            }
+            store.dispatch({
+                type: "status",
+                status: {
+                    mode: state.mode,
+                    model: state.model,
+                    workspace: state.workspace,
+                    autoApprove: Boolean(state.autoApprove),
+                    jobs,
+                    usage,
+                    ...extra
+                }
+            });
+        },
+
 
         /** Résout le prompt id avec value. Renvoie false si le prompt n'existe pas. */
         resolvePrompt(id, value) {

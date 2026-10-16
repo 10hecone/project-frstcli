@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from "react";
-import { Box, Text } from "ink";
+import { Box } from "ink";
 import { Transcript } from "./components/Transcript.jsx";
 import { LiveMessage } from "./components/LiveMessage.jsx";
 import { CommandOutput } from "./components/ToolCall.jsx";
 import { PromptInput } from "./components/PromptInput.jsx";
 import { ConfirmDialog } from "./components/ConfirmDialog.jsx";
 import { TextPrompt } from "./components/TextPrompt.jsx";
+import { Spinner } from "./components/Spinner.jsx";
+import { StatusBar } from "./components/StatusBar.jsx";
 
 function useStore(store) {
     return useSyncExternalStore(store.subscribe, store.getState, store.getState);
@@ -53,10 +55,13 @@ export function App({
     history = [],
     clipboard,
     busy: busyProp = false,
-    color = true
+    color = true,
+    now = Date.now,
+    spinnerInterval
 }) {
     const current = useStore(store);
-    const busy = Boolean(busyProp || (current.status && current.status.busy));
+    const status = current.status || {};
+    const busy = Boolean(busyProp || status.busy);
     const prompt = current.pendingPrompt;
     const canType = Boolean(onSubmit && !busy);
 
@@ -67,7 +72,9 @@ export function App({
                 <CommandOutput lines={current.command.lines} hidden={current.command.total - current.command.lines.length} />
             ) : null}
             <LiveMessage live={current.live} color={color} />
-            {current.spinner ? <Text color="cyan">{`… ${current.spinner.label ?? ""}`}</Text> : null}
+            {current.spinner ? (
+                <Spinner spinner={current.spinner} now={now} interval={spinnerInterval} color={color} />
+            ) : null}
             {prompt ? (
                 <PromptDialog key={`prompt-${prompt.id}`} prompt={prompt} onAnswer={onAnswer} />
             ) : canType || onInterrupt ? (
@@ -86,6 +93,16 @@ export function App({
                     }}
                 />
             ) : null}
+            <StatusBar
+                mode={status.mode}
+                model={status.model}
+                workspace={status.workspace}
+                autoApprove={Boolean(status.autoApprove)}
+                jobs={status.jobs}
+                usage={status.usage}
+                branch={status.branch}
+                color={color}
+            />
         </Box>
     );
 }

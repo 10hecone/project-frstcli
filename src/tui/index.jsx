@@ -10,6 +10,8 @@ import { Plan } from "./components/Plan.jsx";
 import { PromptInput, SLASH_COMMANDS } from "./components/PromptInput.jsx";
 import { ConfirmDialog, confirmOptions } from "./components/ConfirmDialog.jsx";
 import { TextPrompt } from "./components/TextPrompt.jsx";
+import { Spinner, SPINNER_FRAMES, formatElapsed } from "./components/Spinner.jsx";
+import { StatusBar, projectName, formatCount, sessionTokens } from "./components/StatusBar.jsx";
 
 const requireCjs = createRequire(import.meta.url);
 
@@ -30,7 +32,14 @@ export {
     SLASH_COMMANDS,
     ConfirmDialog,
     confirmOptions,
-    TextPrompt
+    TextPrompt,
+    Spinner,
+    SPINNER_FRAMES,
+    formatElapsed,
+    StatusBar,
+    projectName,
+    formatCount,
+    sessionTokens
 };
 
 /** Envoie une saisie à la session et diffuse la réponse dans le store. */
@@ -57,8 +66,42 @@ export async function submitInput(raw, { store, backend, session } = {}) {
         if (stream) stream.end();
         store.dispatch({ type: "commandEnd" });
         store.dispatch({ type: "status", status: { busy: false } });
+        // Mode, modèle, jobs et tokens ont pu changer pendant le tour.
+        if (typeof backend.refreshStatus === "function") backend.refreshStatus();
     }
     return { exit: Boolean(result && result.exit) };
+}
+
+/**
+ * Branche git courante, lue dans .git/HEAD (sans lancer git). Remonte les
+ * dossiers parents ; gère le fichier .git des worktrees. null si inconnue.
+ */
+export function gitBranch(dir = process.cwd()) {
+    const fs = requireCjs("node:fs");
+    const path = requireCjs("node:path");
+    try {
+        let current = path.resolve(String(dir || process.cwd()));
+        for (;;) {
+            const dotGit = path.join(current, ".git");
+            if (fs.existsSync(dotGit)) {
+                let gitDir = dotGit;
+                if (fs.statSync(dotGit).isFile()) {
+                    const match = /^gitdir:\s*(.+)$/m.exec(fs.readFileSync(dotGit, "utf8"));
+                    if (!match) return null;
+                    gitDir = path.resolve(current, match[1].trim());
+                }
+                const head = fs.readFileSync(path.join(gitDir, "HEAD"), "utf8").trim();
+                const ref = /^ref:\s*refs\/heads\/(.+)$/.exec(head);
+                if (ref) return ref[1];
+                return head ? head.slice(0, 7) : null;
+            }
+            const parent = path.dirname(current);
+            if (parent === current) return null;
+            current = parent;
+        }
+    } catch {
+        return null;
+    }
 }
 
 export async function start() {
@@ -129,6 +172,7 @@ export async function start() {
         instance.unmount();
     } else {
         backend.info(`Modèle : ${state.model}.`);
+        backend.refreshStatus({ branch: gitBranch(state.workspace || process.cwd()) });
         instance = render(
             <App
                 store={store}

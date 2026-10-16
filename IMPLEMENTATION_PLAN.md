@@ -240,7 +240,7 @@ Chaque étape laisse `npm test` vert et `frstcli` fonctionnel.
 - [x] Étape 6 — Streaming SSE, Markdown, outils, diff, plan
 - [x] Étape 7 — Saisie multiligne, historique persistant, raccourcis
 - [x] Étape 8 — Confirmations, choix de commande, connexion
-- [ ] Étape 9 — Barre d'état et spinners
+- [x] Étape 9 — Barre d'état et spinners
 - [ ] Étape 10 — Fluidité, redimensionnement, sortie propre
 - [ ] Étape 11 — Documentation et CI
 
