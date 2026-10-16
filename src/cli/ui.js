@@ -105,8 +105,11 @@ function readBlock(r) {
         r.on("line", onLine);
         r.once("close", onClose);
         r.setPrompt(c.gray(CONTINUATION));
-        const PASTE_GAP_MS = 40;
     });
+}
+
+// Délai max entre deux lignes pour considérer qu'il s'agit d'un collage.
+const PASTE_GAP_MS = 40;
 
 /** Lit le texte du presse-papier du système, ou "" s'il est vide ou illisible. */
 function readClipboard() {
@@ -319,8 +322,8 @@ async function askMultiline(question) {
     }
     if (line !== null) lines.push(line);
     return lines.join("\n");
-  
- 
+}
+
 /** Saisie du prompt principal : collage multiligne, « \ » en fin de ligne, Échap pour effacer. */
 function askInput(question) {
     const r = getInterface();
