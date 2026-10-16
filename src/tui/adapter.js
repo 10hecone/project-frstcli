@@ -53,7 +53,7 @@ function createTuiBackend(store, {
         banner() {
             append({
                 type: "welcome",
-                model: state.model,
+                model: require("../api/agents").agentName(state.model),
                 workspace: state.workspace,
                 mode: state.mode,
                 webSearch: state.webSearch
@@ -260,7 +260,7 @@ function createTuiBackend(store, {
                 type: "status",
                 status: {
                     mode: state.mode,
-                    model: state.model,
+                    model: require("../api/agents").agentName(state.model),
                     workspace: state.workspace,
                     autoApprove: Boolean(state.autoApprove),
                     jobs,

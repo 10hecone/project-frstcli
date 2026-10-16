@@ -1,6 +1,5 @@
 "use strict";
 
-const { KNOWN_MODELS } = require("../config");
 const { state, resetConversation, setConversation } = require("../state");
 const { c } = require("./ui");
 const { ui } = require("../ui-bridge");
@@ -44,7 +43,7 @@ function showHelp() {
     ["/history [all]", "Dernières conversations (id + titre)"],
     ["/messages", "Messages de la conversation (session)"],
     ["/usage", "Consommation : session, conversations, limites du compte"],
-    ["/model [id]", "Lister / changer d'agent"],
+    ["/model [nom]", "Lister les agents de l'API / changer d'agent"],
     ["/web on|off", "Recherche web (chat normal)"],
     ["/auth [refresh]", "État de la connexion / renouvellement"],
     ["/login", "Se connecter avec e-mail et mot de passe"],
@@ -60,7 +59,7 @@ function showHelp() {
 
   ui.print(
     `\n${c.dim("Projet :")} ${state.workspace || "aucun"}  ` +
-      `${c.dim("Agent :")} ${state.model}  ${c.dim("Mode :")} ${state.mode}`,
+      `${c.dim("Agent :")} ${require("../api/agents").agentName(state.model)}  ${c.dim("Mode :")} ${state.mode}`,
   );
   ui.print(
     c.dim(
@@ -465,27 +464,49 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
     }
 
     case "/model": {
+      const agentsApi = require("../api/agents");
+      const { agents, source, error } = await agentsApi.listAgents({ refresh: !value });
+
       if (!value) {
-        for (const model of KNOWN_MODELS) {
+        ui.print(
+          c.bold(
+            source === "api"
+              ? "Agents disponibles (API FranceStudent)"
+              : "Agents connus (API injoignable, liste locale)",
+          ),
+        );
+        for (const agent of agents) {
+          const current = agent.id === state.model;
+          const details = [agent.provider, agent.model].filter(Boolean).join(" / ");
           ui.print(
-            `  ${c.cyan(String(model.id).padEnd(7))} ${model.name}` +
-              (model.id === state.model ? c.dim("  (actuel)") : ""),
-          );
+            `  ${current ? c.cyan("●") : " "} ${c.cyan(agent.name)}` +
+              (details ? c.dim(`  ${details}`) : "") +
+              (agent.isDefault ? c.dim("  (par défaut)") : "") +
+              (current ? c.dim("  (actuel)") : ""),
+);
         }
-        ui.info("Usage : /model <id>");
+        if (error && source === "local") ui.info(`API indisponible : ${error.message}`);
+        ui.info("Usage : /model <nom>   (ex. /model claude opus, /model sol)");
         break;
       }
 
-      const id = Number(value);
+      const query = unquote(value);
+      const { agent, matches } = agentsApi.resolveAgent(query, agents);
 
-      if (!Number.isInteger(id)) {
-        ui.info("Usage : /model -1002");
+      if (!agent) {
+        if (matches.length > 1) {
+          ui.info(
+            `Plusieurs agents correspondent à "${query}" : ${matches.map((a) => a.name).join(", ")}. Précise le nom.`,
+          );
+        } else {
+          ui.info(`Aucun agent ne correspond à "${query}". Tape /model pour voir la liste.`);
+        }
         break;
       }
 
-      state.model = id;
+      state.model = agent.id;
       resetConversation(state.mode === "agent" ? "agent" : "chat");
-      ui.info(`Agent sélectionné : ${id}`);
+      ui.info(`Agent sélectionné : ${agent.name}`);
       break;
     }
 

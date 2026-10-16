@@ -81,7 +81,7 @@ test("adaptateur : les méthodes d'affichage poussent les entrées dans l'ordre"
         assert.equal(store.getState().command, null);
         const result = store.getState().transcript[3];
         assert.equal(result.tone, "error");
-        assert.equal(store.getState().transcript[0].model, state.model);
+        assert.equal(store.getState().transcript[0].model, require("../src/api/agents").agentName(state.model));
     } finally {
         restore();
     }

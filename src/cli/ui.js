@@ -344,7 +344,7 @@ const ui = {
         const plain = [
             "✻ FranceStudent CLI",
             "/help pour l'aide | /project <dossier> pour coder",
-            `agent ${state.model} | web ${state.webSearch ? "on" : "off"} | mode ${state.mode}`
+            `agent ${require("../api/agents").agentName(state.model)} | web ${state.webSearch ? "on" : "off"} | mode ${state.mode}`
         ];
         const styled = [
             `${c.cyan("✻")} ${c.bold("FranceStudent CLI")}`,
