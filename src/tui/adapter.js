@@ -13,10 +13,21 @@ const { CONFIG } = require("../config");
 
 const STREAM_INTERVAL_MS = 40;
 
-function createTuiBackend(store, { now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+function createTuiBackend(store, {
+    now = Date.now,
+    setTimer = setTimeout,
+    clearTimer = clearTimeout,
+    jobs: jobManager = null,
+    usage: usageObject = null,
+    onClearScreen = null
+} = {}) {
     if (!store || typeof store.dispatch !== "function") {
         throw new TypeError("Adaptateur TUI : un store est requis.");
     }
+
+    // Sources de la barre d'état : injectables (tests), sinon require différé.
+    const jobSource = () => jobManager || require("../tools/command/jobs").manager;
+    const usageSource = () => usageObject || require("../api/api").usage;
 
     const resolvers = new Map();
     const interrupts = [];
@@ -42,7 +53,7 @@ function createTuiBackend(store, { now = Date.now, setTimer = setTimeout, clearT
         banner() {
             append({
                 type: "welcome",
-                model: state.model,
+                model: require("../api/agents").agentName(state.model),
                 workspace: state.workspace,
                 mode: state.mode,
                 webSearch: state.webSearch
@@ -92,7 +103,7 @@ function createTuiBackend(store, { now = Date.now, setTimer = setTimeout, clearT
 
         /** Ligne de sortie d'une commande, affichée en direct. */
         commandLine(text) {
-            append({ type: "print", lines: [String(text ?? "")], command: true });
+            store.dispatch({ type: "commandLine", text: String(text ?? "") });
         },
 
         /** Diff produit par buildDiff({ lines, added, removed }). Renvoie { added, removed }. */
@@ -207,7 +218,58 @@ function createTuiBackend(store, { now = Date.now, setTimer = setTimeout, clearT
             };
         },
 
+        /**
+         * /clear : efface l'écran (callback injecté), vide l'affichage du store
+         * (transcript, flux, sortie de commande ; epoch++ pour remonter <Static>)
+         * puis réaffiche l'accueil.
+         */
+        clear() {
+            if (typeof onClearScreen === "function") {
+                try {
+                    onClearScreen();
+                } catch {
+                    // L'effacement de l'écran est facultatif : le store est vidé quand même.
+                }
+            }
+            store.dispatch({ type: "clear" });
+            backend.banner();
+        },
+
         // ---- Appelées par l'UI (hors port) ----
+
+        /**
+         * Barre d'état : copie dans store.status le mode, le modèle, le workspace,
+         * l'auto-approbation, les jobs actifs et l'usage de la session.
+         * extra permet d'ajouter des champs connus ailleurs (ex. branch).
+         */
+        refreshStatus(extra = {}) {
+            let jobs = 0;
+            let usage = null;
+            try {
+                jobs = jobSource().runningCount();
+            } catch {
+                jobs = 0;
+            }
+            try {
+                const source = usageSource();
+                usage = source ? { ...source } : null;
+            } catch {
+                usage = null;
+            }
+            store.dispatch({
+                type: "status",
+                status: {
+                    mode: state.mode,
+                    model: require("../api/agents").agentName(state.model),
+                    workspace: state.workspace,
+                    autoApprove: Boolean(state.autoApprove),
+                    jobs,
+                    usage,
+                    ...extra
+                }
+            });
+        },
+
 
         /** Résout le prompt id avec value. Renvoie false si le prompt n'existe pas. */
         resolvePrompt(id, value) {

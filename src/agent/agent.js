@@ -5,6 +5,7 @@ const { state, record, activateConversation } = require("../state");
 const { ui } = require("../ui-bridge");
 const api = require("../api/api");
 const memory = require("../project/memory");
+const profile = require("../project/profile");
 const conversations = require("../project/conversations");
 const projectContext = require("../project/project-context");
 const { loadInstructions, INSTRUCTIONS_NAME } = require("../project/instructions");
@@ -432,6 +433,15 @@ async function runAgent(task, options = {}) {
     const signatures = new Map();
     const { projectText, env, instructions } = await loadAgentContext(state.workspace);
 
+    // Pré-prompt utilisateur/projet et faits appris (vide si rien n'est configuré).
+    // Il n'entre que dans le message complet (fullPrompt), pas dans les relances de suivi.
+    let preprompt = "";
+    try {
+        preprompt = profile.buildPreprompt();
+    } catch {
+        preprompt = "";
+    }
+
     let planShown = false;
     let stuck = 0;
 
@@ -509,6 +519,7 @@ async function runAgent(task, options = {}) {
                     projectContext: withProject ? projectText : "",
                     projectOmitted: !withProject,
                     instructions,
+                    preprompt,
                     observations,
                     turn,
                     maxTurns,

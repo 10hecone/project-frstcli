@@ -23,7 +23,29 @@ function initialState() {
         pendingPrompt: null,
         prompts: [],
         status: {},
+        command: null,
         nextId: 1
+    };
+}
+
+// Sortie de run_command : seules les dernières lignes sont gardées (affichage replié).
+const COMMAND_FOLD_LINES = 5;
+
+// Clôture de bloc de code Markdown (même règle que renderMarkdownLine).
+const FENCE_RE = /^\s*(```|~~~)/;
+
+/** Termine la sortie de commande en cours : une entrée print repliée passe dans le transcript. */
+function flushCommand(state) {
+    if (!state.command) return state;
+    const { lines, total } = state.command;
+    return {
+        ...state,
+        command: null,
+        transcript: [
+            ...state.transcript,
+            { type: "print", lines: [...lines], command: true, hidden: total - lines.length, id: state.nextId }
+        ],
+        nextId: state.nextId + 1
     };
 }
 
@@ -34,23 +56,54 @@ function reducer(state, action) {
             if (!ENTRY_TYPES.includes(entry.type)) {
                 throw new TypeError(`Store : type d'entrée inconnu « ${entry.type} ».`);
             }
+            const base = flushCommand(state);
             return {
-                ...state,
-                transcript: [...state.transcript, { ...entry, id: state.nextId }],
-                nextId: state.nextId + 1
+                ...base,
+                transcript: [...base.transcript, { ...entry, id: base.nextId }],
+                nextId: base.nextId + 1
             };
         }
 
-        case "liveStart":
-            return { ...state, live: { id: state.nextId, text: "" }, nextId: state.nextId + 1 };
+        case "commandLine": {
+            const text = String(action.text ?? "");
+            const previous = state.command || { lines: [], total: 0 };
+            const lines = [...previous.lines, text].slice(-COMMAND_FOLD_LINES);
+            return { ...state, command: { lines, total: previous.total + 1 } };
+        }
+
+        case "commandEnd":
+            return flushCommand(state);
+
+        case "liveStart": {
+            const base = flushCommand(state);
+            return { ...base, live: { id: base.nextId, text: "" }, nextId: base.nextId + 1 };
+        }
 
         case "liveAppend": {
             const text = String(action.text ?? "");
             if (!text) return state;
-            if (!state.live) {
-                return { ...state, live: { id: state.nextId, text }, nextId: state.nextId + 1 };
+            let base = state;
+            if (!base.live) {
+                base = { ...base, live: { id: base.nextId, text: "", inCode: false }, nextId: base.nextId + 1 };
             }
-            return { ...state, live: { ...state.live, text: state.live.text + text } };
+            // Les lignes complètes passent dans le transcript (<Static>) : seule la ligne
+            // en cours reste dans la zone dynamique, ce qui évite le scintillement.
+            const parts = (base.live.text + text).split("\n");
+            const rest = parts.pop();
+            if (!parts.length) return { ...base, live: { ...base.live, text: rest } };
+            let inCode = Boolean(base.live.inCode);
+            let nextId = base.nextId;
+            const lines = parts.map((line) => {
+                const entry = { type: "assistant", text: line, streamed: true, line: true, inCode, id: nextId++ };
+                if (FENCE_RE.test(line)) inCode = !inCode;
+                return entry;
+            });
+            return {
+                ...base,
+                transcript: [...base.transcript, ...lines],
+                live: { ...base.live, text: rest, inCode },
+                nextId
+            };
         }
 
         case "liveEnd": {
@@ -61,7 +114,14 @@ function reducer(state, action) {
                 live: null,
                 transcript: [
                     ...state.transcript,
-                    { type: "assistant", text: state.live.text, streamed: true, id: state.live.id }
+                    {
+                        type: "assistant",
+                        text: state.live.text,
+                        streamed: true,
+                        line: true,
+                        inCode: Boolean(state.live.inCode),
+                        id: state.live.id
+                    }
                 ]
             };
         }
@@ -82,6 +142,22 @@ function reducer(state, action) {
 
         case "status":
             return { ...state, status: { ...state.status, ...(action.status || {}) } };
+
+        case "clear":
+            // /clear : vide l'affichage (transcript, flux, sortie de commande) en gardant
+            // status, prompts et nextId. epoch sert de clé pour remonter <Static>.
+            return {
+                ...state,
+                transcript: [],
+                live: null,
+                command: null,
+                epoch: (state.epoch || 0) + 1
+            };
+
+        case "redraw":
+            // Redimensionnement : garde tout le contenu, mais change epoch pour que
+            // <Static> soit remonté et réimprime le transcript après effacement de l'écran.
+            return { ...state, epoch: (state.epoch || 0) + 1 };
 
         default:
             return state;
@@ -118,4 +194,4 @@ function createStore(preloaded = null) {
     };
 }
 
-module.exports = { createStore, reducer, initialState, ENTRY_TYPES };
+module.exports = { createStore, reducer, initialState, ENTRY_TYPES, COMMAND_FOLD_LINES };

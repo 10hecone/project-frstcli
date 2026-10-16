@@ -11,6 +11,7 @@ const state = {
     private: true,
     incognito: false,
     workspace: null,
+    frProject: null,     // projet FranceStudent { id, name } rattaché aux nouvelles conversations
     history: [],
     mode: "auto",        // auto | agent | chat
     autoApprove: false   // true = plus de confirmation pour la session

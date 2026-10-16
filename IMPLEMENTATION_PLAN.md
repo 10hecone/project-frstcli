@@ -231,18 +231,18 @@ Chaque étape laisse `npm test` vert et `frstcli` fonctionnel.
 
 ## 5. Checklist d'avancement
 
-- [ ] Étape 0 — Build esbuild, `bin/frst.js`, scripts, `dist/` ignoré
-- [ ] Étape 1 — Port d'interface `src/ui-bridge.js`
-- [ ] Étape 2 — Logique métier migrée vers le port (diff en données, `ui.print`)
-- [ ] Étape 3 — `src/core/session.js` et `src/core/chat.js`, `main.js` allégé
-- [ ] Étape 4 — Store et adaptateur TUI (CommonJS, testés)
-- [ ] Étape 5 — App Ink + rectangle d'accueil
-- [ ] Étape 6 — Streaming SSE, Markdown, outils, diff, plan
-- [ ] Étape 7 — Saisie multiligne, historique persistant, raccourcis
-- [ ] Étape 8 — Confirmations, choix de commande, connexion
-- [ ] Étape 9 — Barre d'état et spinners
-- [ ] Étape 10 — Fluidité, redimensionnement, sortie propre
-- [ ] Étape 11 — Documentation et CI
+- [x] Étape 0 — Build esbuild, `bin/frst.js`, scripts, `dist/` ignoré
+- [x] Étape 1 — Port d'interface `src/ui-bridge.js`
+- [x] Étape 2 — Logique métier migrée vers le port (diff en données, `ui.print`)
+- [x] Étape 3 — `src/core/session.js` et `src/core/chat.js`, `main.js` allégé
+- [x] Étape 4 — Store et adaptateur TUI (CommonJS, testés)
+- [x] Étape 5 — App Ink + rectangle d'accueil
+- [x] Étape 6 — Streaming SSE, Markdown, outils, diff, plan
+- [x] Étape 7 — Saisie multiligne, historique persistant, raccourcis
+- [x] Étape 8 — Confirmations, choix de commande, connexion
+- [x] Étape 9 — Barre d'état et spinners
+- [x] Étape 10 — Fluidité, redimensionnement, sortie propre
+- [x] Étape 11 — Documentation et CI
 
 Vérifications à chaque étape :
 - [ ] `npm test` vert (Windows et Linux en CI)

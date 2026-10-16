@@ -8,15 +8,20 @@ const api = require("../src/api/api");
 const projectContext = require("../src/project/project-context");
 const conversations = require("../src/project/conversations");
 const chat = require("../src/core/chat");
+const profile = require("../src/project/profile");
 
 function setup({ workspace = null, chatIdToCreate = "chat-123", deltas = [] } = {}) {
     const original = {
         requestModel: api.requestModel,
         promptContext: projectContext.promptContext,
         touch: conversations.touch,
+        buildPreprompt: profile.buildPreprompt,
         workspace: state.workspace,
         mode: state.mode,
     };
+
+    // Isole les tests du profil réel de l'utilisateur (~/.francestudent-cli/profile.json).
+    profile.buildPreprompt = () => "";
 
     const calls = { requestModel: [], promptContext: 0, touch: [] };
 
@@ -48,6 +53,7 @@ function setup({ workspace = null, chatIdToCreate = "chat-123", deltas = [] } = 
         api.requestModel = original.requestModel;
         projectContext.promptContext = original.promptContext;
         conversations.touch = original.touch;
+        profile.buildPreprompt = original.buildPreprompt;
         state.workspace = original.workspace;
         state.mode = original.mode;
         resetConversation();

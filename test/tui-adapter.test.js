@@ -70,11 +70,18 @@ test("adaptateur : les méthodes d'affichage poussent les entrées dans l'ordre"
         const types = store.getState().transcript.map((entry) => entry.type);
         assert.deepEqual(types, [
             "welcome", "info", "tool", "result", "plan", "diff",
-            "warn", "error", "assistant", "print", "print"
+            "warn", "error", "assistant", "print"
         ]);
+        assert.deepEqual(store.getState().command, { lines: ["sortie"], total: 1 });
+        backend.info("suite");
+        const folded = store.getState().transcript.at(-2);
+        assert.equal(folded.type, "print");
+        assert.equal(folded.command, true);
+        assert.deepEqual(folded.lines, ["sortie"]);
+        assert.equal(store.getState().command, null);
         const result = store.getState().transcript[3];
         assert.equal(result.tone, "error");
-        assert.equal(store.getState().transcript[0].model, state.model);
+        assert.equal(store.getState().transcript[0].model, require("../src/api/agents").agentName(state.model));
     } finally {
         restore();
     }

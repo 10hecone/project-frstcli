@@ -33,6 +33,9 @@ async function bootstrap() {
 
     ui.info("Connecté (le token se renouvelle automatiquement).");
 
+    const frProject = await require("../api/fr-projects").loadSelected();
+    if (frProject) ui.info(`Projet FranceStudent : ${frProject.name} (nouvelles conversations rattachées).`);
+
     for (const mode of ["chat", "agent"]) {
         const saved = await conversations.findForWorkspace(null, mode);
         if (saved) setConversation(mode, saved.id, saved.settings);

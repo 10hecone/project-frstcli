@@ -27,6 +27,18 @@ function runClassic() {
     return run();
 }
 
+// Restaure le terminal après un plantage de la TUI : mode brut désactivé, curseur visible.
+function restoreTerminal({ stdin = process.stdin, stdout = process.stdout } = {}) {
+    try {
+        if (stdin && stdin.isTTY && typeof stdin.setRawMode === "function") stdin.setRawMode(false);
+    } catch {
+    }
+    try {
+        if (stdout && typeof stdout.write === "function") stdout.write("\u001b[?25h");
+    } catch {
+    }
+}
+
 async function main() {
     try {
         require("dotenv").config();
@@ -46,6 +58,7 @@ async function main() {
     try {
         await import(pathToFileURL(BUNDLE_PATH).href);
     } catch (error) {
+        restoreTerminal();
         console.error(`Impossible de lancer la TUI : ${error && error.message ? error.message : error}`);
         console.error("Ouverture de l'interface classique.");
         return runClassic();
@@ -56,4 +69,4 @@ if (require.main === module) {
     main();
 }
 
-module.exports = { chooseInterface, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE };
+module.exports = { chooseInterface, restoreTerminal, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE };
