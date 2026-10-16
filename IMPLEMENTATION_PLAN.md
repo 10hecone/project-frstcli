@@ -236,7 +236,7 @@ Chaque étape laisse `npm test` vert et `frstcli` fonctionnel.
 - [ ] Étape 2 — Logique métier migrée vers le port (diff en données, `ui.print`)
 - [ ] Étape 3 — `src/core/session.js` et `src/core/chat.js`, `main.js` allégé
 - [ ] Étape 4 — Store et adaptateur TUI (CommonJS, testés)
-- [ ] Étape 5 — App Ink + rectangle d'accueil
+- [x] Étape 5 — App Ink + rectangle d'accueil
 - [ ] Étape 6 — Streaming SSE, Markdown, outils, diff, plan
 - [ ] Étape 7 — Saisie multiligne, historique persistant, raccourcis
 - [ ] Étape 8 — Confirmations, choix de commande, connexion
