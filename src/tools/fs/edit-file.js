@@ -2,8 +2,8 @@
 
 const { CONFIG } = require("../../config");
 const { state } = require("../../state");
-const { ui } = require("../../cli/ui");
-const { printDiff } = require("../diff");
+const { ui } = require("../../ui-bridge");
+const { buildDiff } = require("../diff");
 const { resolveInWorkspace, assertRealInside } = require("../security");
 const memory = require("../../project/memory");
 const { newId, requireString, optionalBool } = require("../core/args");
@@ -69,7 +69,7 @@ async function editFile(args = {}) {
         throw new Error("Le fichier modifié dépasserait la taille maximale autorisée.");
     }
 
-    const { added, removed } = printDiff(previous, updated);
+    const { added, removed } = ui.diff(buildDiff(previous, updated));
     ui.result(`+${added} -${removed} (${replaceAll ? count : 1} remplacement(s))`);
 
     if (!(await ui.confirm("Autoriser cette modification ?"))) return denied(rel);

@@ -3,7 +3,7 @@
 const fs = require("node:fs/promises");
 
 const { state } = require("../../state");
-const { ui } = require("../../cli/ui");
+const { ui } = require("../../ui-bridge");
 const { resolveInWorkspace } = require("../security");
 const { requireString } = require("../core/args");
 const { statOrNull, denied, ensureParent, countTree } = require("../core/fs-utils");

@@ -8,7 +8,7 @@ const { CONFIG } = require("../config");
 const { normalizeRelative } = require("../tools/security");
 const memory = require("./memory");
 const api = require("../api/api");
-const { ui } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 
 const RESUME_NAME = "RESUME.md";
 

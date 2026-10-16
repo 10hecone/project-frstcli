@@ -8,7 +8,7 @@ const path = require("node:path");
 
 const memory = require("../src/project/memory");
 const api = require("../src/api/api");
-const { ui } = require("../src/cli/ui");
+const { setUiBackend, getUiBackend } = require("../src/ui-bridge");
 const projectContext = require("../src/project/project-context");
 
 async function makeDirs() {
@@ -63,14 +63,16 @@ test("load ne renvoie à l'IA que les fichiers modifiés", async () => {
     const { root, workspace, data } = await makeDirs();
     const saved = {
         projectPath: memory.projectPath,
-        requestModel: api.requestModel,
-        spinner: ui.spinner
+        requestModel: api.requestModel
     };
     const sent = [];
     let version = 0;
 
     memory.projectPath = name => path.join(data, name);
-    ui.spinner = () => ({ stop() {} });
+    setUiBackend({
+        ...getUiBackend(),
+        spinner: () => ({ stop() {} })
+    });
     api.requestModel = async prompt => {
         version++;
         const rels = [...prompt.matchAll(/=== FICHIER (\S+) \(/g)].map(m => m[1]);
@@ -102,7 +104,7 @@ test("load ne renvoie à l'IA que les fichiers modifiés", async () => {
     } finally {
         memory.projectPath = saved.projectPath;
         api.requestModel = saved.requestModel;
-        ui.spinner = saved.spinner;
+        setUiBackend(null);
         projectContext.clear();
         await fs.rm(root, { recursive: true, force: true });
     }

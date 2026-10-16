@@ -2,7 +2,8 @@
 
 const { KNOWN_MODELS } = require("../config");
 const { state, resetConversation, setConversation } = require("../state");
-const { ui, c } = require("./ui");
+const { c } = require("./ui");
+const { ui } = require("../ui-bridge");
 const memory = require("../project/memory");
 const projectContext = require("../project/project-context");
 const conversations = require("../project/conversations");
@@ -50,17 +51,17 @@ function showHelp() {
     ["/exit", "Quitter (alias : /quit)"],
   ];
 
-  console.log(`\n${c.bold("Commandes")}`);
+  ui.print(`\n${c.bold("Commandes")}`);
 
   for (const [cmd, desc] of rows) {
-    console.log(`  ${c.cyan(cmd.padEnd(24))} ${c.dim(desc)}`);
+    ui.print(`  ${c.cyan(cmd.padEnd(24))} ${c.dim(desc)}`);
   }
 
-  console.log(
+  ui.print(
     `\n${c.dim("Projet :")} ${state.workspace || "aucun"}  ` +
       `${c.dim("Agent :")} ${state.model}  ${c.dim("Mode :")} ${state.mode}`,
   );
-  console.log(
+  ui.print(
     c.dim(
       "Sans /project : chat normal. Avec /project : l'agent peut lire, créer, éditer, " +
         "déplacer, copier et supprimer (corbeille). Chaque écriture est confirmée.",
@@ -119,7 +120,7 @@ async function handleCommand(input) {
         recursive: true,
       });
 
-      console.log(c.bold(result.path));
+      ui.print(c.bold(result.path));
 
       for (const entry of result.entries) {
         const depth =
@@ -128,7 +129,7 @@ async function handleCommand(input) {
         const name = entry.path.split("/").pop();
         const indent = "  ".repeat(Math.max(0, depth) + 1);
 
-        console.log(
+        ui.print(
           entry.type === "directory"
             ? `${indent}${c.cyan(`${name}/`)}`
             : `${indent}${name}`,
@@ -147,7 +148,7 @@ async function handleCommand(input) {
         break;
       }
 
-      console.log((await readFile({ path: unquote(value) })).content);
+      ui.print((await readFile({ path: unquote(value) })).content);
       break;
 
     case "/index": {
@@ -198,7 +199,7 @@ async function handleCommand(input) {
     case "/resume": {
       if (!requireProject()) break;
 
-      console.log(projectContext.resumeText() ?? "Aucun résumé chargé.");
+      ui.print(projectContext.resumeText() ?? "Aucun résumé chargé.");
       break;
     }
 
@@ -217,10 +218,10 @@ async function handleCommand(input) {
         break;
       }
 
-      console.log(c.bold("Modifications (la plus récente en premier)"));
+      ui.print(c.bold("Modifications (la plus récente en premier)"));
 
       [...list].reverse().forEach((entry, i) => {
-        console.log(
+        ui.print(
           `  ${c.gray(String(i + 1).padStart(2))} ${entry.label} ` +
             c.dim(entry.at.slice(0, 16).replace("T", " ")),
         );
@@ -234,18 +235,18 @@ async function handleCommand(input) {
       const notes = memory.listNotes();
       const actions = memory.listActions().slice(-10);
 
-      console.log(c.bold("Notes"));
+      ui.print(c.bold("Notes"));
 
-      if (!notes.length) console.log(c.dim("  aucune"));
+      if (!notes.length) ui.print(c.dim("  aucune"));
       notes.forEach((note, i) =>
-        console.log(`  ${c.gray(`${i + 1}.`)} ${note}`),
+        ui.print(`  ${c.gray(`${i + 1}.`)} ${note}`),
       );
 
-      console.log(`\n${c.bold("Dernières actions")}`);
+      ui.print(`\n${c.bold("Dernières actions")}`);
 
-      if (!actions.length) console.log(c.dim("  aucune"));
+      if (!actions.length) ui.print(c.dim("  aucune"));
       actions.forEach((a) =>
-        console.log(
+        ui.print(
           `  ${c.gray(a.at.slice(0, 16).replace("T", " "))} ${a.text}`,
         ),
       );
@@ -427,7 +428,7 @@ async function handleCommand(input) {
     case "/model": {
       if (!value) {
         for (const model of KNOWN_MODELS) {
-          console.log(
+          ui.print(
             `  ${c.cyan(String(model.id).padEnd(7))} ${model.name}` +
               (model.id === state.model ? c.dim("  (actuel)") : ""),
           );
@@ -471,8 +472,8 @@ async function handleCommand(input) {
         lines.push(`Compte : ${error.message}`);
       }
 
-      console.log(c.bold("Consommation"));
-      lines.forEach((line) => console.log(`  ${line}`));
+      ui.print(c.bold("Consommation"));
+      lines.forEach((line) => ui.print(`  ${line}`));
       break;
     }
 
@@ -508,7 +509,7 @@ async function handleCommand(input) {
         break;
       }
 
-      console.log(
+      ui.print(
         c.bold("Conversations récentes (la plus récente en premier)"),
       );
 
@@ -519,10 +520,10 @@ async function handleCommand(input) {
           .slice(0, 16)
           .replace("T", " ");
 
-        console.log(
+        ui.print(
           `  ${c.gray(String(i + 1).padStart(2))} ${entry.title}${current}`,
         );
-        console.log(
+        ui.print(
           `     ${c.cyan(entry.id)} ` +
             c.dim(
               `${date} | agent ${entry.model} | ${entry.messages} échange(s)`,
@@ -540,7 +541,7 @@ async function handleCommand(input) {
       if (!state.history.length) ui.info("Historique local vide.");
 
       for (const item of state.history) {
-        console.log(
+        ui.print(
           `\n${item.role === "user" ? c.bold(">") : ""} ${item.content}`,
         );
       }

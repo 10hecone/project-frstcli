@@ -2,7 +2,7 @@
 
 const { CONFIG } = require("../config");
 const { state } = require("../state");
-const { ui } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 const { auth, getAccessToken } = require("./auth");
 
 const fmt = n => Number(n).toLocaleString("fr-FR");

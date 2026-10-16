@@ -2,7 +2,7 @@
 
 const { CONFIG } = require("../config");
 const { state, record, activateConversation } = require("../state");
-const { ui, c } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 const api = require("../api/api");
 const memory = require("../project/memory");
 const conversations = require("../project/conversations");
@@ -585,7 +585,7 @@ async function runAgent(task, options = {}) {
 
         if (seen >= 3) {
             stuck++;
-            ui.result(c.red("Action répétée : ignorée"));
+            ui.result("Action répétée : ignorée", { tone: "error" });
 
             observations.push({
                 tool: action.calls ? "batch" : action.name,
@@ -620,7 +620,7 @@ async function runAgent(task, options = {}) {
 
                 const message = outcome.reason?.message ?? String(outcome.reason);
 
-                ui.result(c.red(message));
+                ui.result(message, { tone: "error" });
                 return { tool: call.name, args: recordArgs(call.args), ok: false, error: message };
             });
 
@@ -636,7 +636,7 @@ async function runAgent(task, options = {}) {
 
         // Mode plan (/plan) : lecture seule, toute autre action est refusée sans être exécutée.
         if (options.readOnly && !["list_directory", "read_file", "search_files"].includes(action.name)) {
-            ui.result(c.red(`Mode plan : ${action.name} refusé (lecture seule)`));
+            ui.result(`Mode plan : ${action.name} refusé (lecture seule)`, { tone: "error" });
             observations.push({
                 tool: action.name,
                 args: recordArgs(action.args),
@@ -662,7 +662,7 @@ async function runAgent(task, options = {}) {
                 result
             });
         } catch (error) {
-            ui.result(c.red(error.message));
+            ui.result(error.message, { tone: "error" });
 
             observations.push({
                 tool: action.name,
