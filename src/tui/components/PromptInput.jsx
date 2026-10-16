@@ -171,8 +171,18 @@ export function PromptInput({
     const pad = " ".repeat(label.length);
     const mask = (text) => (secret ? "•".repeat(text.length) : text);
 
+    // Comme Claude Code : une ligne horizontale au-dessus et une en dessous de la zone de saisie.
     return (
-        <Box flexDirection="column" marginTop={1}>
+        <Box
+            flexDirection="column"
+            marginTop={1}
+            borderStyle="single"
+            borderTop
+            borderBottom
+            borderLeft={false}
+            borderRight={false}
+            borderDimColor
+        >
             {model.lines.map((line, row) => {
                 const prefix = row === 0 ? <Text color="cyan" bold>{label}</Text> : <Text>{pad}</Text>;
                 if (row !== model.row) return <Text key={row}>{prefix}{mask(line)}</Text>;

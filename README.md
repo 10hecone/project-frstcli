@@ -31,11 +31,41 @@ Au premier lancement, le CLI demande ton e-mail et ton mot de passe France Stude
 
 Variantes : `FS_EMAIL` et `FS_PASSWORD` (variables d'environnement) pour une connexion sans saisie, ou `FS_SESSION_TOKEN` (valeur du cookie `next-auth.session-token`, F12 > Stockage > Cookies) si la connexion automatique est bloquée (captcha, double authentification, Cloudflare). Ne partage jamais ces valeurs.
 
-Lancement :
+`npm install` lance aussi le script `prepare`, qui construit le bundle de la TUI (`dist/tui.mjs`, via esbuild). Pour le reconstruire à la main : `npm run build:tui`.
+
+Pour disposer des commandes `frst` et `frstcli` partout :
 
 ```bash
-node index.js
+npm link
 ```
+
+Lancement :
+
+| Commande | Interface |
+| -------- | --------- |
+| `frst` (ou `npm run start:tui`) | Nouvelle interface plein terminal (TUI Ink) |
+| `frst --classic` (ou `FRST_UI=classic frst`) | Ancien CLI readline |
+| `frstcli` (ou `npm start`, `node index.js`) | Ancien CLI readline, directement |
+
+`frst` ouvre automatiquement l'ancien CLI si le terminal n'est pas interactif, si `dist/tui.mjs` est absent ou si la TUI ne peut pas démarrer.
+
+### Raccourcis clavier de la TUI
+
+| Touche | Action |
+| ------ | ------ |
+| Entrée | Envoyer |
+| `\` + Entrée, Ctrl+J, Alt+Entrée | Nouvelle ligne |
+| ↑ / ↓ | Changer de ligne, puis parcourir l'historique (conservé entre les sessions) |
+| Tab | Compléter une commande slash |
+| Échap | Effacer la saisie |
+| Ctrl+A / Ctrl+E | Début / fin de ligne |
+| Ctrl+U / Ctrl+K | Couper jusqu'au début / jusqu'à la fin |
+| Ctrl+V | Coller le presse-papiers |
+| Ctrl+L | Effacer l'écran (`/clear` vide aussi l'historique affiché) |
+| Ctrl+C | Interrompre la tâche, sinon effacer la saisie ; un second appui quitte |
+| Ctrl+D | Quitter si la saisie est vide |
+
+Confirmations : `o` = oui, `n` = non, `t` = toujours, Échap = non. `NO_COLOR=1` désactive les couleurs. Détails : [docs/tui.md](docs/tui.md).
 
 ## Utilisation
 

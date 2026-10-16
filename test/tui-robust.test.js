@@ -243,16 +243,18 @@ test("LiveMessage : la hauteur suit l'événement resize de stdout", async () =>
     view.stdout.rows = 30;
     view.stdout.emit("resize");
     await tick();
+    // RESERVED_ROWS = 6 (bordures haut/bas de la saisie comprises) : 30 - 6 = 24 lignes visibles.
     let frame = strip(view.lastFrame());
-    assert.match(frame, /ligne-04/);
-    assert.doesNotMatch(frame, /ligne-03/);
+    assert.match(frame, /ligne-06/);
+    assert.doesNotMatch(frame, /ligne-05/);
 
+    // 10 - 6 = 4 lignes visibles : ligne-26 à ligne-29.
     view.stdout.rows = 10;
     view.stdout.emit("resize");
     await tick();
     frame = strip(view.lastFrame());
     assert.match(frame, /ligne-29/);
-    assert.match(frame, /ligne-24/);
-    assert.doesNotMatch(frame, /ligne-23/);
+    assert.match(frame, /ligne-26/);
+    assert.doesNotMatch(frame, /ligne-25/);
     view.unmount();
 });

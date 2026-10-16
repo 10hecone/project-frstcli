@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Box, Text, useStdout } from "ink";
 import { renderMarkdownLine } from "../../markdown.js";
 
-// Lignes réservées sous la zone dynamique (spinner, saisie, marge).
-const RESERVED_ROWS = 4;
+// Lignes réservées sous la zone dynamique (spinner, marge, bordures haut/bas de la saisie, ligne de saisie, barre d'état).
+const RESERVED_ROWS = 6;
 const DEFAULT_ROWS = 24;
 
 /** Garde seulement les dernières lignes qui tiennent dans la hauteur disponible. */

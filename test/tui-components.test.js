@@ -83,7 +83,8 @@ test("composants TUI : Plan numérote les étapes", async () => {
 
 test("composants TUI : tailLines garde les dernières lignes", async () => {
     const { bundle } = await load();
-    const out = bundle.tailLines("l1\nl2\nl3\nl4", 6);
+    // 8 lignes de terminal - 6 réservées (spinner, marge, bordures haut/bas de la saisie, saisie, barre d'état) = 2 lignes visibles.
+    const out = bundle.tailLines("l1\nl2\nl3\nl4", 8);
     const lines = Array.isArray(out) ? out : String(out).split("\n");
     assert.deepEqual(lines, ["l3", "l4"]);
 });
