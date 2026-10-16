@@ -237,7 +237,7 @@ Chaque étape laisse `npm test` vert et `frstcli` fonctionnel.
 - [ ] Étape 3 — `src/core/session.js` et `src/core/chat.js`, `main.js` allégé
 - [ ] Étape 4 — Store et adaptateur TUI (CommonJS, testés)
 - [x] Étape 5 — App Ink + rectangle d'accueil
-- [ ] Étape 6 — Streaming SSE, Markdown, outils, diff, plan
+- [x] Étape 6 — Streaming SSE, Markdown, outils, diff, plan
 - [ ] Étape 7 — Saisie multiligne, historique persistant, raccourcis
 - [ ] Étape 8 — Confirmations, choix de commande, connexion
 - [ ] Étape 9 — Barre d'état et spinners

@@ -92,7 +92,7 @@ function createTuiBackend(store, { now = Date.now, setTimer = setTimeout, clearT
 
         /** Ligne de sortie d'une commande, affichée en direct. */
         commandLine(text) {
-            append({ type: "print", lines: [String(text ?? "")], command: true });
+            store.dispatch({ type: "commandLine", text: String(text ?? "") });
         },
 
         /** Diff produit par buildDiff({ lines, added, removed }). Renvoie { added, removed }. */
