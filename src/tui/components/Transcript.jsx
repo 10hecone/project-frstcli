@@ -5,7 +5,7 @@ import { ToolCall, ToolResult, CommandOutput } from "./ToolCall.jsx";
 import { Diff } from "./Diff.jsx";
 import { Plan } from "./Plan.jsx";
 
-function Entry({ entry, version, cwd, color }) {
+export function Entry({ entry, version, cwd, color }) {
     switch (entry.type) {
         case "welcome":
             return <Welcome version={version} model={entry.model} workspace={entry.workspace} cwd={cwd} />;

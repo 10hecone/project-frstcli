@@ -12,6 +12,7 @@ import { ConfirmDialog, confirmOptions } from "./components/ConfirmDialog.jsx";
 import { TextPrompt } from "./components/TextPrompt.jsx";
 import { Spinner, SPINNER_FRAMES, formatElapsed } from "./components/Spinner.jsx";
 import { StatusBar, projectName, formatCount, sessionTokens } from "./components/StatusBar.jsx";
+import { ConversationView, visibleWindow, parseWheel, isMouseInput, PAGE_ENTRIES, WHEEL_ENTRIES } from "./components/ConversationView.jsx";
 
 const requireCjs = createRequire(import.meta.url);
 
@@ -39,7 +40,13 @@ export {
     StatusBar,
     projectName,
     formatCount,
-    sessionTokens
+    sessionTokens,
+    ConversationView,
+    visibleWindow,
+    parseWheel,
+    isMouseInput,
+    PAGE_ENTRIES,
+    WHEEL_ENTRIES
 };
 
 /** Envoie une saisie à la session et diffuse la réponse dans le store. */
@@ -123,7 +130,8 @@ export function cleanExit({
     jobs = null,
     memory = null,
     stdin = process.stdin,
-    stdout = process.stdout
+    stdout = process.stdout,
+    altScreen = false
 } = {}) {
     const done = [];
     const attempt = (name, fn) => {
@@ -139,6 +147,10 @@ export function cleanExit({
     if (instance && typeof instance.unmount === "function") attempt("unmount", () => instance.unmount());
     if (stdin && stdin.isTTY && typeof stdin.setRawMode === "function") {
         attempt("rawMode", () => stdin.setRawMode(false));
+    }
+    // Plein écran : quitter l'écran alternatif pour retrouver le terminal d'origine.
+    if (altScreen && stdout && typeof stdout.write === "function") {
+        attempt("altScreen", () => stdout.write("\u001b[?1000l\u001b[?1006l\u001b[?1049l"));
     }
     if (stdout && typeof stdout.write === "function") attempt("cursor", () => stdout.write(SHOW_CURSOR));
     return done;
@@ -160,6 +172,8 @@ export async function start() {
     let instance = null;
     let running = false;
     let closed = false;
+    // Écran alternatif actif (mode plein écran) : il faut le quitter à la sortie.
+    let altScreen = false;
 
     // Efface l'écran et le défilement, puis Ink redessine la zone dynamique.
     const clearScreen = () => {
@@ -185,7 +199,7 @@ export async function start() {
             memory = requireCjs("../src/project/memory.js");
         } catch {
         }
-        cleanExit({ instance, jobs, memory });
+        cleanExit({ instance, jobs, memory, altScreen });
     };
 
     const onSubmit = async (value) => {
@@ -238,6 +252,10 @@ export async function start() {
     process.once("uncaughtException", onFatal);
     process.once("unhandledRejection", onFatal);
     const renderOptions = { exitOnCtrlC: false, patchConsole: true };
+    // Rendu en ligne par défaut (comme Claude Code) : l'historique est écrit une fois
+    // dans le terminal (Static), qui gère lui-même la molette et la sélection du texte.
+    // Plein écran (en-tête fixe, suivi de la souris) seulement avec FRST_TUI_FULLSCREEN=1.
+    const fullscreen = Boolean(process.stdout.isTTY) && process.env.FRST_TUI_FULLSCREEN === "1";
 
     // Redimensionnement : les lignes déjà affichées se replient dans le terminal
     // (surtout cmd/conhost) et Ink efface alors un mauvais nombre de lignes, d'où du
@@ -269,8 +287,19 @@ export async function start() {
         process.exitCode = 1;
         shutdown();
     } else {
-        backend.info(`Modèle : ${state.model}.`);
-        backend.refreshStatus({ branch: gitBranch(state.workspace || process.cwd()) });
+        const agentsApi = requireCjs("../src/api/agents.js");
+        const branch = gitBranch(state.workspace || process.cwd());
+        backend.info(`Modèle : ${agentsApi.agentName(state.model)}.`);
+        backend.refreshStatus({ branch });
+        // Charge la liste réelle des agents (GET /chats/agents) en arrière-plan, puis rafraîchit le nom affiché.
+        agentsApi.listAgents().then(({ source }) => {
+            if (source === "api") backend.refreshStatus({ branch });
+        }).catch(() => {});
+        if (fullscreen) {
+            // Écran alternatif : l'en-tête reste en haut, seule la conversation défile.
+            process.stdout.write("\u001b[?1049h\u001b[H\u001b[?1000h\u001b[?1006h");
+            altScreen = true;
+        }
         instance = render(
             <App
                 store={store}
@@ -285,6 +314,7 @@ export async function start() {
                 onHistoryAdd={onHistoryAdd}
                 clipboard={readClipboard}
                 color={color}
+                fullscreen={fullscreen}
             />,
             renderOptions
         );
