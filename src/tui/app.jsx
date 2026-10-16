@@ -67,7 +67,7 @@ export function App({
 
     return (
         <Box flexDirection="column">
-            <Transcript transcript={current.transcript} version={version} cwd={cwd} color={color} />
+            <Transcript key={`transcript-${current.epoch || 0}`} transcript={current.transcript} version={version} cwd={cwd} color={color} />
             {current.command ? (
                 <CommandOutput lines={current.command.lines} hidden={current.command.total - current.command.lines.length} />
             ) : null}

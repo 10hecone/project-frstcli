@@ -241,7 +241,7 @@ Chaque étape laisse `npm test` vert et `frstcli` fonctionnel.
 - [x] Étape 7 — Saisie multiligne, historique persistant, raccourcis
 - [x] Étape 8 — Confirmations, choix de commande, connexion
 - [x] Étape 9 — Barre d'état et spinners
-- [ ] Étape 10 — Fluidité, redimensionnement, sortie propre
+- [x] Étape 10 — Fluidité, redimensionnement, sortie propre
 - [ ] Étape 11 — Documentation et CI
 
 Vérifications à chaque étape :

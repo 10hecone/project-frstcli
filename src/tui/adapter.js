@@ -18,7 +18,8 @@ function createTuiBackend(store, {
     setTimer = setTimeout,
     clearTimer = clearTimeout,
     jobs: jobManager = null,
-    usage: usageObject = null
+    usage: usageObject = null,
+    onClearScreen = null
 } = {}) {
     if (!store || typeof store.dispatch !== "function") {
         throw new TypeError("Adaptateur TUI : un store est requis.");
@@ -215,6 +216,23 @@ function createTuiBackend(store, {
                     store.dispatch({ type: "liveEnd" });
                 }
             };
+        },
+
+        /**
+         * /clear : efface l'écran (callback injecté), vide l'affichage du store
+         * (transcript, flux, sortie de commande ; epoch++ pour remonter <Static>)
+         * puis réaffiche l'accueil.
+         */
+        clear() {
+            if (typeof onClearScreen === "function") {
+                try {
+                    onClearScreen();
+                } catch {
+                    // L'effacement de l'écran est facultatif : le store est vidé quand même.
+                }
+            }
+            store.dispatch({ type: "clear" });
+            backend.banner();
         },
 
         // ---- Appelées par l'UI (hors port) ----

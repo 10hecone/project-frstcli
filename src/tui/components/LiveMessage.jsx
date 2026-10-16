@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Box, Text, useStdout } from "ink";
 import { renderMarkdownLine } from "../../markdown.js";
 
@@ -13,14 +14,36 @@ export function tailLines(text, rows) {
 }
 
 /**
+ * Hauteur du terminal, recalculée à chaque événement « resize » de stdout
+ * (étape 10). L'écouteur est retiré au démontage.
+ */
+export function useTerminalRows(stdout) {
+    const read = () => (stdout && stdout.rows) || DEFAULT_ROWS;
+    const [rows, setRows] = useState(read);
+    useEffect(() => {
+        if (!stdout || typeof stdout.on !== "function") return undefined;
+        const onResize = () => setRows(read());
+        onResize();
+        stdout.on("resize", onResize);
+        return () => {
+            if (typeof stdout.off === "function") stdout.off("resize", onResize);
+            else if (typeof stdout.removeListener === "function") stdout.removeListener("resize", onResize);
+        };
+    }, [stdout]);
+    return rows;
+}
+
+/**
  * Message en cours de streaming : seules ses dernières lignes sont affichées
- * (hauteur du terminal via useStdout). Les lignes terminées sont déjà dans <Static>.
+ * (hauteur du terminal via useStdout, mise à jour au redimensionnement).
+ * Les lignes terminées sont déjà dans <Static>.
  */
 export function LiveMessage({ live, rows, color = true }) {
     const { stdout } = useStdout();
+    const terminalRows = useTerminalRows(stdout);
     if (!live || !live.text) return null;
 
-    const height = rows ?? (stdout && stdout.rows) ?? DEFAULT_ROWS;
+    const height = rows ?? terminalRows;
     const lines = tailLines(live.text, height);
     const mdState = { inCode: Boolean(live.inCode) };
 

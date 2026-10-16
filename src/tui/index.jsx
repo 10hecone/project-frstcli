@@ -104,6 +104,46 @@ export function gitBranch(dir = process.cwd()) {
     }
 }
 
+/** Séquence ANSI qui réaffiche le curseur. */
+export const SHOW_CURSOR = "\u001b[?25h";
+
+/** Couleurs désactivées si NO_COLOR est défini et non vide (https://no-color.org). */
+export function colorEnabled(env = process.env) {
+    return !(env && typeof env.NO_COLOR === "string" && env.NO_COLOR !== "");
+}
+
+/**
+ * Sortie propre (étape 10) : arrêt des jobs, fermeture de la mémoire, démontage
+ * d'Ink puis restauration du terminal (mode brut désactivé, curseur visible).
+ * Chaque étape est protégée : une erreur n'empêche pas les suivantes.
+ * Renvoie la liste des étapes réussies.
+ */
+export function cleanExit({
+    instance = null,
+    jobs = null,
+    memory = null,
+    stdin = process.stdin,
+    stdout = process.stdout
+} = {}) {
+    const done = [];
+    const attempt = (name, fn) => {
+        try {
+            fn();
+            done.push(name);
+        } catch {
+            // On continue : la restauration du terminal passe avant tout.
+        }
+    };
+    if (jobs && typeof jobs.killAll === "function") attempt("jobs", () => jobs.killAll());
+    if (memory && typeof memory.close === "function") attempt("memory", () => memory.close());
+    if (instance && typeof instance.unmount === "function") attempt("unmount", () => instance.unmount());
+    if (stdin && stdin.isTTY && typeof stdin.setRawMode === "function") {
+        attempt("rawMode", () => stdin.setRawMode(false));
+    }
+    if (stdout && typeof stdout.write === "function") attempt("cursor", () => stdout.write(SHOW_CURSOR));
+    return done;
+}
+
 export async function start() {
     const { setUiBackend } = requireCjs("../src/ui-bridge.js");
     const { createStore } = requireCjs("../src/tui/store.js");
@@ -117,19 +157,43 @@ export async function start() {
     } catch {
     }
 
-    const store = createStore();
-    const backend = createTuiBackend(store);
-    setUiBackend(backend);
-
     let instance = null;
     let running = false;
+    let closed = false;
+
+    // Efface l'écran et le défilement, puis Ink redessine la zone dynamique.
+    const clearScreen = () => {
+        process.stdout.write("\u001b[2J\u001b[3J\u001b[H");
+        if (instance && typeof instance.clear === "function") instance.clear();
+    };
+
+    const store = createStore();
+    const backend = createTuiBackend(store, { onClearScreen: clearScreen });
+    setUiBackend(backend);
+
+    // Sortie propre, une seule fois : /exit, /quit, double Ctrl+C, Ctrl+D, erreur fatale.
+    const shutdown = () => {
+        if (closed) return;
+        closed = true;
+        let jobs = null;
+        let memory = null;
+        try {
+            jobs = requireCjs("../src/tools/command/jobs.js").manager;
+        } catch {
+        }
+        try {
+            memory = requireCjs("../src/project/memory.js");
+        } catch {
+        }
+        cleanExit({ instance, jobs, memory });
+    };
 
     const onSubmit = async (value) => {
         if (running) return;
         running = true;
         try {
             const outcome = await submitInput(value, { store, backend, session });
-            if (outcome.exit && instance) instance.unmount();
+            if (outcome.exit) shutdown();
         } finally {
             running = false;
         }
@@ -140,14 +204,10 @@ export async function start() {
         if (running && typeof backend.interrupt === "function") return backend.interrupt() === true;
         return false;
     };
-    const onExit = () => {
-        if (instance) instance.unmount();
-    };
-    // Ctrl+L : efface l'écran et le défilement, puis Ink redessine la zone dynamique.
-    const onClear = () => {
-        process.stdout.write("\u001b[2J\u001b[3J\u001b[H");
-        if (instance && typeof instance.clear === "function") instance.clear();
-    };
+    const onExit = () => shutdown();
+    // Ctrl+L : efface seulement l'écran (le transcript reste dans le store).
+    const onClear = () => clearScreen();
+    const color = colorEnabled(process.env);
 
     const historyFile = requireCjs("../src/tui/history-file.js");
     const { readClipboard } = requireCjs("../src/clipboard.js");
@@ -165,11 +225,25 @@ export async function start() {
         result = { ok: false, reason: error && error.message ? error.message : String(error) };
     }
 
+    // Erreur fatale : on restaure le terminal avant de quitter.
+    const onFatal = (error) => {
+        shutdown();
+        const message = error && error.message ? error.message : String(error);
+        try {
+            process.stderr.write(`Erreur fatale : ${message}\n`);
+        } catch {
+        }
+        process.exit(1);
+    };
+    process.once("uncaughtException", onFatal);
+    process.once("unhandledRejection", onFatal);
+    const renderOptions = { exitOnCtrlC: false, patchConsole: true };
+
     if (!result.ok) {
-        instance = render(<App store={store} version={version} cwd={process.cwd()} />, { exitOnCtrlC: false });
+        instance = render(<App store={store} version={version} cwd={process.cwd()} color={color} />, renderOptions);
         backend.error(result.reason);
         process.exitCode = 1;
-        instance.unmount();
+        shutdown();
     } else {
         backend.info(`Modèle : ${state.model}.`);
         backend.refreshStatus({ branch: gitBranch(state.workspace || process.cwd()) });
@@ -186,13 +260,24 @@ export async function start() {
                 history={history}
                 onHistoryAdd={onHistoryAdd}
                 clipboard={readClipboard}
+                color={color}
             />,
-            { exitOnCtrlC: false }
+            renderOptions
         );
     }
 
-    await instance.waitUntilExit();
-    setUiBackend(null);
+    try {
+        await instance.waitUntilExit();
+    } catch (error) {
+        // Ink peut rejeter waitUntilExit avec l'erreur qui a démonté l'App.
+        backend.error(error && error.message ? error.message : String(error));
+        process.exitCode = 1;
+    } finally {
+        shutdown();
+        process.removeListener("uncaughtException", onFatal);
+        process.removeListener("unhandledRejection", onFatal);
+        setUiBackend(null);
+    }
     return result;
 }
 

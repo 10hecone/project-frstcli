@@ -512,6 +512,11 @@ const ui = {
         return renderDiff(data);
     },
 
+    /** /clear : efface le terminal (CLI classique). */
+    clear() {
+        console.clear();
+    },
+
     ask
 };
 

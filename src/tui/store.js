@@ -143,6 +143,17 @@ function reducer(state, action) {
         case "status":
             return { ...state, status: { ...state.status, ...(action.status || {}) } };
 
+        case "clear":
+            // /clear : vide l'affichage (transcript, flux, sortie de commande) en gardant
+            // status, prompts et nextId. epoch sert de clé pour remonter <Static>.
+            return {
+                ...state,
+                transcript: [],
+                live: null,
+                command: null,
+                epoch: (state.epoch || 0) + 1
+            };
+
         default:
             return state;
     }

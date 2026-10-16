@@ -588,7 +588,7 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
 
     case "/clear":
       require("../agent/agent").clearAgentContextCache();
-      console.clear();
+      ui.clear();
       break;
 
     case "/exit":
