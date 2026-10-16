@@ -49,7 +49,8 @@ function summarizeResult(name, result) {
     Projet
     ============================================================ */
 
-async function setProject(directory) {
+async function setProject(directory, { newConv = false } = {}) {
+    const projects = require("../project/projects");
     const real = await fs.realpath(path.resolve(directory));
     const info = await fs.stat(real);
 
@@ -59,12 +60,18 @@ async function setProject(directory) {
     resetConversation();
     await memory.open(real);
 
+    const { project, created } = await projects.open(real, { newConv });
+
     for (const mode of ["chat", "agent"]) {
-        const saved = await conversations.findForWorkspace(real, mode);
-        if (saved) setConversation(mode, saved.id, saved.settings);
+        const saved = project.conversations[mode];
+        if (saved && saved.id) setConversation(mode, saved.id, saved.settings);
     }
 
     ui.info(`Projet : ${real}`);
+
+    if (created) ui.info("Nouveau projet enregistré dans projects.json.");
+    else if (newConv) ui.info("Projet existant : nouvelles conversations chat et agent.");
+    else ui.info("Projet existant : reprise de ses conversations (le contexte n'est pas renvoyé).");
 
     const notes = memory.listNotes().length;
     const undo = memory.listUndo().length;

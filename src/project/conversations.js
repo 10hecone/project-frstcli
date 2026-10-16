@@ -12,7 +12,10 @@ const { ui } = require("../cli/ui");
  * Le titre est le début du premier message (l'API ne fournit pas de titre connu).
  */
 
-const FILE = path.join(CONFIG.dataDir, "conversations.json");
+const projects = require("./projects");
+
+// Historique enregistré dans ce dépôt (racine du CLI), jamais dans le projet ouvert.
+const FILE = path.join(projects.REPO_ROOT, "history.json");
 const MAX_ENTRIES = 50;
 const TITLE_CHARS = 70;
 
@@ -99,6 +102,8 @@ async function touch({ id, firstMessage, model, workspace, mode = "chat", settin
   if (entries.length > MAX_ENTRIES) entries.length = MAX_ENTRIES;
 
   await save();
+
+  if (workspace) await projects.setConversation(workspace, mode, id, entry.settings);
 
   return entry;
 }

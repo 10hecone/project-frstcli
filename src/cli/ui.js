@@ -77,7 +77,36 @@ function askSecret(question) {
     });
 }
 
-const PASTE_GAP_MS = 40;
+const CONTINUATION = "... ";
+const BLOCK_FENCE = "\"\"\"";
+
+/** Lit des lignes jusqu'à une ligne """ seule. Capte aussi les collages de plusieurs lignes. */
+function readBlock(r) {
+    return new Promise(resolve => {
+        const lines = [];
+        const cleanup = () => {
+            r.off("line", onLine);
+            r.off("close", onClose);
+        };
+        const onLine = line => {
+            if (line.trim() === BLOCK_FENCE) {
+                cleanup();
+                resolve(lines.join("\n"));
+                return;
+            }
+            lines.push(line);
+            r.setPrompt(c.gray(CONTINUATION));
+            r.prompt();
+        };
+        const onClose = () => {
+            cleanup();
+            resolve(lines.length ? lines.join("\n") : null);
+        };
+        r.on("line", onLine);
+        r.once("close", onClose);
+        r.setPrompt(c.gray(CONTINUATION));
+        const PASTE_GAP_MS = 40;
+    });
 
 /** Lit le texte du presse-papier du système, ou "" s'il est vide ou illisible. */
 function readClipboard() {
@@ -267,6 +296,31 @@ function collectInput(r, question, { gapMs = PASTE_GAP_MS, keys = process.stdin,
     });
 }
 
+/**
+ * Saisie multi-ligne :
+ * - une ligne finissant par \ continue sur la ligne suivante ;
+ * - """ seul ouvre un bloc (collage possible), fermé par """ seul.
+ * Renvoie null si l'entrée est fermée.
+ */
+async function askMultiline(question) {
+    const first = await ask(question);
+    if (first === null) return null;
+
+    if (first.trim() === BLOCK_FENCE) {
+        if (closed) return null;
+        return readBlock(getInterface());
+    }
+
+    const lines = [];
+    let line = first;
+    while (line !== null && line.endsWith("\\")) {
+        lines.push(line.slice(0, -1));
+        line = await ask(c.gray(CONTINUATION));
+    }
+    if (line !== null) lines.push(line);
+    return lines.join("\n");
+  
+ 
 /** Saisie du prompt principal : collage multiligne, « \ » en fin de ligne, Échap pour effacer. */
 function askInput(question) {
     const r = getInterface();
@@ -560,6 +614,6 @@ const ui = {
 };
 
 module.exports = {
-    ui, c, ask, askInput, collectInput, askSecret, closeInput,
+    ui, c, ask, askInput, collectInput, askSecret, askMultiline, closeInput,
     renderInline, renderMarkdownLine, renderMarkdownLite, createMarkdownStream
 };
