@@ -89,20 +89,29 @@ const clean = s => String(s).replace(/\r$/, "");
  * Renvoie { added, removed }.
  */
 function printDiff(oldText, newText, maxLines = 60) {
-    if (oldText === null) {
-        const lines = newText.split("\n");
+    return renderDiff(buildDiff(oldText, newText, maxLines));
+}
 
-        lines.slice(0, maxLines).forEach((line, i) => {
-            console.log(
-                `    ${c.gray(String(i + 1).padStart(4))} ${c.green(`+ ${clean(line)}`)}`
-            );
+/**
+ * Diff en données pures, sans couleur (partagé par le CLI et la TUI).
+ * lines : { type: "+" | "-" | " " | "gap" | "more", num, text }.
+ * oldText = null : création. Renvoie { lines, added, removed }.
+ */
+function buildDiff(oldText, newText, maxLines = 60) {
+    const lines = [];
+
+    if (oldText === null) {
+        const all = newText.split("\n");
+
+        all.slice(0, maxLines).forEach((line, i) => {
+            lines.push({ type: "+", num: i + 1, text: clean(line) });
         });
 
-        if (lines.length > maxLines) {
-            console.log(c.dim(`    ... ${lines.length - maxLines} lignes de plus`));
+        if (all.length > maxLines) {
+            lines.push({ type: "more", num: null, text: `... ${all.length - maxLines} lignes de plus` });
         }
 
-        return { added: lines.length, removed: 0 };
+        return { lines, added: all.length, removed: 0 };
     }
 
     const ops = diffLines(oldText, newText);
@@ -136,22 +145,45 @@ function printDiff(oldText, newText, maxLines = 60) {
             return;
         }
 
-        if (skipped && printed > 0) console.log(c.gray("    ⋮"));
+        if (skipped && printed > 0) lines.push({ type: "gap", num: null, text: "⋮" });
 
         skipped = false;
         printed++;
 
-        const num = String(op.n ?? op.o).padStart(4);
-        const text = clean(op.s);
-
-        if (op.t === "+") console.log(`    ${c.gray(num)} ${c.green(`+ ${text}`)}`);
-        else if (op.t === "-") console.log(`    ${c.gray(num)} ${c.red(`- ${text}`)}`);
-        else console.log(`    ${c.gray(num)} ${c.dim(`  ${text}`)}`);
+        lines.push({ type: op.t, num: op.n ?? op.o, text: clean(op.s) });
     });
 
-    if (hidden) console.log(c.dim(`    ... ${hidden} lignes de diff supplémentaires`));
+    if (hidden) {
+        lines.push({ type: "more", num: null, text: `... ${hidden} lignes de diff supplémentaires` });
+    }
 
-    return countChanges(ops);
+    return { lines, ...countChanges(ops) };
 }
 
-module.exports = { diffLines, countChanges, printDiff };
+/**
+ * Rendu classique (couleurs ANSI) d'un diff produit par buildDiff.
+ * Renvoie { added, removed }.
+ */
+function renderDiff(diff) {
+    for (const line of diff.lines) {
+        if (line.type === "gap") {
+            console.log(c.gray("    ⋮"));
+            continue;
+        }
+
+        if (line.type === "more") {
+            console.log(c.dim(`    ${line.text}`));
+            continue;
+        }
+
+        const num = c.gray(String(line.num).padStart(4));
+
+        if (line.type === "+") console.log(`    ${num} ${c.green(`+ ${line.text}`)}`);
+        else if (line.type === "-") console.log(`    ${num} ${c.red(`- ${line.text}`)}`);
+        else console.log(`    ${num} ${c.dim(`  ${line.text}`)}`);
+    }
+
+    return { added: diff.added, removed: diff.removed };
+}
+
+module.exports = { diffLines, countChanges, buildDiff, renderDiff, printDiff };

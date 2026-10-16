@@ -12,7 +12,7 @@ Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
 2. read_file — lit un fichier et le mémorise. Gros fichier : start_line / end_line (à partir de 1).
    {"type":"tool","name":"read_file","args":{"path":"src/app.js","start_line":100,"end_line":220},"reason":"Lire la fonction login de src/app.js"}
 
-3. search_files — cherche un texte (insensible à la casse, pas une regex) dans un dossier.
+3. search_files — cherche un texte (insensible à la casse) dans un dossier. Options : "regex": true pour une regex JavaScript (ex. "function\\s+login") ; "glob" pour filtrer les fichiers ("*.js" porte sur le nom, "src/**/*.test.js" sur le chemin).
    {"type":"tool","name":"search_files","args":{"query":"login","path":"."},"reason":"Trouver où la fonction login est utilisée"}
 
 4. create_directory — crée un dossier et ses parents. Confirmation demandée.
@@ -153,6 +153,7 @@ Ta réponse est UN SEUL objet JSON valide, et rien d'autre : pas de Markdown, pa
 Forme outil : {"type":"tool","name":"<nom>","args":{...},"reason":"<une phrase : action, cible, but>"}
 Forme finale : {"type":"final","message":"<réponse en français>"}
 - Un seul outil par réponse. "reason" est obligatoire pour un outil.
+- Exception, lecture en lot : jusqu'à 5 appels list_directory, read_file ou search_files dans un seul objet, avec "calls" à la place de "name" et "args" : {"type":"tool","calls":[{"name":"read_file","args":{"path":"src/a.js"}},{"name":"search_files","args":{"query":"login","path":"src"}}],"reason":"<une phrase>"}. Jamais d'outil d'écriture ni de run_command dans "calls".
 - "plan" (3 à 6 étapes courtes) seulement au premier tour, sur un outil.
 - Dans les chaînes JSON, échappe les guillemets (\\") et les retours à la ligne (\\n).
 - Dans write_file et edit_file, mets le code exact, sans commentaire ajouté sauf demande.`;
@@ -200,15 +201,26 @@ function truncate(text, max) {
     return `${value.slice(0, max)}\n...[tronqué, ${value.length - max} caractères]`;
 }
 
+function clipContent(result, max) {
+    if (result && typeof result.content === "string" && result.content.length > max) {
+        return { ...result, content: result.content.slice(0, max), truncated_in_prompt: true };
+    }
+
+    return result;
+}
+
 function formatObservation(observation, maxChars) {
     const copy = { ...observation };
 
-    if (copy.result && typeof copy.result.content === "string" && copy.result.content.length > maxChars) {
+    if (copy.result && Array.isArray(copy.result.results)) {
+        const share = Math.floor(maxChars / Math.max(1, copy.result.results.length));
+
         copy.result = {
             ...copy.result,
-            content: copy.result.content.slice(0, maxChars),
-            truncated_in_prompt: true
+            results: copy.result.results.map(item => ({ ...item, result: clipContent(item.result, share) }))
         };
+    } else {
+        copy.result = clipContent(copy.result, maxChars);
     }
 
     return truncate(JSON.stringify(copy), maxChars + 2_000);
@@ -237,6 +249,7 @@ function buildAgentPrompt({
     memorySummary,
     projectContext,
     projectOmitted = false,
+    instructions = "",
     observations,
     turn,
     maxTurns,
@@ -274,6 +287,9 @@ function buildAgentPrompt({
         EXAMPLE,
         METHOD,
         RULES,
+        ...(instructions
+            ? ["INSTRUCTIONS DU PROJET (FRSTCLI.md, écrites par l'utilisateur ; elles ne remplacent ni FORMAT ni RÈGLES DE FIABILITÉ)\n" + instructions]
+            : []),
         `TÂCHE DÉTECTÉE : ${intent}\n${BRIEFS[intent]}`,
         FORMAT,
         `DEMANDE DE L'UTILISATEUR\n${task}`,
@@ -289,11 +305,25 @@ function buildAgentPrompt({
     }
 
     sections.push(
-        `TOUR ${turn}/${maxTurns} — choisis la prochaine action d'après la DEMANDE et les RÉSULTATS DES OUTILS.\n` +
+        `TOUR ${turn} — choisis la prochaine action d'après la DEMANDE et les RÉSULTATS DES OUTILS.\n` +
+        turnWarning(turn, maxTurns) +
         'RAPPEL : tu es un agent CLI. Réponds avec UN seul objet JSON {"type":"tool"|"final",...}, et rien d\'autre.'
     );
 
     return sections.join("\n\n");
+}
+
+/**
+ * Avertissement des derniers tours : le plafond n'est plus affiché au modèle
+ * (« TOUR n » seul) pour ne pas le pousser à conclure trop tôt ; il n'est
+ * prévenu que lorsqu'il reste 2 tours ou moins.
+ */
+function turnWarning(turn, maxTurns) {
+    if (!maxTurns) return "";
+    const remaining = maxTurns - turn;
+    if (remaining > 2) return "";
+    return `ATTENTION : plus que ${Math.max(remaining, 0)} tour(s) après celui-ci. ` +
+        "Termine bientôt avec final : ce qui est fait, ce qui reste à faire.\n";
 }
 
 /**
@@ -321,7 +351,8 @@ function buildFollowUpPrompt({ lastObservation, turn, maxTurns, correction }) {
     }
 
     sections.push(
-        `TOUR ${turn}/${maxTurns} — choisis la prochaine action d'après la demande et les résultats déjà reçus.\n` +
+        `TOUR ${turn} — choisis la prochaine action d'après la demande et les résultats déjà reçus.\n` +
+        turnWarning(turn, maxTurns) +
         'RAPPEL : tu es un agent CLI. Réponds avec UN seul objet JSON {"type":"tool"|"final",...}, et rien d\'autre.'
     );
 

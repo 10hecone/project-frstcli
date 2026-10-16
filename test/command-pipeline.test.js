@@ -15,7 +15,7 @@ const {
 } = require("../src/tools/command/pipeline");
 const { CommandParseError } = require("../src/tools/command/parse");
 const { runProcess } = require("../src/tools/command/runner");
-const { ui } = require("../src/cli/ui");
+const { setUiBackend, getUiBackend } = require("../src/ui-bridge");
 const { state } = require("../src/state");
 const { runCommand } = require("../src/tools/command/index");
 
@@ -139,13 +139,14 @@ test("runProcess écrit input sur stdin et capture stdout", async () => {
 
 test("runCommand : cd puis commande, champs cwd, segments et pipe_status", async () => {
     const saved = {
-        commandLine: ui.commandLine,
-        onInterrupt: ui.onInterrupt,
         workspace: state.workspace,
         cwd: state.cwd
     };
-    ui.commandLine = () => {};
-    ui.onInterrupt = () => () => {};
+    setUiBackend({
+        ...getUiBackend(),
+        commandLine() {},
+        onInterrupt: () => () => {}
+    });
     state.workspace = workspace;
     state.cwd = undefined;
     try {
@@ -159,8 +160,7 @@ test("runCommand : cd puis commande, champs cwd, segments et pipe_status", async
         const denied = await runCommand({ command: "node --version && rm x" });
         assert.equal(denied.denied, true);
     } finally {
-        ui.commandLine = saved.commandLine;
-        ui.onInterrupt = saved.onInterrupt;
+        setUiBackend(null);
         state.workspace = saved.workspace;
         state.cwd = saved.cwd;
     }

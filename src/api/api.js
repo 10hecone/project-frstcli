@@ -2,14 +2,31 @@
 
 const { CONFIG } = require("../config");
 const { state } = require("../state");
-const { ui } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 const { auth, getAccessToken } = require("./auth");
 
 const fmt = n => Number(n).toLocaleString("fr-FR");
 const MAX_REQUEST_FAILURES = 2;
 
 // Volume réellement envoyé (chaque tentative HTTP compte, relances comprises).
-const usage = { requests: 0, chars: 0 };
+const usage = { requests: 0, chars: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, reported: 0 };
+
+/** Ajoute à `usage` les tokens réels si l'événement SSE en fournit (format Responses ou Chat Completions). */
+function recordTokens(raw) {
+    if (!raw || typeof raw !== "object") return;
+    const input = Number(raw.input_tokens ?? raw.prompt_tokens);
+    const output = Number(raw.output_tokens ?? raw.completion_tokens);
+    if (!Number.isFinite(input) && !Number.isFinite(output)) return;
+    const cached = Number(
+        raw.input_tokens_details?.cached_tokens ??
+        raw.prompt_tokens_details?.cached_tokens ??
+        raw.cached_tokens
+    );
+    usage.inputTokens += Number.isFinite(input) ? input : 0;
+    usage.outputTokens += Number.isFinite(output) ? output : 0;
+    usage.cachedTokens += Number.isFinite(cached) ? cached : 0;
+    usage.reported++;
+}
 
 async function apiHeaders() {
     const token = await getAccessToken();
@@ -25,6 +42,21 @@ async function apiHeaders() {
         Origin: CONFIG.origin,
         Referer: `${CONFIG.origin}/`
     };
+}
+
+/** POST /chats/{chatId}/stream/cancel : arrête la génération côté serveur (idempotent). */
+async function cancelStream(chatId) {
+    if (!chatId) return false;
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/chats/${encodeURIComponent(chatId)}/stream/cancel`, {
+            method: "POST",
+            headers: { ...(await apiHeaders()), Accept: "application/json" },
+            signal: AbortSignal.timeout(10_000)
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -61,6 +93,9 @@ async function requestModel(message, options = {}) {
         try {
             return await requestModelOnce(message, options);
         } catch (error) {
+            // Annulation volontaire (Ctrl+C) : jamais de relance.
+            if (error.cancelled) throw error;
+
             const status = error.status;
             const isClientError = status >= 400 && status < 500;
 
@@ -121,6 +156,22 @@ async function requestModelOnce(message, options) {
     let idle;
     const armIdle = ms => { clearTimeout(idle); idle = setTimeout(() => controller.abort(), ms); };
     armIdle(CONFIG.firstByteTimeoutMs);
+
+    // Ctrl+C : coupe le flux local et demande l'arrêt de la génération côté serveur.
+    let streamChatId = options.fresh ? null : state.chatIds[options.conversationMode === "agent" ? "agent" : "chat"];
+    let cancelled = false;
+    const registerInterrupt = options.onInterrupt ?? (process.stdin.isTTY ? handler => ui.onInterrupt(handler) : null);
+    const offInterrupt = registerInterrupt ? registerInterrupt(() => {
+        if (cancelled) return;
+        cancelled = true;
+        controller.abort();
+        if (streamChatId) {
+            ui.warn("Ctrl+C : arrêt de la génération en cours.");
+            cancelStream(streamChatId).then(ok => {
+                if (!ok) ui.debug(`Annulation du flux ${streamChatId} non confirmée par l'API.`);
+            });
+        }
+    }) : null;
 
     let reader;
 
@@ -193,9 +244,15 @@ async function requestModelOnce(message, options) {
                 throw new Error(`Événement SSE JSON invalide : ${name || "message"}`);
             }
 
+            if (data.chat_id) streamChatId = data.chat_id;
+
             if (data.chat_id && !options.fresh) {
                 state.chatIds[conversationMode] = data.chat_id;
                 state.chatId = data.chat_id;
+            }
+
+            if (name === "response.completed" || name === "completed") {
+                recordTokens(data.response?.usage ?? data.usage ?? data.message?.usage);
             }
 
             switch (name) {
@@ -304,7 +361,15 @@ async function requestModelOnce(message, options) {
         }
 
         return output;
+    } catch (error) {
+        if (cancelled) {
+            const interrupted = new Error("Génération annulée (Ctrl+C).");
+            interrupted.cancelled = true;
+            throw interrupted;
+        }
+        throw error;
     } finally {
+        offInterrupt?.();
         clearTimeout(timeout);
         clearTimeout(idle);
 
@@ -315,4 +380,4 @@ async function requestModelOnce(message, options) {
     }
 }
 
-module.exports = { requestModel, MAX_REQUEST_FAILURES, usage };
+module.exports = { requestModel, cancelStream, MAX_REQUEST_FAILURES, usage };

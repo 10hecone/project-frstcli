@@ -5,8 +5,8 @@ const path = require("node:path");
 
 const { CONFIG } = require("../../config");
 const { state } = require("../../state");
-const { ui } = require("../../cli/ui");
-const { printDiff } = require("../diff");
+const { ui } = require("../../ui-bridge");
+const { buildDiff } = require("../diff");
 const { resolveInWorkspace, assertRealInside } = require("../security");
 const memory = require("../../project/memory");
 const { newId, requireString } = require("../core/args");
@@ -59,7 +59,7 @@ async function writeFile(args = {}) {
 
     if (missing) ui.result(`Crée aussi le dossier ${toRel(missing)}`);
 
-    const { added, removed } = printDiff(previous, content);
+    const { added, removed } = ui.diff(buildDiff(previous, content));
     ui.result(`+${added} -${removed}`);
 
     if (!(await ui.confirm("Autoriser cette écriture ?"))) return denied(rel);

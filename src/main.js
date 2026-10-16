@@ -1,7 +1,7 @@
 "use strict";
 
 const { state, record, activateConversation, setConversation } = require("./state");
-const { ui, c, askMultiline, closeInput } = require("./cli/ui");
+const { ui, c, askInput, askMultiline, closeInput, createMarkdownStream } = require("./cli/ui");
 const { initAuth } = require("./api/auth");
 const { promptAndLogin } = require("./api/login");
 const api = require("./api/api");
@@ -102,6 +102,9 @@ async function chatNormally(input) {
 
   const message = header ? `${header}\n\nQUESTION : ${input}` : input;
 
+  // Rendu Markdown ligne par ligne pendant le streaming (état des blocs de code conservé).
+  const md = createMarkdownStream();
+
   try {
     const response = await api.requestModel(message, {
       onDelta(text) {
@@ -110,9 +113,11 @@ async function chatNormally(input) {
           process.stdout.write("\n");
           started = true;
         }
-        process.stdout.write(text);
+        md.write(text);
       },
     });
+
+    md.flush();
 
     record("user", input);
     record("assistant", response);
@@ -178,7 +183,7 @@ async function main() {
   }
 
   while (true) {
-    const answer = await askMultiline(ui.prompt());
+    const answer = await askInput(ui.prompt());
 
     if (answer === null) break; // Ctrl+D / entrée fermée
 

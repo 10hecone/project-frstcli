@@ -2,7 +2,8 @@
 
 const { KNOWN_MODELS } = require("../config");
 const { state, resetConversation, setConversation } = require("../state");
-const { ui, c } = require("./ui");
+const { c } = require("./ui");
+const { ui } = require("../ui-bridge");
 const memory = require("../project/memory");
 const projectContext = require("../project/project-context");
 const conversations = require("../project/conversations");
@@ -25,6 +26,8 @@ function showHelp() {
     ["/tree [dossier]", "Lister un dossier (2 niveaux)"],
     ["/read <fichier>", "Lire localement un fichier"],
     ["/index", "Régénérer le résumé du projet (RESUME.md)"],
+    ["/init", "Créer FRSTCLI.md (instructions du projet)"],
+    ["/plan <demande>", "Plan en lecture seule, sans modification"],
     ["/resume", "Afficher le résumé du projet"],
     ["/undo", "Annuler la dernière modification"],
     ["/changes", "Historique des modifications annulables"],
@@ -39,26 +42,26 @@ function showHelp() {
     ["/chat-id [n|id]", "Voir le chat ID / reprendre une conversation"],
     ["/history [all]", "Dernières conversations (id + titre)"],
     ["/messages", "Messages de la conversation (session)"],
+    ["/usage", "Consommation : session, conversations, limites du compte"],
     ["/model [id]", "Lister / changer d'agent"],
     ["/web on|off", "Recherche web (chat normal)"],
     ["/auth [refresh]", "État de la connexion / renouvellement"],
     ["/login", "Se connecter avec e-mail et mot de passe"],
-    ["/history", "Afficher l'historique local"],
     ["/clear", "Effacer le terminal"],
-    ["/exit", "Quitter"],
+    ["/exit", "Quitter (alias : /quit)"],
   ];
 
-  console.log(`\n${c.bold("Commandes")}`);
+  ui.print(`\n${c.bold("Commandes")}`);
 
   for (const [cmd, desc] of rows) {
-    console.log(`  ${c.cyan(cmd.padEnd(24))} ${c.dim(desc)}`);
+    ui.print(`  ${c.cyan(cmd.padEnd(24))} ${c.dim(desc)}`);
   }
 
-  console.log(
+  ui.print(
     `\n${c.dim("Projet :")} ${state.workspace || "aucun"}  ` +
       `${c.dim("Agent :")} ${state.model}  ${c.dim("Mode :")} ${state.mode}`,
   );
-  console.log(
+  ui.print(
     c.dim(
       "Sans /project : chat normal. Avec /project : l'agent peut lire, créer, éditer, " +
         "déplacer, copier et supprimer (corbeille). Chaque écriture est confirmée.",
@@ -121,7 +124,7 @@ async function handleCommand(input) {
         recursive: true,
       });
 
-      console.log(c.bold(result.path));
+      ui.print(c.bold(result.path));
 
       for (const entry of result.entries) {
         const depth =
@@ -130,7 +133,7 @@ async function handleCommand(input) {
         const name = entry.path.split("/").pop();
         const indent = "  ".repeat(Math.max(0, depth) + 1);
 
-        console.log(
+        ui.print(
           entry.type === "directory"
             ? `${indent}${c.cyan(`${name}/`)}`
             : `${indent}${name}`,
@@ -149,7 +152,7 @@ async function handleCommand(input) {
         break;
       }
 
-      console.log((await readFile({ path: unquote(value) })).content);
+      ui.print((await readFile({ path: unquote(value) })).content);
       break;
 
     case "/index": {
@@ -164,10 +167,43 @@ async function handleCommand(input) {
       break;
     }
 
+    case "/init": {
+      if (!requireProject()) break;
+
+      const { initInstructions } = require("../project/instructions");
+      const result = await initInstructions(state.workspace, { testCommand: "npm test" });
+      require("../agent/agent").clearAgentContextCache();
+      ui.info(
+        result.created
+          ? `FRSTCLI.md créé : ${result.path}. Complète-le, il sera lu à chaque demande de l'agent.`
+          : `FRSTCLI.md existe déjà : ${result.path}. Je ne l'ai pas modifié.`,
+      );
+      break;
+    }
+
+    case "/plan": {
+      if (!requireProject()) break;
+
+      if (!value) {
+        ui.info("Usage : /plan <demande>. L'agent explore le projet en lecture seule et propose un plan.");
+        break;
+      }
+
+      const { runAgent } = require("../agent/agent");
+      await runAgent(
+        "MODE PLAN (lecture seule) : explore le projet avec list_directory, read_file et search_files, " +
+          "sans rien modifier ni lancer de commande. Termine avec final : un plan numéroté " +
+          "(fichiers à modifier, changements prévus, tests à ajouter, risques).\n\nDemande : " +
+          value,
+        { readOnly: true },
+      );
+      break;
+    }
+
     case "/resume": {
       if (!requireProject()) break;
 
-      console.log(projectContext.resumeText() ?? "Aucun résumé chargé.");
+      ui.print(projectContext.resumeText() ?? "Aucun résumé chargé.");
       break;
     }
 
@@ -186,10 +222,10 @@ async function handleCommand(input) {
         break;
       }
 
-      console.log(c.bold("Modifications (la plus récente en premier)"));
+      ui.print(c.bold("Modifications (la plus récente en premier)"));
 
       [...list].reverse().forEach((entry, i) => {
-        console.log(
+        ui.print(
           `  ${c.gray(String(i + 1).padStart(2))} ${entry.label} ` +
             c.dim(entry.at.slice(0, 16).replace("T", " ")),
         );
@@ -203,18 +239,18 @@ async function handleCommand(input) {
       const notes = memory.listNotes();
       const actions = memory.listActions().slice(-10);
 
-      console.log(c.bold("Notes"));
+      ui.print(c.bold("Notes"));
 
-      if (!notes.length) console.log(c.dim("  aucune"));
+      if (!notes.length) ui.print(c.dim("  aucune"));
       notes.forEach((note, i) =>
-        console.log(`  ${c.gray(`${i + 1}.`)} ${note}`),
+        ui.print(`  ${c.gray(`${i + 1}.`)} ${note}`),
       );
 
-      console.log(`\n${c.bold("Dernières actions")}`);
+      ui.print(`\n${c.bold("Dernières actions")}`);
 
-      if (!actions.length) console.log(c.dim("  aucune"));
+      if (!actions.length) ui.print(c.dim("  aucune"));
       actions.forEach((a) =>
-        console.log(
+        ui.print(
           `  ${c.gray(a.at.slice(0, 16).replace("T", " "))} ${a.text}`,
         ),
       );
@@ -396,7 +432,7 @@ async function handleCommand(input) {
     case "/model": {
       if (!value) {
         for (const model of KNOWN_MODELS) {
-          console.log(
+          ui.print(
             `  ${c.cyan(String(model.id).padEnd(7))} ${model.name}` +
               (model.id === state.model ? c.dim("  (actuel)") : ""),
           );
@@ -415,6 +451,33 @@ async function handleCommand(input) {
       state.model = id;
       resetConversation(state.mode === "agent" ? "agent" : "chat");
       ui.info(`Agent sélectionné : ${id}`);
+      break;
+    }
+
+    case "/usage": {
+      const api = require("../api/api");
+      const account = require("../api/account");
+      const lines = [...account.describeSession(api.usage)];
+
+      for (const mode of ["chat", "agent"]) {
+        const id = state.chatIds[mode];
+        if (!id) continue;
+        const label = mode === "agent" ? "Conversation agent" : "Conversation chat";
+        try {
+          lines.push(...account.describeChatUsage(label, await account.fetchChatUsage(id)));
+        } catch (error) {
+          lines.push(`${label} : ${error.message}`);
+        }
+      }
+
+      try {
+        lines.push(...account.describeUserUsage(await account.fetchUserUsage()));
+      } catch (error) {
+        lines.push(`Compte : ${error.message}`);
+      }
+
+      ui.print(c.bold("Consommation"));
+      lines.forEach((line) => ui.print(`  ${line}`));
       break;
     }
 
@@ -450,7 +513,7 @@ async function handleCommand(input) {
         break;
       }
 
-      console.log(
+      ui.print(
         c.bold("Conversations récentes (la plus récente en premier)"),
       );
 
@@ -461,10 +524,10 @@ async function handleCommand(input) {
           .slice(0, 16)
           .replace("T", " ");
 
-        console.log(
+        ui.print(
           `  ${c.gray(String(i + 1).padStart(2))} ${entry.title}${current}`,
         );
-        console.log(
+        ui.print(
           `     ${c.cyan(entry.id)} ` +
             c.dim(
               `${date} | agent ${entry.model} | ${entry.messages} échange(s)`,
@@ -482,13 +545,14 @@ async function handleCommand(input) {
       if (!state.history.length) ui.info("Historique local vide.");
 
       for (const item of state.history) {
-        console.log(
+        ui.print(
           `\n${item.role === "user" ? c.bold(">") : ""} ${item.content}`,
         );
       }
       break;
 
     case "/clear":
+      require("../agent/agent").clearAgentContextCache();
       console.clear();
       break;
 

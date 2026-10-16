@@ -8,7 +8,7 @@ const { CONFIG } = require("../config");
 const { normalizeRelative } = require("../tools/security");
 const memory = require("./memory");
 const api = require("../api/api");
-const { ui } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 
 const RESUME_NAME = "RESUME.md";
 
@@ -97,10 +97,6 @@ async function snapshot(workspace) {
     // RESUME.md à la racine n'est jamais indexé (sinon boucle).
     const indexed = files.filter(f => f.rel !== RESUME_NAME);
 
-    const fingerprint = sha1(
-        JSON.stringify(indexed.map(f => [f.rel, f.size, Math.trunc(f.mtime)]))
-    );
-
     const items = [];
     let budget = CONFIG.contextBudgetChars;
 
@@ -118,17 +114,22 @@ async function snapshot(workspace) {
             continue;
         }
 
+        const hash = sha1(item.text);
         const partial = item.text.length > CONFIG.contextFileChars;
         const content = partial ? item.text.slice(0, CONFIG.contextFileChars) : item.text;
 
         if (content.length > budget) {
-            items.push({ rel: item.rel, lines: item.lines, skipped: "hors budget de contexte" });
+            items.push({ rel: item.rel, lines: item.lines, hash, skipped: "hors budget de contexte" });
             continue;
         }
 
         budget -= content.length;
-        items.push({ rel: item.rel, lines: item.lines, content, partial });
+        items.push({ rel: item.rel, lines: item.lines, content, partial, hash });
     }
+
+    const fingerprint = sha1(
+        JSON.stringify([dirs, items.map(it => [it.rel, it.hash ?? it.skipped, it.partial ?? false])])
+    );
 
     return { dirs, items, fingerprint };
 }
@@ -229,9 +230,61 @@ async function persist(text, workspace) {
     }
 }
 
+const CACHE_NAME = "resume-cache.json";
+
+async function readFileCache() {
+    try {
+        const data = JSON.parse(await fs.readFile(memory.projectPath(CACHE_NAME), "utf8"));
+        return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+    } catch {
+        return {};
+    }
+}
+
+async function writeFileCache(cache) {
+    try {
+        const target = memory.projectPath(CACHE_NAME);
+        await fs.mkdir(path.dirname(target), { recursive: true });
+        await fs.writeFile(target, JSON.stringify(cache), "utf8");
+    } catch {
+        // cache facultatif : ne jamais faire échouer l'ouverture du projet
+    }
+}
+
+/** Découpe une réponse du modèle en sections "### chemin" : Map chemin -> texte. */
+function splitSections(text, rels) {
+    const wanted = new Set(rels);
+    const sections = new Map();
+    let current = null;
+    let buffer = [];
+
+    const flush = () => {
+        if (current && !sections.has(current)) sections.set(current, buffer.join("\n").trim());
+    };
+
+    for (const line of String(text).split(/\r?\n/)) {
+        const match = /^###\s+(.+?)\s*$/.exec(line);
+
+        if (match) {
+            flush();
+            const name = match[1].replace(/`/g, "").replace(/^\.\//, "").trim();
+            current = wanted.has(name) ? name : null;
+            buffer = current ? [`### ${name}`] : [];
+            continue;
+        }
+
+        if (current) buffer.push(line);
+    }
+
+    flush();
+
+    return sections;
+}
+
 /**
  * Charge le projet : reprend le RESUME.md si rien n'a changé,
- * sinon le régénère avec l'IA (par lots). En cas d'échec, garde l'arborescence seule.
+ * sinon le régénère avec l'IA (par lots), en ne renvoyant que les fichiers
+ * dont le contenu a changé (cache par fichier). /index (force) refait tout.
  */
 async function load(workspace, { force = false } = {}) {
     const snap = await snapshot(workspace);
@@ -239,28 +292,67 @@ async function load(workspace, { force = false } = {}) {
     let status = "Résumé du projet repris (inchangé)";
 
     if (!resume) {
-        const chunks = chunkForSummary(snap.items.filter(it => it.content !== undefined));
+        const readable = snap.items.filter(it => it.content !== undefined);
+        const cache = force ? {} : await readFileCache();
+        const known = new Map();
+
+        for (const it of readable) {
+            const entry = cache[it.rel];
+
+            if (entry && entry.hash === it.hash && typeof entry.summary === "string") {
+                known.set(it.rel, entry.summary);
+            }
+        }
+
+        const reused = known.size;
+        const cached = new Map(known);
+        const raw = [];
+        const chunks = chunkForSummary(readable.filter(it => !known.has(it.rel)));
+
+        const summaries = () => [
+            ...readable.filter(it => known.has(it.rel)).map(it => known.get(it.rel)),
+            ...raw
+        ].join("\n\n");
+
+        const saveCache = () => writeFileCache(Object.fromEntries(
+            readable
+                .filter(it => cached.has(it.rel))
+                .map(it => [it.rel, { hash: it.hash, summary: cached.get(it.rel) }])
+        ));
 
         try {
-            const parts = [];
-
             for (let i = 0; i < chunks.length; i++) {
                 const spin = ui.spinner(`Analyse du projet ${i + 1}/${chunks.length}`);
+                let text;
 
                 try {
-                    parts.push(String(await summarizeChunk(chunks[i], i + 1, chunks.length)).trim());
+                    text = String(await summarizeChunk(chunks[i], i + 1, chunks.length)).trim();
                 } finally {
                     spin.stop();
                 }
+
+                const sections = splitSections(text, chunks[i].map(it => it.rel));
+
+                for (const [rel, section] of sections) cached.set(rel, section);
+
+                if (sections.size === chunks[i].length) {
+                    for (const [rel, section] of sections) known.set(rel, section);
+                } else {
+                    raw.push(text); // découpage incomplet : on garde la réponse brute
+                }
             }
 
-            resume = renderResume(snap, parts.join("\n\n"));
+            resume = renderResume(snap, summaries());
             await persist(resume, workspace);
-            status = `RESUME.md généré (${chunks.length} envoi(s) à l'IA)`;
+            await saveCache();
+            status = chunks.length
+                ? `RESUME.md généré (${chunks.length} envoi(s) à l'IA, ${reused} fichier(s) repris du cache)`
+                : `RESUME.md régénéré depuis le cache (${reused} fichier(s), aucun envoi à l'IA)`;
         } catch (error) {
-            // Pas de cache sur échec : la prochaine ouverture réessaiera.
-            resume = renderResume(snap, "");
-            status = `Résumé IA indisponible (${error.message}). Arborescence seule ; /index pour réessayer.`;
+            // RESUME.md non écrit : la prochaine ouverture réessaiera, sans refaire les lots déjà reçus.
+            await saveCache();
+            resume = renderResume(snap, summaries());
+            status = `Résumé IA indisponible (${error.message}). Résumé partiel ; /index pour réessayer.`;
         }
     }
 
@@ -322,4 +414,4 @@ function clear() {
     active = null;
 }
 
-module.exports = { RESUME_NAME, load, promptContext, resumeText, clear };
+module.exports = { RESUME_NAME, load, promptContext, resumeText, clear, snapshot, splitSections };
