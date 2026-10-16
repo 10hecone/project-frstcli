@@ -175,6 +175,17 @@ function completeSlash(text, commands) {
     return { text: prefix.length > value.length ? prefix : value, matches };
 }
 
+/**
+ * Suggestions affichées sous la saisie pendant qu'on tape « /xxx » (une ligne, sans espace).
+ * Renvoie au plus max commandes qui commencent par le texte saisi.
+ */
+function slashSuggestions(text, commands, max = 8) {
+    const value = String(text ?? "");
+    if (!value.startsWith("/") || /\s/.test(value)) return [];
+    const lower = value.toLowerCase();
+    return (commands || []).filter((command) => command.startsWith(lower)).slice(0, Math.max(1, max));
+}
+
 module.exports = {
     empty,
     fromText,
@@ -197,5 +208,6 @@ module.exports = {
     createHistoryNav,
     historyPrev,
     historyNext,
-    completeSlash
+    completeSlash,
+    slashSuggestions
 };

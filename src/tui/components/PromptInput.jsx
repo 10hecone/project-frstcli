@@ -24,7 +24,8 @@ const {
     createHistoryNav,
     historyPrev,
     historyNext,
-    completeSlash
+    completeSlash,
+    slashSuggestions
 } = inputModel;
 
 /** Commandes slash proposées par Tab (même liste que /help). */
@@ -71,7 +72,7 @@ export function PromptInput({
 }) {
     const stateRef = useRef(null);
     if (stateRef.current === null) {
-        stateRef.current = { model: empty(), nav: createHistoryNav(history), armed: false, hint: "" };
+        stateRef.current = { model: empty(), nav: createHistoryNav(history), armed: false, hint: "", sel: 0 };
     }
     const [, setTick] = useState(0);
 
@@ -79,7 +80,10 @@ export function PromptInput({
         stateRef.current = { ...stateRef.current, ...patch };
         setTick((tick) => tick + 1);
     };
-    const setModel = (model, extra = {}) => update({ model, armed: false, hint: "", ...extra });
+    const setModel = (model, extra = {}) => update({ model, armed: false, hint: "", sel: 0, picked: false, ...extra });
+
+    // Menu des commandes slash sous la saisie (comme Claude Code) : une seule ligne qui commence par « / ».
+    const menuFor = (model) => (secret || model.lines.length > 1 ? [] : slashSuggestions(toText(model), commands));
 
     const submit = () => {
         const { model, nav } = stateRef.current;
@@ -101,6 +105,8 @@ export function PromptInput({
     };
 
     useInput((input, key) => {
+        // Séquences souris (molette, clic) : gérées par ConversationView, jamais insérées dans la saisie.
+        if (typeof input === "string" && /\[<\d+;\d+;\d+[Mm]/.test(input)) return;
         const { model, nav, armed } = stateRef.current;
 
         if (key.ctrl && input === "c") {
@@ -117,6 +123,21 @@ export function PromptInput({
         if (key.ctrl && input === "d") {
             if (isEmpty(model) && onExit) onExit();
             return;
+        }
+
+        // Menu des commandes slash ouvert : ↑/↓ choisissent, Tab complète, Entrée lance la commande choisie.
+        // Fermé si le texte est déjà une commande complète (l'historique reste accessible avec ↑/↓).
+        const typed = toText(model);
+        const menu = commands.includes(typed) ? [] : menuFor(model);
+        if (menu.length) {
+            const sel = Math.min(stateRef.current.sel || 0, menu.length - 1);
+            if (key.upArrow) return update({ sel: (sel - 1 + menu.length) % menu.length });
+            if (key.downArrow) return update({ sel: (sel + 1) % menu.length });
+            if (key.tab && (menu.length === 1 || sel > 0)) return setModel(fromText(`${menu[sel]} `));
+            if (key.return && !key.meta && input !== "\n") {
+                setModel(fromText(menu[sel]));
+                return submit();
+            }
         }
 
         // Nouvelle ligne : Ctrl+J (LF) ou Alt+Entrée.
@@ -175,13 +196,17 @@ export function PromptInput({
     const { model, hint } = stateRef.current;
     const pad = " ".repeat(label.length);
     const mask = (text) => (secret ? "•".repeat(text.length) : text);
+    const typedNow = toText(model);
+    const menu = isActive && !commands.includes(typedNow) ? menuFor(model) : [];
+    const selected = Math.min(stateRef.current.sel || 0, Math.max(0, menu.length - 1));
 
-    // Comme Claude Code : une ligne horizontale au-dessus et une en dessous de la zone de saisie.
+    // Comme Claude Code : une ligne horizontale au-dessus et une en dessous de la zone de saisie,
+    // puis le menu des commandes slash qui correspondent aux lettres tapées.
     return (
+        <Box flexDirection="column" width={width} marginTop={1}>
         <Box
             flexDirection="column"
             width={width}
-            marginTop={1}
             borderStyle="single"
             borderTop
             borderBottom
@@ -203,6 +228,22 @@ export function PromptInput({
                 );
             })}
             {hint ? <Text dimColor>{hint}</Text> : null}
+        </Box>
+        {menu.length ? (
+            <Box flexDirection="column" width={width}>
+                {menu.map((command, index) => (
+                    <Text
+                        key={command}
+                        wrap="truncate-end"
+                        color={index === selected ? "cyan" : undefined}
+                        bold={index === selected}
+                        dimColor={index !== selected}
+                    >
+                        {`${index === selected ? "› " : "  "}${command}`}
+                    </Text>
+                ))}
+            </Box>
+        ) : null}
         </Box>
     );
 }
