@@ -77,6 +77,63 @@ function askSecret(question) {
     });
 }
 
+const CONTINUATION = "... ";
+const BLOCK_FENCE = "\"\"\"";
+
+/** Lit des lignes jusqu'à une ligne """ seule. Capte aussi les collages de plusieurs lignes. */
+function readBlock(r) {
+    return new Promise(resolve => {
+        const lines = [];
+        const cleanup = () => {
+            r.off("line", onLine);
+            r.off("close", onClose);
+        };
+        const onLine = line => {
+            if (line.trim() === BLOCK_FENCE) {
+                cleanup();
+                resolve(lines.join("\n"));
+                return;
+            }
+            lines.push(line);
+            r.setPrompt(c.gray(CONTINUATION));
+            r.prompt();
+        };
+        const onClose = () => {
+            cleanup();
+            resolve(lines.length ? lines.join("\n") : null);
+        };
+        r.on("line", onLine);
+        r.once("close", onClose);
+        r.setPrompt(c.gray(CONTINUATION));
+        r.prompt();
+    });
+}
+
+/**
+ * Saisie multi-ligne :
+ * - une ligne finissant par \ continue sur la ligne suivante ;
+ * - """ seul ouvre un bloc (collage possible), fermé par """ seul.
+ * Renvoie null si l'entrée est fermée.
+ */
+async function askMultiline(question) {
+    const first = await ask(question);
+    if (first === null) return null;
+
+    if (first.trim() === BLOCK_FENCE) {
+        if (closed) return null;
+        return readBlock(getInterface());
+    }
+
+    const lines = [];
+    let line = first;
+    while (line !== null && line.endsWith("\\")) {
+        lines.push(line.slice(0, -1));
+        line = await ask(c.gray(CONTINUATION));
+    }
+    if (line !== null) lines.push(line);
+    return lines.join("\n");
+}
+
 function closeInput() {
     rl?.close();
 }
@@ -252,4 +309,4 @@ const ui = {
     }
 };
 
-module.exports = { ui, c, ask, askSecret, closeInput };
+module.exports = { ui, c, ask, askSecret, askMultiline, closeInput };
