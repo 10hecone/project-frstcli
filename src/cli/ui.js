@@ -420,8 +420,9 @@ const ui = {
         );
     },
 
-    result(text) {
-        console.log(`  ${c.gray("⎿")}  ${c.dim(text)}`);
+    result(text, { tone } = {}) {
+        const body = tone === "error" ? c.red(text) : c.dim(text);
+        console.log(`  ${c.gray("⎿")}  ${body}`);
     },
 
     info(text) {
@@ -529,7 +530,33 @@ const ui = {
     /** Ligne de sortie d'une commande, affichée en direct. */
     commandLine(text) {
         console.log(c.gray(`    ${text}`));
-    }
+    },
+
+    /** Affiche une ligne ou un tableau de lignes, sans mise en forme. */
+    print(lines) {
+        const list = Array.isArray(lines) ? lines : [lines];
+        for (const line of list) console.log(line == null ? "" : String(line));
+    },
+
+    /** Flux Markdown progressif : write(chunk) puis end() pour vider le tampon. */
+    stream(options) {
+        const md = createMarkdownStream(options);
+        return {
+            write: chunk => md.write(chunk),
+            end: () => md.flush()
+        };
+    },
+
+    /**
+     * Affiche un diff produit par buildDiff({ lines, added, removed }).
+     * Renvoie { added, removed }.
+     */
+    diff(data) {
+        const { renderDiff } = require("../tools/diff");
+        return renderDiff(data);
+    },
+
+    ask
 };
 
 module.exports = {
