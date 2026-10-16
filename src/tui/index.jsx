@@ -7,6 +7,7 @@ import { LiveMessage, tailLines } from "./components/LiveMessage.jsx";
 import { ToolCall, ToolResult, CommandOutput } from "./components/ToolCall.jsx";
 import { Diff } from "./components/Diff.jsx";
 import { Plan } from "./components/Plan.jsx";
+import { PromptInput, SLASH_COMMANDS } from "./components/PromptInput.jsx";
 
 const requireCjs = createRequire(import.meta.url);
 
@@ -22,7 +23,9 @@ export {
     ToolResult,
     CommandOutput,
     Diff,
-    Plan
+    Plan,
+    PromptInput,
+    SLASH_COMMANDS
 };
 
 /** Envoie une saisie à la session et diffuse la réponse dans le store. */
@@ -84,9 +87,25 @@ export async function start() {
         }
     };
     const onAnswer = (id, value) => backend.resolvePrompt(id, value);
+    // Renvoie true si une tâche a été interrompue ; sinon PromptInput efface la saisie, puis quitte au second Ctrl+C.
     const onInterrupt = () => {
-        if (running && typeof backend.interrupt === "function") backend.interrupt();
-        else if (instance) instance.unmount();
+        if (running && typeof backend.interrupt === "function") return backend.interrupt() === true;
+        return false;
+    };
+    const onExit = () => {
+        if (instance) instance.unmount();
+    };
+    // Ctrl+L : efface l'écran et le défilement, puis Ink redessine la zone dynamique.
+    const onClear = () => {
+        process.stdout.write("\u001b[2J\u001b[3J\u001b[H");
+        if (instance && typeof instance.clear === "function") instance.clear();
+    };
+
+    const historyFile = requireCjs("../src/tui/history-file.js");
+    const { readClipboard } = requireCjs("../src/clipboard.js");
+    const history = await historyFile.load();
+    const onHistoryAdd = (text) => {
+        historyFile.add(text).catch(() => {});
     };
 
     backend.banner();
@@ -113,6 +132,11 @@ export async function start() {
                 onSubmit={onSubmit}
                 onAnswer={onAnswer}
                 onInterrupt={onInterrupt}
+                onExit={onExit}
+                onClear={onClear}
+                history={history}
+                onHistoryAdd={onHistoryAdd}
+                clipboard={readClipboard}
             />,
             { exitOnCtrlC: false }
         );
