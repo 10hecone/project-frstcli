@@ -8,6 +8,8 @@ import { ToolCall, ToolResult, CommandOutput } from "./components/ToolCall.jsx";
 import { Diff } from "./components/Diff.jsx";
 import { Plan } from "./components/Plan.jsx";
 import { PromptInput, SLASH_COMMANDS } from "./components/PromptInput.jsx";
+import { ConfirmDialog, confirmOptions } from "./components/ConfirmDialog.jsx";
+import { TextPrompt } from "./components/TextPrompt.jsx";
 
 const requireCjs = createRequire(import.meta.url);
 
@@ -25,7 +27,10 @@ export {
     Diff,
     Plan,
     PromptInput,
-    SLASH_COMMANDS
+    SLASH_COMMANDS,
+    ConfirmDialog,
+    confirmOptions,
+    TextPrompt
 };
 
 /** Envoie une saisie à la session et diffuse la réponse dans le store. */
