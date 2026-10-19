@@ -10,7 +10,8 @@ const {
     ensureParent,
     moveAcross,
     moveToTrash,
-    cleanCreatedDirs
+    cleanCreatedDirs,
+    isCaseOnlyRename
 } = require("./fs-utils");
 
 async function finishMutation(entry, journal) {
@@ -65,8 +66,8 @@ async function revert(entry) {
                 throw new Error(`${entry.to} n'existe plus.`);
             }
 
-            const caseOnly =
-                from.target.toLowerCase() === to.target.toLowerCase();
+            // Même fichier sur le disque (système insensible à la casse) : simple changement de casse.
+            const caseOnly = await isCaseOnlyRename(from.target, to.target);
 
             if (!caseOnly && (await statOrNull(to.target))) {
                 throw new Error(`${entry.from} existe déjà.`);

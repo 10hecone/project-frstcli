@@ -69,6 +69,40 @@ function isNodeEvalFlag(arg) {
     return /^-[a-z]{2,}$/i.test(a) && /[ep]/i.test(a);
 }
 
+// python, python3, python3.12, pythonw, py, pypy3.
+const PYTHON_RE = /^(python[0-9.]*w?|py|pypy[0-9.]*)$/;
+
+// Options courtes de python suivies d'une valeur (collée ou séparée).
+const PYTHON_VALUE_FLAGS = new Set(["W", "X"]);
+
+/** Vrai si les options de python contiennent -c (seule, groupée ou collée : -c, -Ic, -cprint(1)). */
+function hasPythonInlineCode(args) {
+    for (let i = 0; i < args.length; i += 1) {
+        const a = String(args[i]);
+        if (a === "--" || a === "-" || !a.startsWith("-")) return false;
+        if (a.startsWith("--")) continue;
+        for (let j = 1; j < a.length; j += 1) {
+            const ch = a[j];
+            if (ch === "c") return true;
+            // -m lance un module : la suite appartient au module.
+            if (ch === "m") return false;
+            if (PYTHON_VALUE_FLAGS.has(ch)) {
+                if (j === a.length - 1) i += 1;
+                break;
+            }
+        }
+    }
+    return false;
+}
+
+/** Vrai pour deno eval ou une option --eval (deno repl --eval). */
+function hasDenoInlineCode(args) {
+    const list = args.map(String);
+    if (list.some(a => a === "--eval" || a.startsWith("--eval=") || a.startsWith("--eval-file"))) return true;
+    const sub = list.find(a => !a.startsWith("-"));
+    return (sub || "").toLowerCase() === "eval";
+}
+
 const deny = (reason) => ({ level: "deny", reason });
 const ask = (reason) => ({ level: "ask", reason });
 const safe = (reason) => ({ level: "safe", reason });
@@ -90,8 +124,14 @@ function pathCandidate(arg) {
     let value = arg;
     if (value.startsWith("-")) {
         const eq = value.indexOf("=");
-        if (eq === -1) return null;
-        value = value.slice(eq + 1);
+        if (eq !== -1) {
+            value = value.slice(eq + 1);
+        } else if (!value.startsWith("--") && value.length > 2) {
+            // Option courte collée à sa valeur : -f/etc/passwd -> /etc/passwd.
+            value = value.slice(2);
+        } else {
+            return null;
+        }
     }
     if (!value || URL_RE.test(value)) return null;
     if (process.platform === "win32" && WINDOWS_SWITCH_RE.test(value)) return null;
@@ -219,6 +259,12 @@ function judge({ file, args = [], cwd, workspace } = {}) {
     }
     if (name === "node" && list.some(isNodeEvalFlag)) {
         return deny("Exécution de code en ligne (node -e / -p) interdite. Écris un script avec write_file puis lance-le.");
+    }
+    if (PYTHON_RE.test(name) && hasPythonInlineCode(list)) {
+        return deny("Exécution de code en ligne (python -c) interdite. Écris un script avec write_file puis lance-le.");
+    }
+    if (name === "deno" && hasDenoInlineCode(list)) {
+        return deny("Exécution de code en ligne (deno eval) interdite. Écris un script avec write_file puis lance-le.");
     }
 
     const root = path.resolve(workspace || cwd || process.cwd());
