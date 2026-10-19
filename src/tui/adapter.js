@@ -265,6 +265,7 @@ function createTuiBackend(store, {
                     autoApprove: Boolean(state.autoApprove),
                     jobs,
                     usage,
+                    context: typeof state.contextUsagePercent === "number" ? state.contextUsagePercent : null,
                     ...extra
                 }
             });

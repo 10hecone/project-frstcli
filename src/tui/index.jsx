@@ -11,7 +11,7 @@ import { PromptInput, SLASH_COMMANDS } from "./components/PromptInput.jsx";
 import { ConfirmDialog, confirmOptions } from "./components/ConfirmDialog.jsx";
 import { TextPrompt } from "./components/TextPrompt.jsx";
 import { Spinner, SPINNER_FRAMES, formatElapsed } from "./components/Spinner.jsx";
-import { StatusBar, projectName, formatCount, sessionTokens } from "./components/StatusBar.jsx";
+import { StatusBar, projectName, formatCount, sessionTokens, contextPercent, contextColor } from "./components/StatusBar.jsx";
 import { ConversationView, visibleWindow, parseWheel, isMouseInput, PAGE_ENTRIES, WHEEL_ENTRIES } from "./components/ConversationView.jsx";
 
 const requireCjs = createRequire(import.meta.url);
@@ -41,6 +41,8 @@ export {
     projectName,
     formatCount,
     sessionTokens,
+    contextPercent,
+    contextColor,
     ConversationView,
     visibleWindow,
     parseWheel,

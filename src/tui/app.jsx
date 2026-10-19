@@ -103,6 +103,7 @@ export function App({
             autoApprove={Boolean(status.autoApprove)}
             jobs={status.jobs}
             usage={status.usage}
+            context={status.context}
             branch={status.branch}
             color={color}
         />

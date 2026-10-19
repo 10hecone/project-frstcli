@@ -28,9 +28,23 @@ export function sessionTokens(usage) {
     return { count: Math.round((usage.chars || 0) / 3.5), estimated: true };
 }
 
+/** Pourcentage de contexte valide (0 à 100, arrondi), ou null s'il est inconnu. */
+export function contextPercent(value) {
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+/** Couleur selon le seuil : neutre sous 60 %, jaune de 60 à 80 %, rouge au-delà. */
+export function contextColor(percent) {
+    if (percent === null || percent === undefined) return null;
+    if (percent > 80) return "red";
+    if (percent >= 60) return "yellow";
+    return null;
+}
+
 /**
  * Barre d'état : mode, modèle, projet, auto-approbation, jobs actifs,
- * tokens de la session et branche git (si connue). Composant pur.
+ * tokens de la session, contexte utilisé et branche git (si connue). Composant pur.
  */
 export function StatusBar({
     mode = null,
@@ -39,6 +53,7 @@ export function StatusBar({
     autoApprove = false,
     jobs = 0,
     usage = null,
+    context = null,
     branch = null,
     color = true
 }) {
@@ -57,6 +72,8 @@ export function StatusBar({
     if (activeJobs > 0) parts.push({ key: "jobs", text: `${activeJobs} job${activeJobs > 1 ? "s" : ""}`, color: "magenta" });
     const tokens = sessionTokens(usage);
     if (tokens) parts.push({ key: "tokens", text: `${tokens.estimated ? "≈ " : ""}${formatCount(tokens.count)} tokens` });
+    const ctx = contextPercent(context);
+    if (ctx !== null) parts.push({ key: "context", text: `ctx ${ctx} %`, color: contextColor(ctx) || undefined });
 
     if (parts.length === 0) return null;
 
