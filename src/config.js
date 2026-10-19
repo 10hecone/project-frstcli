@@ -35,6 +35,14 @@ const CONFIG = {
     autoCompact: process.env.FS_AUTO_COMPACT !== "0",
     autoCompactThreshold: envInt("FS_COMPACT_THRESHOLD", 80),
 
+    // Sous-agents (lecture seule) : modèle léger par défaut (Claude Haiku 5.5),
+    // limites, et suppression de leur conversation une fois la mission terminée.
+    subagentModel: envInt("FS_SUBAGENT_MODEL", -2002),
+    subagentMaxTurns: envInt("FS_SUBAGENT_MAX_TURNS", 10),
+    subagentTimeoutMs: envInt("FS_SUBAGENT_TIMEOUT_MS", 300_000),
+    subagentSummaryChars: envInt("FS_SUBAGENT_SUMMARY_CHARS", 6_000),
+    subagentKeepChats: process.env.FS_SUBAGENT_KEEP_CHATS === "1",
+
     // Fichiers
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque
     maxReadChars: 40_000,           // caractères renvoyés au modèle par read_file

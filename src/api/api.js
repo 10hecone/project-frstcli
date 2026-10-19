@@ -60,6 +60,25 @@ async function cancelStream(chatId) {
 }
 
 /**
+ * DELETE /chats/{chatId} : supprime une conversation côté serveur (sous-agents).
+ * Route non confirmée par une capture réseau : au mieux, ne lève jamais d'erreur.
+ * Renvoie true si l'API confirme la suppression.
+ */
+async function deleteChat(chatId) {
+    if (!chatId) return false;
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/chats/${encodeURIComponent(chatId)}`, {
+            method: "DELETE",
+            headers: { ...(await apiHeaders()), Accept: "application/json" },
+            signal: AbortSignal.timeout(10_000)
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * options.fresh   : true = nouvelle conversation à chaque appel.
  * options.onDelta : callback appelé à chaque morceau de texte.
  * options.freshMessage : message complet (ou fonction qui le construit), envoyé
@@ -112,7 +131,7 @@ async function requestModel(message, options = {}) {
                 error.message = `Budget de chat épuisé${label}. ${error.message}`;
                 throw error;
             }
-            if (status === 409 && options.conversationMode === "agent" && !switched) {
+            if (status === 409 && options.conversationMode === "agent" && !options.chat && !switched) {
                 switched = true;
                 state.chatIds.agent = null;
                 state.chatId = null;
@@ -157,21 +176,33 @@ async function requestModelOnce(message, options) {
     const armIdle = ms => { clearTimeout(idle); idle = setTimeout(() => controller.abort(), ms); };
     armIdle(CONFIG.firstByteTimeoutMs);
 
+    // options.chat : conversation isolée ({ id }) d'un sous-agent, jamais rangée dans state.
+    const isolated = options.chat && typeof options.chat === "object" ? options.chat : null;
+
     // Ctrl+C : coupe le flux local et demande l'arrêt de la génération côté serveur.
-    let streamChatId = options.fresh ? null : state.chatIds[options.conversationMode === "agent" ? "agent" : "chat"];
+    let streamChatId = isolated
+        ? isolated.id ?? null
+        : options.fresh ? null : state.chatIds[options.conversationMode === "agent" ? "agent" : "chat"];
     let cancelled = false;
-    const registerInterrupt = options.onInterrupt ?? (process.stdin.isTTY ? handler => ui.onInterrupt(handler) : null);
-    const offInterrupt = registerInterrupt ? registerInterrupt(() => {
+    const interrupt = (notice = true) => {
         if (cancelled) return;
         cancelled = true;
         controller.abort();
         if (streamChatId) {
-            ui.warn("Ctrl+C : arrêt de la génération en cours.");
+            if (notice) ui.warn("Ctrl+C : arrêt de la génération en cours.");
             cancelStream(streamChatId).then(ok => {
                 if (!ok) ui.debug(`Annulation du flux ${streamChatId} non confirmée par l'API.`);
             });
         }
-    }) : null;
+    };
+    const registerInterrupt = options.onInterrupt ??
+        (!isolated && process.stdin.isTTY ? handler => ui.onInterrupt(handler) : null);
+    const offInterrupt = registerInterrupt ? registerInterrupt(() => interrupt()) : null;
+
+    // options.signal : annulation demandée par le code appelant (sous-agent).
+    const onAbort = () => interrupt(false);
+    if (options.signal?.aborted) interrupt(false);
+    else options.signal?.addEventListener("abort", onAbort, { once: true });
 
     let reader;
 
@@ -181,15 +212,15 @@ async function requestModelOnce(message, options) {
             method: "POST",
             headers: await apiHeaders(),
             body: JSON.stringify({
-                agentId: state.model,
-                chatId: options.fresh ? null : state.chatIds[conversationMode],
+                agentId: options.agentId ?? state.model,
+                chatId: isolated ? isolated.id ?? null : options.fresh ? null : state.chatIds[conversationMode],
                 enableCanvas: false,
-                enableWebSearch: options.fresh ? false : state.webSearch,
+                enableWebSearch: isolated || options.fresh ? false : state.webSearch,
                 images: [],
                 initialContent: message,
                 isIncognito: state.incognito,
                 isPrivate: state.private,
-                ...(state.frProject?.id && !options.fresh && !state.chatIds[conversationMode]
+                ...(state.frProject?.id && !isolated && !options.fresh && !state.chatIds[conversationMode]
                     ? { projectId: state.frProject.id }
                     : {})
             }),
@@ -249,7 +280,9 @@ async function requestModelOnce(message, options) {
 
             if (data.chat_id) streamChatId = data.chat_id;
 
-            if (data.chat_id && !options.fresh) {
+            if (data.chat_id && isolated) {
+                isolated.id = data.chat_id;
+            } else if (data.chat_id && !options.fresh) {
                 state.chatIds[conversationMode] = data.chat_id;
                 state.chatId = data.chat_id;
             }
@@ -365,7 +398,7 @@ async function requestModelOnce(message, options) {
 
         // Rattache explicitement la conversation au projet FranceStudent sélectionné
         // (le champ projectId de POST /chats/stream ne suffit pas côté site).
-        if (!options.fresh && state.frProject?.id && state.chatIds[conversationMode]) {
+        if (!isolated && !options.fresh && state.frProject?.id && state.chatIds[conversationMode]) {
             await require("./fr-projects").ensureAttached(state.chatIds[conversationMode]);
         }
 
@@ -379,6 +412,7 @@ async function requestModelOnce(message, options) {
         throw error;
     } finally {
         offInterrupt?.();
+        options.signal?.removeEventListener("abort", onAbort);
         clearTimeout(timeout);
         clearTimeout(idle);
 
@@ -389,4 +423,4 @@ async function requestModelOnce(message, options) {
     }
 }
 
-module.exports = { requestModel, cancelStream, MAX_REQUEST_FAILURES, usage };
+module.exports = { requestModel, cancelStream, deleteChat, MAX_REQUEST_FAILURES, usage };
