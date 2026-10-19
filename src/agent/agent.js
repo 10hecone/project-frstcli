@@ -1,7 +1,7 @@
 "use strict";
 
 const { CONFIG } = require("../config");
-const { state, record, activateConversation } = require("../state");
+const { state, record, activateConversation, setConversation, resetConversation } = require("../state");
 const { ui } = require("../ui-bridge");
 const api = require("../api/api");
 const account = require("../api/account");
@@ -434,6 +434,110 @@ function refreshContextUsage(chatId = state.chatIds.agent) {
         .catch(() => null);
 }
 
+/* ---------- Compaction de la session ---------- */
+
+// Taille maximale du résumé gardé pour la nouvelle conversation.
+const COMPACT_MAX_SUMMARY_CHARS = 20_000;
+
+/** Demande de résumé structuré envoyée dans la conversation agent actuelle. */
+function buildCompactPrompt(instruction = "") {
+    const extra = String(instruction || "").trim();
+    return (
+        "Résume cette session de travail pour la poursuivre dans une nouvelle conversation. " +
+        "Réponds en français, en texte simple (pas de JSON, pas d'outil), avec ces rubriques :\n" +
+        "1. Objectif\n2. Décisions prises\n3. Fichiers modifiés (chemins)\n4. Tâches restantes\n" +
+        "Sois concis et précis : chemins, noms de fonctions, commandes utiles." +
+        (extra ? `\n\nConsigne de l'utilisateur pour ce résumé : ${extra}` : "")
+    );
+}
+
+/** Premier message de la nouvelle conversation : le résumé sert de contexte de départ. */
+function buildCompactSeed(summary) {
+    return (
+        "Reprise de session : voici le résumé de la conversation précédente. " +
+        "Garde-le comme contexte pour les prochaines demandes. Réponds seulement « Compris. ».\n\n" +
+        summary
+    );
+}
+
+/** Texte du résumé : accepte une réponse JSON {"type":"final"} ou du texte brut. */
+function extractSummary(raw) {
+    const text = String(raw || "").trim();
+    try {
+        const action = parseAgentResponse(text);
+        if (action?.type === "final" && typeof action.message === "string") {
+            return clip(action.message.trim(), COMPACT_MAX_SUMMARY_CHARS);
+        }
+    } catch {
+        // Texte simple : utilisé tel quel.
+    }
+    return clip(text, COMPACT_MAX_SUMMARY_CHARS);
+}
+
+/**
+ * Résume la conversation agent puis ouvre une nouvelle conversation (chatId neuf)
+ * qui commence par ce résumé. Le journal local (/undo, /changes) n'est pas touché.
+ * En cas d'échec, la conversation précédente est conservée.
+ * Renvoie { summary, chars, previousChatId, chatId, contextUsagePercent }.
+ */
+async function compactSession({ instruction = "" } = {}) {
+    activateConversation("agent");
+    const previousChatId = state.chatIds.agent;
+    if (!previousChatId) {
+        throw new Error("Aucune conversation agent à résumer.");
+    }
+    const previousSettings = state.conversationSettings.agent;
+    const previousHistory = state.history;
+    const previousPercent = state.contextUsagePercent;
+
+    const raw = await api.requestModel(buildCompactPrompt(instruction), { conversationMode: "agent" });
+    const summary = extractSummary(raw);
+    if (!summary) {
+        throw new Error("Résumé vide : la session n'a pas été compactée.");
+    }
+
+    resetConversation("agent");
+    state.contextUsagePercent = null;
+
+    try {
+        await api.requestModel(buildCompactSeed(summary), { conversationMode: "agent" });
+    } catch (error) {
+        setConversation("agent", previousChatId, previousSettings);
+        state.history = previousHistory;
+        state.contextUsagePercent = previousPercent;
+        throw error;
+    }
+
+    state.conversationSettings.agent = previousSettings ? { ...previousSettings } : null;
+    activateConversation("agent");
+    record("assistant", `Résumé de la session précédente :\n${summary}`);
+
+    if (state.chatIds.agent) {
+        try {
+            await conversations.touch({
+                id: state.chatIds.agent,
+                firstMessage: "Session compactée (/compact)",
+                model: state.model,
+                workspace: state.workspace,
+                mode: "agent",
+                settings: state.conversationSettings.agent
+            });
+        } catch {
+            // Historique local indisponible : sans effet sur la compaction.
+        }
+    }
+
+    const contextUsagePercent = await refreshContextUsage();
+
+    return {
+        summary,
+        chars: summary.length,
+        previousChatId,
+        chatId: state.chatIds.agent,
+        contextUsagePercent
+    };
+}
+
 /* ---------- Boucle agent ---------- */
 
 async function runAgent(task, options = {}) {
@@ -724,5 +828,8 @@ module.exports = {
     compactObservations,
     loadAgentContext,
     clearAgentContextCache,
-    refreshContextUsage
+    refreshContextUsage,
+    compactSession,
+    buildCompactPrompt,
+    extractSummary
 };

@@ -39,6 +39,7 @@ function showHelp() {
     ["/auto on|off", "Autoriser sans confirmation (session)"],
     ["/mode auto|agent|chat", "Quand utiliser les outils fichiers"],
     ["/new", "Nouvelle conversation"],
+    ["/compact [consigne]", "Résumer la session dans une nouvelle conversation"],
     ["/chat-id [n|id]", "Voir le chat ID / reprendre une conversation"],
     ["/history [all]", "Dernières conversations (id + titre)"],
     ["/messages", "Messages de la conversation (session)"],
@@ -413,6 +414,33 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       resetConversation(state.mode === "agent" ? "agent" : "chat");
       ui.info("Nouvelle conversation.");
       break;
+
+    case "/compact": {
+      const { compactSession } = require("../agent/agent");
+      if (!state.chatIds.agent) {
+        ui.info("Aucune conversation agent à résumer (/compact s'utilise après une demande à l'agent).");
+        break;
+      }
+
+      const spin = ui.spinner("Résumé de la session");
+      try {
+        const result = await compactSession({ instruction: unquote(value) });
+        spin.stop();
+        ui.info(
+          `Session compactée : résumé de ${result.chars} caractères, ` +
+            `nouvelle conversation ${result.chatId || "(id attribué au prochain message)"}.`,
+        );
+        ui.info(
+          result.contextUsagePercent == null
+            ? "Contexte : inconnu."
+            : `Contexte : ${Math.round(result.contextUsagePercent)} %.`,
+        );
+      } catch (error) {
+        spin.stop();
+        ui.warn(`Compaction impossible : ${error.message}`);
+      }
+      break;
+    }
 
     case "/chat-id": {
       if (!value) {
