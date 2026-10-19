@@ -40,6 +40,7 @@ function showHelp() {
     ["/mode auto|agent|chat", "Quand utiliser les outils fichiers"],
     ["/new", "Nouvelle conversation"],
     ["/compact [consigne]", "Résumer la session dans une nouvelle conversation"],
+    ["/context", "Contexte utilisé, chat ID agent, tours et seuil de compaction"],
     ["/chat-id [n|id]", "Voir le chat ID / reprendre une conversation"],
     ["/history [all]", "Dernières conversations (id + titre)"],
     ["/messages", "Messages de la conversation (session)"],
@@ -439,6 +440,23 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
         spin.stop();
         ui.warn(`Compaction impossible : ${error.message}`);
       }
+      break;
+    }
+
+    case "/context": {
+      const { CONFIG } = require("../config");
+      const percent = state.contextUsagePercent;
+      const turns = state.history.filter((entry) => entry.role === "user").length;
+      ui.info(
+        `Contexte : ${typeof percent === "number" ? `${Math.round(percent)} %` : "inconnu"}`,
+      );
+      ui.info(`Conversation agent : ${state.chatIds.agent || "aucune"}`);
+      ui.info(`Tours (session) : ${turns}`);
+      ui.info(
+        CONFIG.autoCompact
+          ? `Compaction automatique : à partir de ${CONFIG.autoCompactThreshold} %`
+          : "Compaction automatique : désactivée (FS_AUTO_COMPACT=0)",
+      );
       break;
     }
 

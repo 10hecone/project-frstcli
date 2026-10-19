@@ -116,4 +116,15 @@ Exemple de session :
 | `/mode auto\|agent\|chat` | Choisit quand utiliser les outils fichiers            |
 | `/model [id]`             | Liste ou change d'agent                               |
 | `/new`                    | Démarre une nouvelle conversation                     |
+| `/compact [consigne]`     | Résume la session et repart d'une nouvelle conversation agent |
+| `/context`                | Affiche le contexte utilisé, le chat ID agent, les tours et le seuil de compaction |
 | `/exit`                   | Quitte le CLI                                         |
+
+### Contexte et compaction
+
+- Après chaque réponse de l'agent, le CLI lit le pourcentage de contexte utilisé par la conversation agent. La barre d'état de la TUI l'affiche sous la forme `ctx 42 %` : couleur neutre sous 60 %, jaune de 60 à 80 %, rouge au-delà. Rien n'est affiché si la valeur est inconnue.
+- `/context` affiche ce pourcentage, le chat ID de la conversation agent, le nombre de tours de la session et le seuil de compaction automatique.
+- `/compact [consigne]` demande au modèle un résumé structuré en français (objectif, décisions prises, fichiers modifiés, tâches restantes), puis ouvre une nouvelle conversation agent (chat ID neuf) qui commence par ce résumé. La consigne facultative oriente le résumé, par exemple `/compact garde les chemins des tests`. Le CLI affiche la taille du résumé et le nouveau pourcentage de contexte. Si l'opération échoue, la conversation précédente est conservée.
+- Le journal local n'est pas touché : `/undo` et `/changes` fonctionnent toujours après une compaction.
+- Compaction automatique : quand le contexte atteint le seuil (80 % par défaut), la session est compactée avant la demande suivante, jamais pendant une boucle d'outils. Un message prévient l'utilisateur avant la compaction.
+- Configuration : `FS_COMPACT_THRESHOLD=<pourcentage>` change le seuil, `FS_AUTO_COMPACT=0` désactive la compaction automatique (`/compact` reste disponible).
