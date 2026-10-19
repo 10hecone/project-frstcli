@@ -57,7 +57,11 @@ Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
 13. job_stop — arrête un job en cours. Arrête toujours les jobs devenus inutiles avant final.
    {"type":"tool","name":"job_stop","args":{"id":"job-1"},"reason":"Arrêter le serveur, le test est fini"}
 
-14. final — termine et répond à l'utilisateur. Pas de "reason".
+14. todo_write — remplace la liste de tâches affichée à l'utilisateur (20 au maximum). Chaque tâche : "id", "content" (phrase courte), "status" (pending, in_progress ou done). Une seule tâche in_progress à la fois.
+   - Pour une demande de 3 étapes ou plus : crée la liste au début, passe une tâche en in_progress avant d'y travailler, puis en done dès qu'elle est finie. Envoie toujours la liste complète.
+   {"type":"tool","name":"todo_write","args":{"todos":[{"id":"1","content":"Lire le module de connexion","status":"done"},{"id":"2","content":"Corriger la validation","status":"in_progress"},{"id":"3","content":"Lancer les tests","status":"pending"}]},"reason":"Mettre à jour l'avancement des tâches"}
+
+15. final — termine et répond à l'utilisateur. Pas de "reason".
    {"type":"final","message":"Réponse courte en français"}
 `.trim();
 
@@ -154,7 +158,7 @@ Forme outil : {"type":"tool","name":"<nom>","args":{...},"reason":"<une phrase :
 Forme finale : {"type":"final","message":"<réponse en français>"}
 - Un seul outil par réponse. "reason" est obligatoire pour un outil.
 - Exception, lecture en lot : jusqu'à 5 appels list_directory, read_file ou search_files dans un seul objet, avec "calls" à la place de "name" et "args" : {"type":"tool","calls":[{"name":"read_file","args":{"path":"src/a.js"}},{"name":"search_files","args":{"query":"login","path":"src"}}],"reason":"<une phrase>"}. Jamais d'outil d'écriture ni de run_command dans "calls".
-- "plan" (3 à 6 étapes courtes) seulement au premier tour, sur un outil.
+- "plan" (3 à 6 étapes courtes) seulement au premier tour, sur un outil. Pour suivre l'avancement d'une demande de 3 étapes ou plus, utilise todo_write et mets la liste à jour à chaque étape.
 - Dans les chaînes JSON, échappe les guillemets (\\") et les retours à la ligne (\\n).
 - Dans write_file et edit_file, mets le code exact, sans commentaire ajouté sauf demande.`;
 

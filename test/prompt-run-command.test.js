@@ -31,11 +31,12 @@ test("le catalogue décrit run_command avec command et timeout_ms", () => {
     assert.match(tool, /"background"/);
 });
 
-test("le catalogue décrit job_output, job_stop puis final", () => {
+test("le catalogue décrit job_output, job_stop, todo_write puis final", () => {
     const output = TOOL_CATALOG.indexOf("12. job_output");
     const stop = TOOL_CATALOG.indexOf("13. job_stop");
-    const final = TOOL_CATALOG.indexOf("14. final");
-    assert.ok(output !== -1 && stop > output && final > stop);
+    const todo = TOOL_CATALOG.indexOf("14. todo_write");
+    const final = TOOL_CATALOG.indexOf("15. final");
+    assert.ok(output !== -1 && stop > output && todo > stop && final > todo);
     assert.match(TOOL_CATALOG, /"name":"job_output","args":\{"id":"job-1"\}/);
     assert.match(TOOL_CATALOG, /"name":"job_stop","args":\{"id":"job-1"\}/);
 });
