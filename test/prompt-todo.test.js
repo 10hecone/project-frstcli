@@ -58,5 +58,6 @@ test("le prompt complet garde la règle plan et ajoute le suivi avec todo_write"
     assert.match(text, /utilise todo_write et mets la liste à jour à chaque étape/);
     assert.match(text, /14\. todo_write/);
     assert.match(text, /15\. delegate/);
-    assert.match(text, /16\. final/);
+    assert.match(text, /16\. glob/);
+    assert.match(text, /17\. final/);
 });

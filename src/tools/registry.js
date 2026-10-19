@@ -48,6 +48,7 @@ const MODULES = [
     require("./fs/list-directory"),
     require("./fs/read-file"),
     require("./fs/search-files"),
+    require("./fs/glob"),
     require("./fs/create-directory"),
     require("./fs/write-file"),
     require("./fs/edit-file"),

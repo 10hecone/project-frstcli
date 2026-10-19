@@ -7,7 +7,7 @@ const api = require("../api/api");
 const { TOOLS } = require("../tools/tools");
 
 // Outils autorisés au sous-agent : lecture seule, aucune écriture ni commande.
-const READ_ONLY_TOOLS = ["list_directory", "read_file", "search_files"];
+const READ_ONLY_TOOLS = ["list_directory", "read_file", "search_files", "glob"];
 
 // Plafond absolu du nombre de tours, quelle que soit la demande.
 const MAX_TURNS_CAP = 30;
@@ -40,7 +40,8 @@ function buildSubagentPrompt(task, maxTurns) {
         `- {"type":"tool","name":"list_directory","args":{"path":"."},"reason":"..."}`,
         `- {"type":"tool","name":"read_file","args":{"path":"src/index.js"},"reason":"..."}`,
         `- {"type":"tool","name":"search_files","args":{"path":"src","query":"texte"},"reason":"..."}`,
-        "Lecture en lot (1 à 5 appels de ces trois outils) :",
+        `- {"type":"tool","name":"glob","args":{"pattern":"src/**/*.js"},"reason":"..."}`,
+        "Lecture en lot (1 à 5 appels de ces outils) :",
         `- {"type":"tool","calls":[{"name":"read_file","args":{"path":"a.js"}},{"name":"read_file","args":{"path":"b.js"}}],"reason":"..."}`,
         "Tout autre outil (écriture, suppression, déplacement, commande) est refusé et ne sera pas exécuté.",
         "",

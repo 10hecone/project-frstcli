@@ -250,7 +250,8 @@ test("sous-agent : repli sur le modèle courant après une erreur 404", { concur
 test("sous-agent : tâche vide refusée et prompt limité aux outils de lecture", { concurrency: false }, async () => {
     await assert.rejects(runSubagent({ task: "  " }), /vide/);
 
-    assert.deepEqual(READ_ONLY_TOOLS, ["list_directory", "read_file", "search_files"]);
+    assert.deepEqual(READ_ONLY_TOOLS, ["list_directory", "read_file", "search_files", "glob"]);
+    assert.match(buildSubagentPrompt("Analyse", 4), /glob/);
     const prompt = buildSubagentPrompt("Analyse", 4);
     assert.match(prompt, /4 tour/);
     assert.match(prompt, /search_files/);

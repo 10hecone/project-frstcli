@@ -289,7 +289,7 @@ function parseAgentResponse(text) {
     if (action.calls !== undefined) {
         // Lecture en lot : jusqu'à MAX_BATCH_CALLS appels en lecture seule dans un seul tour.
         const MAX_BATCH_CALLS = 5;
-        const BATCH_TOOLS = new Set(["list_directory", "read_file", "search_files"]);
+        const BATCH_TOOLS = new Set(["list_directory", "read_file", "search_files", "glob"]);
 
         if (!Array.isArray(action.calls) || action.calls.length < 1 || action.calls.length > MAX_BATCH_CALLS) {
             throw new Error(`calls doit être une liste de 1 à ${MAX_BATCH_CALLS} appels.`);
@@ -857,13 +857,13 @@ async function runAgent(task, options = {}) {
         }
 
         // Mode plan (/plan) : lecture seule, toute autre action est refusée sans être exécutée.
-        if (options.readOnly && !["list_directory", "read_file", "search_files"].includes(action.name)) {
+        if (options.readOnly && !["list_directory", "read_file", "search_files", "glob"].includes(action.name)) {
             ui.result(`Mode plan : ${action.name} refusé (lecture seule)`, { tone: "error" });
             observations.push({
                 tool: action.name,
                 args: recordArgs(action.args),
                 ok: false,
-                error: "Mode plan (lecture seule) : seuls list_directory, read_file et search_files sont permis. Termine avec final et le plan détaillé."
+                error: "Mode plan (lecture seule) : seuls list_directory, read_file, search_files et glob sont permis. Termine avec final et le plan détaillé."
             });
             continue;
         }

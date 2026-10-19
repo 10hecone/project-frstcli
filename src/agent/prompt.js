@@ -64,7 +64,10 @@ Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
 15. delegate — lance 1 à 3 sous-agents en LECTURE SEULE, en parallèle, dans des conversations séparées. Chacun renvoie seulement un résumé (conclusions, chemins, lignes). Utilise-le pour les explorations larges comme « trouve où est géré X », au lieu de lire beaucoup de fichiers toi-même. Les sous-agents ne modifient rien et ne peuvent pas déléguer.
    {"type":"tool","name":"delegate","args":{"tasks":["Trouve où est gérée l'authentification et résume le flux","Liste les tests qui couvrent l'API"]},"reason":"Explorer deux zones du projet sans charger tout le contexte"}
 
-16. final — termine et répond à l'utilisateur. Pas de "reason".
+16. glob — trouve des fichiers par motif (** tous niveaux, * sans /, ?, {a,b}), triés du plus récent au plus ancien, 200 au maximum. Sans « / », le motif porte sur le nom du fichier. "path" optionnel (dossier de départ).
+   {"type":"tool","name":"glob","args":{"pattern":"src/**/*.test.js","path":"."},"reason":"Lister les fichiers de test de src/"}
+
+17. final — termine et répond à l'utilisateur. Pas de "reason".
    {"type":"final","message":"Réponse courte en français"}
 `.trim();
 
@@ -160,7 +163,7 @@ Ta réponse est UN SEUL objet JSON valide, et rien d'autre : pas de Markdown, pa
 Forme outil : {"type":"tool","name":"<nom>","args":{...},"reason":"<une phrase : action, cible, but>"}
 Forme finale : {"type":"final","message":"<réponse en français>"}
 - Un seul outil par réponse. "reason" est obligatoire pour un outil.
-- Exception, lecture en lot : jusqu'à 5 appels list_directory, read_file ou search_files dans un seul objet, avec "calls" à la place de "name" et "args" : {"type":"tool","calls":[{"name":"read_file","args":{"path":"src/a.js"}},{"name":"search_files","args":{"query":"login","path":"src"}}],"reason":"<une phrase>"}. Jamais d'outil d'écriture ni de run_command dans "calls".
+- Exception, lecture en lot : jusqu'à 5 appels list_directory, read_file, search_files ou glob dans un seul objet, avec "calls" à la place de "name" et "args" : {"type":"tool","calls":[{"name":"read_file","args":{"path":"src/a.js"}},{"name":"search_files","args":{"query":"login","path":"src"}}],"reason":"<une phrase>"}. Jamais d'outil d'écriture ni de run_command dans "calls".
 - "plan" (3 à 6 étapes courtes) seulement au premier tour, sur un outil. Pour suivre l'avancement d'une demande de 3 étapes ou plus, utilise todo_write et mets la liste à jour à chaque étape.
 - Dans les chaînes JSON, échappe les guillemets (\\") et les retours à la ligne (\\n).
 - Dans write_file et edit_file, mets le code exact, sans commentaire ajouté sauf demande.`;
