@@ -34,3 +34,4 @@ history.json
 package-lock.json
 AMELIORATIONS.md
 FRSTCLI.md
+/.npm-global
