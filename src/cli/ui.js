@@ -408,6 +408,22 @@ const ui = {
         });
     },
 
+    /** Liste de tâches (todo_write) : réécrite en texte à chaque mise à jour. */
+    todos(list) {
+        const items = Array.isArray(list) ? list : [];
+        if (!items.length) return;
+        const symbols = { pending: "○", in_progress: "◐", done: "●" };
+        const done = items.filter(t => t.status === "done").length;
+        console.log(`\n${c.bold("Tâches")} ${c.gray(`(${done}/${items.length})`)}`);
+        for (const todo of items) {
+            const symbol = symbols[todo.status] || "○";
+            const text = String(todo.content ?? "");
+            if (todo.status === "in_progress") console.log(`  ${c.cyan(symbol)} ${c.bold(text)}`);
+            else if (todo.status === "done") console.log(`  ${c.green(symbol)} ${c.dim(text)}`);
+            else console.log(`  ${c.gray(symbol)} ${text}`);
+        }
+    },
+
     spinner(label) {
         if (!process.stdout.isTTY) {
             return { update() {}, stop() {} };

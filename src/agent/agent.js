@@ -823,6 +823,9 @@ async function runAgent(task, options = {}) {
 
             ui.result(summarizeResult(action.name, result));
 
+            // Liste de tâches : affichée en direct (TUI) ou réécrite en texte (CLI).
+            if (action.name === "todo_write" && Array.isArray(result?.todos)) ui.todos(result.todos);
+
             observations.push({
                 tool: action.name,
                 args: recorded,

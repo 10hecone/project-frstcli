@@ -6,10 +6,14 @@ import { renderMarkdownLine } from "../../markdown.js";
 const RESERVED_ROWS = 6;
 const DEFAULT_ROWS = 24;
 
-/** Garde seulement les dernières lignes qui tiennent dans la hauteur disponible. */
-export function tailLines(text, rows) {
+/**
+ * Garde seulement les dernières lignes qui tiennent dans la hauteur disponible.
+ * extra : lignes réservées en plus (ex. liste de tâches au-dessus de la saisie).
+ */
+export function tailLines(text, rows, extra = 0) {
     const lines = String(text ?? "").split("\n");
-    const max = Math.max(1, Math.floor(rows) - RESERVED_ROWS);
+    const reserved = RESERVED_ROWS + Math.max(0, Math.floor(Number(extra) || 0));
+    const max = Math.max(1, Math.floor(rows) - reserved);
     return lines.length > max ? lines.slice(-max) : lines;
 }
 
@@ -68,13 +72,13 @@ export function useTerminalColumns(stdout) {
  * (hauteur du terminal via useStdout, mise à jour au redimensionnement).
  * Les lignes terminées sont déjà dans <Static>.
  */
-export function LiveMessage({ live, rows, color = true }) {
+export function LiveMessage({ live, rows, color = true, extraRows = 0 }) {
     const { stdout } = useStdout();
     const terminalRows = useTerminalRows(stdout);
     if (!live || !live.text) return null;
 
     const height = rows ?? terminalRows;
-    const lines = tailLines(live.text, height);
+    const lines = tailLines(live.text, height, extraRows);
     const mdState = { inCode: Boolean(live.inCode) };
 
     return (

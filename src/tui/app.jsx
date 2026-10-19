@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { Box, useStdout } from "ink";
 import { Transcript } from "./components/Transcript.jsx";
 import { LiveMessage, useTerminalRows } from "./components/LiveMessage.jsx";
+import { TodoList, todoRows } from "./components/TodoList.jsx";
 import { Header } from "./components/Header.jsx";
 import { ConversationView } from "./components/ConversationView.jsx";
 import { CommandOutput } from "./components/ToolCall.jsx";
@@ -73,7 +74,8 @@ export function App({
     const command = current.command ? (
         <CommandOutput lines={current.command.lines} hidden={current.command.total - current.command.lines.length} />
     ) : null;
-    const live = <LiveMessage live={current.live} color={color} />;
+    const todoList = <TodoList todos={current.todos} color={color} />;
+    const live = <LiveMessage live={current.live} color={color} extraRows={todoRows(current.todos)} />;
     const spinner = current.spinner ? (
         <Spinner spinner={current.spinner} now={now} interval={spinnerInterval} color={color} />
     ) : null;
@@ -135,6 +137,7 @@ export function App({
                     {spinner}
                 </ConversationView>
                 <Box flexDirection="column" flexShrink={0}>
+                    {todoList}
                     {input}
                     {bar}
                 </Box>
@@ -148,6 +151,7 @@ export function App({
             {command}
             {live}
             {spinner}
+            {todoList}
             {input}
             {bar}
         </Box>

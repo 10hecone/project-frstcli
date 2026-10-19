@@ -93,6 +93,11 @@ function createTuiBackend(store, {
             append({ type: "plan", items: Array.isArray(items) ? [...items] : [] });
         },
 
+        /** Liste de tâches (todo_write) : affichée en direct au-dessus de la saisie, hors transcript. */
+        todos(list) {
+            store.dispatch({ type: "todos", todos: Array.isArray(list) ? list : [] });
+        },
+
         tool(name, arg) {
             append({ type: "tool", name, arg: arg ?? "" });
         },

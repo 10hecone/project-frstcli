@@ -7,6 +7,7 @@ import { LiveMessage, tailLines } from "./components/LiveMessage.jsx";
 import { ToolCall, ToolResult, CommandOutput } from "./components/ToolCall.jsx";
 import { Diff } from "./components/Diff.jsx";
 import { Plan } from "./components/Plan.jsx";
+import { TodoList, TODO_MAX_ROWS, TODO_SYMBOLS, todosVisible, visibleTodos, todoRows } from "./components/TodoList.jsx";
 import { PromptInput, SLASH_COMMANDS } from "./components/PromptInput.jsx";
 import { ConfirmDialog, confirmOptions } from "./components/ConfirmDialog.jsx";
 import { TextPrompt } from "./components/TextPrompt.jsx";
@@ -29,6 +30,12 @@ export {
     CommandOutput,
     Diff,
     Plan,
+    TodoList,
+    TODO_MAX_ROWS,
+    TODO_SYMBOLS,
+    todosVisible,
+    visibleTodos,
+    todoRows,
     PromptInput,
     SLASH_COMMANDS,
     ConfirmDialog,
