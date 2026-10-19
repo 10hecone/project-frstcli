@@ -30,6 +30,11 @@ const CONFIG = {
     maxProtocolAttempts: 2,
     maxPreloadFiles: 3,
 
+    // Compaction automatique : au-delà du seuil (% de contexte), la session est résumée
+    // entre deux demandes. FS_AUTO_COMPACT=0 la désactive.
+    autoCompact: process.env.FS_AUTO_COMPACT !== "0",
+    autoCompactThreshold: envInt("FS_COMPACT_THRESHOLD", 80),
+
     // Fichiers
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque
     maxReadChars: 40_000,           // caractères renvoyés au modèle par read_file

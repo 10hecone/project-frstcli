@@ -538,6 +538,37 @@ async function compactSession({ instruction = "" } = {}) {
     };
 }
 
+/**
+ * Compaction automatique, appelée entre deux demandes (jamais pendant la boucle d'outils).
+ * Se déclenche si le contexte agent atteint CONFIG.autoCompactThreshold (%),
+ * sauf si CONFIG.autoCompact est désactivé. Renvoie le résultat de compactSession,
+ * ou null si rien n'a été fait. Ne lève jamais d'erreur.
+ */
+async function maybeAutoCompact() {
+    if (!CONFIG.autoCompact) return null;
+    const threshold = Number(CONFIG.autoCompactThreshold);
+    const percent = state.contextUsagePercent;
+    if (!state.chatIds.agent || typeof percent !== "number") return null;
+    if (!(threshold > 0) || percent < threshold) return null;
+
+    ui.warn(
+        `Contexte à ${Math.round(percent)} % (seuil ${threshold} %) : compaction automatique de la session. ` +
+        "FS_AUTO_COMPACT=0 pour la désactiver."
+    );
+
+    try {
+        const result = await compactSession();
+        ui.info(
+            `Session compactée : résumé de ${result.chars} caractères` +
+            (result.contextUsagePercent == null ? "." : `, contexte à ${Math.round(result.contextUsagePercent)} %.`)
+        );
+        return result;
+    } catch (error) {
+        ui.warn(`Compaction automatique impossible : ${error.message}`);
+        return null;
+    }
+}
+
 /* ---------- Boucle agent ---------- */
 
 async function runAgent(task, options = {}) {
@@ -830,6 +861,7 @@ module.exports = {
     clearAgentContextCache,
     refreshContextUsage,
     compactSession,
+    maybeAutoCompact,
     buildCompactPrompt,
     extractSummary
 };
