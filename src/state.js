@@ -15,7 +15,8 @@ const state = {
     history: [],
     mode: "auto",        // auto | agent | chat
     autoApprove: false,  // true = plus de confirmation pour la session
-    contextUsagePercent: null // contexte utilisé par la conversation agent (0 à 100), null si inconnu
+    contextUsagePercent: null, // contexte utilisé par la conversation agent (0 à 100), null si inconnu
+    todos: []// liste de tâches de l'agent (todo_write) : { id, content, status }
 };
 
 function activateConversation(mode) {

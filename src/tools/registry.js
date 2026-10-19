@@ -55,6 +55,7 @@ const MODULES = [
     require("./fs/copy-path"),
     require("./fs/delete-path"),
     require("./fs/remember"),
+    require("./todo-write"),
     runCommandTool,
     jobOutputTool,
     jobStopTool
