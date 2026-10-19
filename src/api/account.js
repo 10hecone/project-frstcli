@@ -41,6 +41,21 @@ const fetchChatUsage = chatId => getJson(`/chats/${encodeURIComponent(chatId)}/u
 /** GET /user/usage -> UserUsageDto { rateLimits[], rateLimitPowerUpActive, chatBudget }. */
 const fetchUserUsage = () => getJson("/user/usage");
 
+/** Pourcentage de contexte utilisé (0 à 100), ou null si le champ est absent, invalide ou en cas d'erreur. */
+async function getContextUsage(chatId) {
+    if (!chatId) return null;
+    try {
+        const dto = await fetchChatUsage(chatId);
+        const raw = dto?.contextUsagePercent;
+        if (raw === null || raw === undefined || raw === "") return null;
+        const value = Number(raw);
+        if (!Number.isFinite(value)) return null;
+        return Math.min(100, Math.max(0, value));
+    } catch {
+        return null;
+    }
+}
+
 /** Volume de la session locale (compteurs de api.usage). */
 function describeSession(usage) {
     if (!usage || !usage.requests) return ["Session : aucune requête envoyée."];
@@ -79,4 +94,4 @@ function describeUserUsage(dto) {
     return lines;
 }
 
-module.exports = { getJson, fetchChatUsage, fetchUserUsage, describeSession, describeChatUsage, describeUserUsage };
+module.exports = { getJson, fetchChatUsage, fetchUserUsage, getContextUsage, describeSession, describeChatUsage, describeUserUsage };

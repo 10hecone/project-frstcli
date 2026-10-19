@@ -4,6 +4,7 @@ const { CONFIG } = require("../config");
 const { state, record, activateConversation } = require("../state");
 const { ui } = require("../ui-bridge");
 const api = require("../api/api");
+const account = require("../api/account");
 const memory = require("../project/memory");
 const profile = require("../project/profile");
 const conversations = require("../project/conversations");
@@ -415,6 +416,24 @@ async function fallbackPlainAnswer(task, observations) {
     }
 }
 
+/* ---------- Pourcentage de contexte ---------- */
+
+/**
+ * Met à jour state.contextUsagePercent pour la conversation agent, sans bloquer la boucle.
+ * Renvoie la promesse (utile aux tests) ; ne lève jamais d'erreur.
+ */
+function refreshContextUsage(chatId = state.chatIds.agent) {
+    if (!chatId) return Promise.resolve(null);
+    return Promise.resolve()
+        .then(() => account.getContextUsage(chatId))
+        .then(value => {
+            // La conversation a pu changer entre-temps : on ignore une valeur périmée.
+            if (state.chatIds.agent === chatId) state.contextUsagePercent = value;
+            return value;
+        })
+        .catch(() => null);
+}
+
 /* ---------- Boucle agent ---------- */
 
 async function runAgent(task, options = {}) {
@@ -566,6 +585,9 @@ async function runAgent(task, options = {}) {
             spin.stop();
         }
 
+        // Réponse complète reçue : mise à jour du pourcentage de contexte, sans attendre le résultat.
+        if (lastResponse) refreshContextUsage();
+
         if (!action) {
             record("user", task);
             await fallbackPlainAnswer(task, observations);
@@ -701,5 +723,6 @@ module.exports = {
     fitPrompt,
     compactObservations,
     loadAgentContext,
-    clearAgentContextCache
+    clearAgentContextCache,
+    refreshContextUsage
 };
