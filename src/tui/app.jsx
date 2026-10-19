@@ -3,6 +3,7 @@ import { Box, useStdout } from "ink";
 import { Transcript } from "./components/Transcript.jsx";
 import { LiveMessage, useTerminalRows } from "./components/LiveMessage.jsx";
 import { TodoList, todoRows } from "./components/TodoList.jsx";
+import { SubagentList, subagentRows } from "./components/SubagentList.jsx";
 import { Header } from "./components/Header.jsx";
 import { ConversationView } from "./components/ConversationView.jsx";
 import { CommandOutput } from "./components/ToolCall.jsx";
@@ -52,6 +53,7 @@ export function App({
     onSubmit,
     onAnswer,
     onInterrupt,
+    onEscape,
     onExit,
     onClear,
     onHistoryAdd,
@@ -74,8 +76,19 @@ export function App({
     const command = current.command ? (
         <CommandOutput lines={current.command.lines} hidden={current.command.total - current.command.lines.length} />
     ) : null;
-    const todoList = <TodoList todos={current.todos} color={color} />;
-    const live = <LiveMessage live={current.live} color={color} extraRows={todoRows(current.todos)} />;
+    const todoList = (
+        <Box flexDirection="column">
+            <TodoList todos={current.todos} color={color} />
+            <SubagentList subagents={current.subagents} color={color} />
+        </Box>
+    );
+    const live = (
+        <LiveMessage
+            live={current.live}
+            color={color}
+            extraRows={todoRows(current.todos) + subagentRows(current.subagents)}
+        />
+    );
     const spinner = current.spinner ? (
         <Spinner spinner={current.spinner} now={now} interval={spinnerInterval} color={color} />
     ) : null;
@@ -89,6 +102,7 @@ export function App({
             history={history}
             onHistoryAdd={onHistoryAdd}
             onInterrupt={onInterrupt}
+            onEscape={onEscape}
             onExit={onExit}
             onClear={onClear}
             clipboard={clipboard}

@@ -424,6 +424,35 @@ const ui = {
         }
     },
 
+    /**
+     * Sous-agents (delegate) en mode classique : seulement le début et la fin de chacun.
+     * Liste vide ou mise à jour intermédiaire des tours : rien n'est écrit.
+     */
+    subagents(list) {
+        const items = Array.isArray(list) ? list : [];
+        if (!items.length) return;
+
+        const short = text => {
+            const value = String(text ?? "").replace(/\s+/g, " ").trim();
+            return value.length <= 70 ? value : `${value.slice(0, 69)}…`;
+        };
+
+        if (items.every(item => item.status === "running" && !item.turns)) {
+            console.log(`\n${c.bold("Sous-agents")} ${c.gray(`(${items.length})`)}`);
+            for (const item of items) console.log(`  ${c.cyan("◐")} ${short(item.task)}`);
+            return;
+        }
+
+        if (items.some(item => item.status === "running")) return;
+
+        const labels = { done: "terminé", limit: "limite atteinte", cancelled: "annulé", error: "erreur" };
+        for (const item of items) {
+            const label = labels[item.status] || String(item.status ?? "");
+            const symbol = item.status === "done" ? c.green("●") : c.red("✕");
+            console.log(`  ${symbol} ${short(item.task)} ${c.gray(`(${label}, ${item.turns ?? 0} tour(s))`)}`);
+        }
+    },
+
     spinner(label) {
         if (!process.stdout.isTTY) {
             return { update() {}, stop() {} };

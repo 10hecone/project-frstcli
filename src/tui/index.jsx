@@ -8,6 +8,7 @@ import { ToolCall, ToolResult, CommandOutput } from "./components/ToolCall.jsx";
 import { Diff } from "./components/Diff.jsx";
 import { Plan } from "./components/Plan.jsx";
 import { TodoList, TODO_MAX_ROWS, TODO_SYMBOLS, todosVisible, visibleTodos, todoRows } from "./components/TodoList.jsx";
+import { SubagentList, SUBAGENT_TASK_CHARS, SUBAGENT_LABELS, shortTask, subagentsVisible, subagentRows } from "./components/SubagentList.jsx";
 import { PromptInput, SLASH_COMMANDS } from "./components/PromptInput.jsx";
 import { ConfirmDialog, confirmOptions } from "./components/ConfirmDialog.jsx";
 import { TextPrompt } from "./components/TextPrompt.jsx";
@@ -36,6 +37,12 @@ export {
     todosVisible,
     visibleTodos,
     todoRows,
+    SubagentList,
+    SUBAGENT_TASK_CHARS,
+    SUBAGENT_LABELS,
+    shortTask,
+    subagentsVisible,
+    subagentRows,
     PromptInput,
     SLASH_COMMANDS,
     ConfirmDialog,
@@ -227,6 +234,13 @@ export async function start() {
         if (running && typeof backend.interrupt === "function") return backend.interrupt() === true;
         return false;
     };
+    // Échap : annule les sous-agents en cours (delegate) ; renvoie false s'il n'y en a pas.
+    const onEscape = () => {
+        const list = store.getState().subagents || [];
+        if (!running || !list.some((item) => item && item.status === "running")) return false;
+        if (typeof backend.interrupt !== "function") return false;
+        return backend.interrupt() === true;
+    };
     const onExit = () => shutdown();
     // Ctrl+L : efface seulement l'écran (le transcript reste dans le store).
     const onClear = () => clearScreen();
@@ -317,6 +331,7 @@ export async function start() {
                 onSubmit={onSubmit}
                 onAnswer={onAnswer}
                 onInterrupt={onInterrupt}
+                onEscape={onEscape}
                 onExit={onExit}
                 onClear={onClear}
                 history={history}

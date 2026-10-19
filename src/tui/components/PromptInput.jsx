@@ -66,6 +66,7 @@ export function PromptInput({
     onSubmit,
     onHistoryAdd,
     onInterrupt,
+    onEscape,
     onExit,
     onClear,
     clipboard
@@ -148,7 +149,11 @@ export function PromptInput({
             if (endsWithContinuation(model)) return setModel(continueLine(model));
             return submit();
         }
-        if (key.escape) return setModel(empty(), { nav: resetNav(nav) });
+        if (key.escape) {
+            // Échap annule d'abord les sous-agents en cours ; sinon il efface la saisie.
+            if (onEscape && onEscape() === true) return setModel(model);
+            return setModel(empty(), { nav: resetNav(nav) });
+        }
         if (key.backspace || key.delete) return setModel(backspace(model));
         if (key.leftArrow) return setModel(left(model));
         if (key.rightArrow) return setModel(right(model));

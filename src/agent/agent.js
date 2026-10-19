@@ -29,6 +29,60 @@ function git(args, cwd) {
     });
 }
 
+/** Affiche la liste des sous-agents ; un backend sans ui.subagents est ignoré. */
+function showSubagents(list) {
+    try {
+        ui.subagents(list.map(item => ({ ...item })));
+    } catch {
+        // Affichage facultatif : il ne doit jamais bloquer les sous-agents.
+    }
+}
+
+/**
+ * Lance l'outil delegate avec un signal d'annulation (Ctrl+C, ou Échap dans la TUI)
+ * et affiche chaque sous-agent : consigne, tours effectués et statut.
+ */
+async function runDelegate(args) {
+    const tasks = Array.isArray(args?.tasks) ? args.tasks : [];
+    const list = tasks.map(task => ({ task: String(task ?? "").trim(), turns: 0, status: "running" }));
+    const controller = new AbortController();
+
+    let off = () => {};
+    try {
+        off = ui.onInterrupt(() => controller.abort());
+    } catch {
+        // Pas d'interruption possible avec ce backend.
+    }
+
+    showSubagents(list);
+
+    try {
+        const result = await TOOLS.delegate.run(args, {
+            signal: controller.signal,
+            onTurn: info => {
+                const item = list[info.index];
+                if (!item || !Number.isInteger(info.turn)) return;
+                item.turns = info.turn;
+                showSubagents(list);
+            }
+        });
+
+        if (Array.isArray(result?.results)) {
+            result.results.forEach((out, index) => {
+                if (!list[index]) return;
+                list[index].status = out.status;
+                list[index].turns = out.turns;
+            });
+            showSubagents(list);
+        }
+
+        return result;
+    } finally {
+        if (typeof off === "function") off();
+        showSubagents([]);
+    }
+}
+
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 
@@ -819,7 +873,9 @@ async function runAgent(task, options = {}) {
         const recorded = recordArgs(action.args);
 
         try {
-            const result = await TOOLS[action.name].run(action.args);
+            const result = action.name === "delegate"
+                ? await runDelegate(action.args)
+                : await TOOLS[action.name].run(action.args);
 
             ui.result(summarizeResult(action.name, result));
 
@@ -866,5 +922,6 @@ module.exports = {
     compactSession,
     maybeAutoCompact,
     buildCompactPrompt,
-    extractSummary
+    extractSummary,
+    runDelegate
 };

@@ -98,6 +98,11 @@ function createTuiBackend(store, {
             store.dispatch({ type: "todos", todos: Array.isArray(list) ? list : [] });
         },
 
+        /** Sous-agents (delegate) : affichés en direct au-dessus de la saisie, hors transcript. */
+        subagents(list) {
+            store.dispatch({ type: "subagents", subagents: Array.isArray(list) ? list : [] });
+        },
+
         tool(name, arg) {
             append({ type: "tool", name, arg: arg ?? "" });
         },

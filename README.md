@@ -57,7 +57,7 @@ Lancement :
 | `\` + Entrée, Ctrl+J, Alt+Entrée | Nouvelle ligne |
 | ↑ / ↓ | Changer de ligne, puis parcourir l'historique (conservé entre les sessions) |
 | Tab | Compléter une commande slash |
-| Échap | Effacer la saisie |
+| Échap | Annuler les sous-agents en cours (`delegate`), sinon effacer la saisie |
 | Ctrl+A / Ctrl+E | Début / fin de ligne |
 | Ctrl+U / Ctrl+K | Couper jusqu'au début / jusqu'à la fin |
 | Ctrl+V | Coller le presse-papiers |
@@ -128,3 +128,13 @@ Exemple de session :
 - Le journal local n'est pas touché : `/undo` et `/changes` fonctionnent toujours après une compaction.
 - Compaction automatique : quand le contexte atteint le seuil (80 % par défaut), la session est compactée avant la demande suivante, jamais pendant une boucle d'outils. Un message prévient l'utilisateur avant la compaction.
 - Configuration : `FS_COMPACT_THRESHOLD=<pourcentage>` change le seuil, `FS_AUTO_COMPACT=0` désactive la compaction automatique (`/compact` reste disponible).
+
+### Sous-agents et outil `delegate`
+
+- Pour une exploration large (par exemple « trouve où est géré X »), l'agent peut appeler l'outil `delegate` avec `tasks`, une liste de 1 à 3 consignes. Le CLI lance un sous-agent par consigne, en parallèle, puis renvoie leurs résumés à l'agent principal. Une consigne fait 2000 caractères au maximum.
+- Les sous-agents sont en lecture seule : ils n'ont accès qu'à `list_directory`, `read_file` et `search_files`. Tout autre outil est refusé, y compris `delegate` : un sous-agent ne peut pas déléguer.
+- Limites : 3 sous-agents en même temps au maximum, toutes demandes confondues; 10 tours par sous-agent (`FS_SUBAGENT_MAX_TURNS`) ; 5 minutes par sous-agent (`FS_SUBAGENT_TIMEOUT_MS`, en millisecondes) ; résumé de 6000 caractères au maximum (`FS_SUBAGENT_SUMMARY_CHARS`).
+- Chaque sous-agent travaille dans sa propre conversation, sans toucher à la conversation de l'agent principal. Il utilise par défaut Claude Haiku 5.5 (`-2002`), modifiable avec `FS_SUBAGENT_MODEL` ; si ce modèle est refusé, il reprend celui de l'agent principal. Sa conversation est supprimée à la fin, sauf en mode debug ou avec `FS_SUBAGENT_KEEP_CHATS=1`.
+- Si un sous-agent échoue, dépasse ses limites ou est annulé, seul son résultat contient l'erreur : les autres terminent normalement.
+- Affichage : la TUI montre une ligne par sous-agent en cours (consigne courte, nombre de tours, statut). Le mode classique affiche le début et la fin de chaque sous-agent.
+- Annulation : Échap dans la TUI, ou Ctrl+C, annule les sous-agents en cours.
