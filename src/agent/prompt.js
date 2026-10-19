@@ -61,7 +61,10 @@ Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
    - Pour une demande de 3 étapes ou plus : crée la liste au début, passe une tâche en in_progress avant d'y travailler, puis en done dès qu'elle est finie. Envoie toujours la liste complète.
    {"type":"tool","name":"todo_write","args":{"todos":[{"id":"1","content":"Lire le module de connexion","status":"done"},{"id":"2","content":"Corriger la validation","status":"in_progress"},{"id":"3","content":"Lancer les tests","status":"pending"}]},"reason":"Mettre à jour l'avancement des tâches"}
 
-15. final — termine et répond à l'utilisateur. Pas de "reason".
+15. delegate — lance 1 à 3 sous-agents en LECTURE SEULE, en parallèle, dans des conversations séparées. Chacun renvoie seulement un résumé (conclusions, chemins, lignes). Utilise-le pour les explorations larges comme « trouve où est géré X », au lieu de lire beaucoup de fichiers toi-même. Les sous-agents ne modifient rien et ne peuvent pas déléguer.
+   {"type":"tool","name":"delegate","args":{"tasks":["Trouve où est gérée l'authentification et résume le flux","Liste les tests qui couvrent l'API"]},"reason":"Explorer deux zones du projet sans charger tout le contexte"}
+
+16. final — termine et répond à l'utilisateur. Pas de "reason".
    {"type":"final","message":"Réponse courte en français"}
 `.trim();
 

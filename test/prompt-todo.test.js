@@ -7,8 +7,8 @@ const { TOOL_CATALOG, buildAgentPrompt } = require("../src/agent/prompt");
 
 function todoSection() {
     const start = TOOL_CATALOG.indexOf("14. todo_write");
-    const end = TOOL_CATALOG.indexOf("15. final");
-    assert.ok(start !== -1 && end > start, "todo_write doit être le n° 14, avant final (n° 15)");
+    const end = TOOL_CATALOG.indexOf("15. delegate");
+    assert.ok(start !== -1 && end > start, "todo_write doit être le n° 14, avant delegate (n° 15)");
     return TOOL_CATALOG.slice(start, end);
 }
 
@@ -57,5 +57,6 @@ test("le prompt complet garde la règle plan et ajoute le suivi avec todo_write"
     assert.match(text, /"plan" \(3 à 6 étapes courtes\) seulement au premier tour/);
     assert.match(text, /utilise todo_write et mets la liste à jour à chaque étape/);
     assert.match(text, /14\. todo_write/);
-    assert.match(text, /15\. final/);
+    assert.match(text, /15\. delegate/);
+    assert.match(text, /16\. final/);
 });

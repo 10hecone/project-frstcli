@@ -56,6 +56,7 @@ const MODULES = [
     require("./fs/delete-path"),
     require("./fs/remember"),
     require("./todo-write"),
+    require("./delegate"),
     runCommandTool,
     jobOutputTool,
     jobStopTool

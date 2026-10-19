@@ -35,8 +35,9 @@ test("le catalogue décrit job_output, job_stop, todo_write puis final", () => {
     const output = TOOL_CATALOG.indexOf("12. job_output");
     const stop = TOOL_CATALOG.indexOf("13. job_stop");
     const todo = TOOL_CATALOG.indexOf("14. todo_write");
-    const final = TOOL_CATALOG.indexOf("15. final");
-    assert.ok(output !== -1 && stop > output && todo > stop && final > todo);
+    const delegate = TOOL_CATALOG.indexOf("15. delegate");
+    const final = TOOL_CATALOG.indexOf("16. final");
+    assert.ok(output !== -1 && stop > output && todo > stop && delegate > todo && final > delegate);
     assert.match(TOOL_CATALOG, /"name":"job_output","args":\{"id":"job-1"\}/);
     assert.match(TOOL_CATALOG, /"name":"job_stop","args":\{"id":"job-1"\}/);
 });
