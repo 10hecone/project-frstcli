@@ -67,7 +67,10 @@ Chaque outil reçoit une "reason" claire : l'action, la cible exacte et le but.
 16. glob — trouve des fichiers par motif (** tous niveaux, * sans /, ?, {a,b}), triés du plus récent au plus ancien, 200 au maximum. Sans « / », le motif porte sur le nom du fichier. "path" optionnel (dossier de départ).
    {"type":"tool","name":"glob","args":{"pattern":"src/**/*.test.js","path":"."},"reason":"Lister les fichiers de test de src/"}
 
-17. final — termine et répond à l'utilisateur. Pas de "reason".
+17. multi_edit — applique 1 à 20 remplacements EXACTS dans un même fichier déjà lu, dans l'ordre, chacun sur le résultat du précédent. Tout ou rien : si un remplacement échoue, rien n'est écrit et l'erreur donne son numéro. Une seule confirmation, une seule annulation avec /undo. Préfère multi_edit à plusieurs edit_file sur le même fichier.
+   {"type":"tool","name":"multi_edit","args":{"path":"src/app.js","edits":[{"old_string":"const PORT = 3000;","new_string":"const PORT = process.env.PORT || 3000;"},{"old_string":"var ","new_string":"let ","replace_all":true}]},"reason":"Rendre le port configurable et remplacer var par let dans src/app.js"}
+
+18. final — termine et répond à l'utilisateur. Pas de "reason".
    {"type":"final","message":"Réponse courte en français"}
 `.trim();
 

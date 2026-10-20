@@ -52,6 +52,7 @@ const MODULES = [
     require("./fs/create-directory"),
     require("./fs/write-file"),
     require("./fs/edit-file"),
+    require("./fs/multi-edit"),
     require("./fs/move-path"),
     require("./fs/copy-path"),
     require("./fs/delete-path"),

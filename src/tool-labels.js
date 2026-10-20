@@ -7,6 +7,7 @@ const TOOL_LABELS = {
     create_directory: "Créer le dossier",
     write_file: "Écrire",
     edit_file: "Éditer",
+    multi_edit: "Éditer (multiple)",
     move_path: "Déplacer",
     copy_path: "Copier",
     delete_path: "Supprimer",
