@@ -651,6 +651,7 @@ async function runAgent(task, options = {}) {
     }
 
     let planShown = false;
+    let todoReminded = false;
     let stuck = 0;
 
     async function saveConversation() {
@@ -786,6 +787,22 @@ async function runAgent(task, options = {}) {
         }
 
         if (action.type === "final") {
+            // Liste de tâches pas à jour : un rappel, puis les tâches restantes sont marquées done.
+            const unfinished = (state.todos || []).filter(todo => todo.status !== "done");
+            if (unfinished.length && !todoReminded) {
+                todoReminded = true;
+                observations.push({
+                    tool: "final",
+                    args: {},
+                    ok: false,
+                    error: `final refusé : ${unfinished.length} tâche(s) de la liste ne sont pas done (${unfinished.map(todo => todo.content).join(" ; ")}). Si elles sont finies, envoie todo_write avec la liste complète et status done, puis final. Sinon, termine-les d'abord.`
+                });
+                continue;
+            }
+            if (unfinished.length) {
+                state.todos = state.todos.map(todo => ({ ...todo, status: "done" }));
+                ui.todos(state.todos);
+            }
             await finish(action.message);
             return;
         }

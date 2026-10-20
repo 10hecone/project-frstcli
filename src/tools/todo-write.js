@@ -5,6 +5,21 @@ const { state } = require("../state");
 // Statuts possibles d'une tâche.
 const STATUSES = ["pending", "in_progress", "done"];
 
+// Synonymes acceptés, ramenés aux statuts ci-dessus.
+const STATUS_ALIASES = {
+    completed: "done",
+    complete: "done",
+    finished: "done",
+    termine: "done",
+    "terminé": "done",
+    "in-progress": "in_progress",
+    inprogress: "in_progress",
+    "in progress": "in_progress",
+    en_cours: "in_progress",
+    todo: "pending",
+    "a_faire": "pending"
+};
+
 // Nombre maximal de tâches dans la liste.
 const MAX_TODOS = 20;
 
@@ -48,12 +63,14 @@ function normalizeTodos(todos) {
         }
         const content = item.content.replace(/\s+/g, " ").trim().slice(0, MAX_CONTENT);
 
-        if (!STATUSES.includes(item.status)) {
+        const raw = typeof item.status === "string" ? item.status.trim().toLowerCase() : item.status;
+        const status = STATUS_ALIASES[raw] || raw;
+        if (!STATUSES.includes(status)) {
             throw new Error(`${where}.status doit valoir ${STATUSES.join(", ")}.`);
         }
-        if (item.status === "in_progress") inProgress += 1;
+        if (status === "in_progress") inProgress += 1;
 
-        return { id, content, status: item.status };
+        return { id, content, status };
     });
 
     if (inProgress > 1) {

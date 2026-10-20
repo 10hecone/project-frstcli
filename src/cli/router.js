@@ -10,7 +10,7 @@ function wordRegex(words) {
 
 const FILE_NOUN_RE = wordRegex(
     "fichiers?|dossiers?|r[ée]pertoires?|code|source|readme|src|projet|" +
-    "fonctions?|classes?|module|script|fichier|arborescence"
+    "fonctions?|classes?|module|script|fichier|arborescence|" + "missions?|t[âa]ches?|[ée]tapes?|plan|tests?|commits?|bugs?|erreurs?|probl[èe]mes?|fonctionnalit[ée]s?|outils?|branches?|d[ée]p[ôo]t|todo|" + "task|step|feature|tool|branch|repo|repository|project|file|folder"
 );
 
 const FILE_NAME_RE = new RegExp(
@@ -24,7 +24,7 @@ const FILE_VERB_RE = wordRegex(
     "modifie|modifier|corrige|corriger|[ée]dite|[ée]diter|remplace|remplacer|" +
     "renomme|renommer|d[ée]place|d[ée]placer|copie|copier|supprime|supprimer|efface|" +
     "[ée]cris|[ée]crire|g[ée]n[èe]re|explique|analyse|refactor\\w*|am[ée]liore|" +
-    "read|open|list|create|write|edit|fix|move|rename|delete|copy|add"
+    "read|open|list|create|write|edit|fix|move|rename|delete|copy|add|" + "commence|commencer|continue|continuer|termine|terminer|finis|finir|fini|fais|faire|lance|lancer|ex[ée]cute|ex[ée]cuter|impl[ée]mente|impl[ée]menter|teste|tester|installe|installer|range|ranger|nettoie|nettoyer|manipule|manipuler|commite|commiter|r[ée]sous|r[ée]soudre|" + "start|finish|run|test|implement|install|commit|resolve|solve"
 );
 
 function seemsToRequestLocalFiles(input) {

@@ -88,7 +88,7 @@ const INTENTS = [
     { id: "move", re: /\b(deplac\w*|renomm\w*|rename|move)\b/ },
     { id: "copy", re: /\b(copi\w*|duplique\w*|copy)\b/ },
     { id: "create", re: /\b(cree|creer|creation|nouveau fichier|nouveau dossier|create)\b/ },
-    { id: "edit", re: /\b(modifi\w*|corrig\w*|edit\w*|remplac\w*|ajout\w*|refactor\w*|amelior\w*|appliqu\w*|implement\w*|fix|change\w*)\b/ },
+    { id: "edit", re: /\b(modifi\w*|corrig\w*|edit\w*|remplac\w*|ajout\w*|refactor\w*|amelior\w*|appliqu\w*|implement\w*|fix|change\w*|ecri\w*|redig\w*|commenc\w*|continu\w*|termin\w*|finis\w*|fini|fais|faire|resou\w*|resolu\w*|modify|update|write|start|finish|resolve)\b/ },
     { id: "read", re: /\b(lis|lire|ouvr\w*|affich\w*|montr\w*|explique\w*|analys\w*|read|open|show)\b/ },
     { id: "search", re: /\b(cherch\w*|trouv\w*|search|find|grep)\b/ },
     { id: "list", re: /\b(liste\w*|arborescence|dossiers?|tree|list)\b/ }
@@ -154,7 +154,7 @@ const BRIEFS = {
     general: [
         "OBJECTIF : RÉPONDRE.",
         "Si la demande ne concerne ni le code ni le projet, réponds tout de suite avec final, en une ou deux phrases, sans outil.",
-        "Sinon, explore d'abord (list_directory, search_files) avant de répondre."
+        "Sinon, explore d'abord (list_directory, search_files, glob) avant de répondre.", "Si la demande demande une action sur le projet (modifier, créer, lancer, continuer ou terminer une tâche), fais-la toi-même avec les outils d'écriture (edit_file, write_file, run_command...) : tu as la capacité de modifier les fichiers, ne te contente pas de décrire ce qu'il faudrait faire."
     ].join("\n")
 };
 
