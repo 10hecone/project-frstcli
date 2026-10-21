@@ -37,6 +37,8 @@ const brave = {
                 "x-subscription-token": apiKey,
                 "user-agent": USER_AGENT
             },
+            // Pas de redirection : la clé x-subscription-token ne doit partir que vers Brave.
+            redirect: "error",
             signal
         });
         if (!response.ok) throw engineError("brave", response.status);

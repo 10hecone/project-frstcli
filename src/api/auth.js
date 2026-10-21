@@ -50,9 +50,18 @@ class AuthError extends Error {
 }
 
 function serializeSession() {
+    const cookies = Object.fromEntries(auth.jar);
+
+    // Le cookie venu de FS_SESSION_TOKEN reste dans l'environnement : on ne le
+    // recopie pas sur disque. S'il est renouvelé par le serveur (valeur différente),
+    // la nouvelle valeur est une vraie session et peut être enregistrée.
+    if (ENV_SESSION && cookies[SESSION_COOKIE] === ENV_SESSION) {
+        delete cookies[SESSION_COOKIE];
+    }
+
     return JSON.stringify({
         deviceId: auth.deviceId,
-        cookies: Object.fromEntries(auth.jar)
+        cookies
     });
 }
 

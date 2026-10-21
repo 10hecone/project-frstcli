@@ -157,7 +157,7 @@ async function readLimited(response, maxBytes) {
  * Suit les redirections à la main (5 au maximum) en revérifiant l'hôte à chaque saut.
  * Le délai couvre toute l'opération, lecture du corps comprise.
  */
-async function fetchPage(startUrl, options) {
+async function fetchPage(startUrl, options, startRedirects = 0) {
     const timeoutMs = options.timeoutMs ?? CONFIG.webTimeoutMs;
     const maxBytes = options.maxBytes ?? CONFIG.webMaxBytes;
     const controller = new AbortController();
@@ -177,8 +177,13 @@ async function fetchPage(startUrl, options) {
     try {
         let url = startUrl;
 
-        for (let redirects = 0; ; redirects++) {
+        for (let redirects = startRedirects; ; redirects++) {
             await assertPublicHost(url, options);
+            // Redirection vers un hôte pas encore autorisé : on rend la main à webFetch
+            // pour demander la confirmation (en dehors du délai de lecture).
+            if (redirects > startRedirects && !confirmedHosts.has(hostOf(url))) {
+                return { pending: url, redirects };
+            }
             if (controller.signal.aborted) throw new Error("Lecture interrompue.");
 
             const response = await fetch(url, {
@@ -324,21 +329,31 @@ async function webFetch(args = {}, options = {}) {
     const url = parseUrl(requireString(args.url, "url"));
     optionalInt(args.max_chars, "max_chars");
     const maxChars = maxCharsOf(args);
-    const host = hostOf(url);
-
     // Hôte vérifié avant de demander quoi que ce soit, puis à chaque requête.
     await assertPublicHost(url, options);
 
-    if (!confirmedHosts.has(host)) {
-        ui.result(`Lecture web : ${url.href}`);
-        const confirm = options.confirm || (message => ui.confirm(message));
-        if (!(await confirm(`Autoriser la lecture de pages sur ${host} pendant cette session ?`))) {
-            return denied(".");
+    // Chaque nouvel hôte, y compris atteint par redirection, doit être autorisé.
+    let target = url;
+    let redirects = 0;
+    let page;
+    for (;;) {
+        const host = hostOf(target);
+        if (!confirmedHosts.has(host)) {
+            ui.result(`Lecture web : ${target.href}`);
+            const confirm = options.confirm || (message => ui.confirm(message));
+            if (!(await confirm(`Autoriser la lecture de pages sur ${host} pendant cette session ?`))) {
+                return denied(".");
+            }
+            confirmedHosts.add(host);
         }
-        confirmedHosts.add(host);
+
+        page = await fetchPage(target, options, redirects);
+        if (!page.pending) break;
+        target = page.pending;
+        redirects = page.redirects;
     }
 
-    const { url: finalUrl, response, body } = await fetchPage(url, options);
+    const { url: finalUrl, response, body } = page;
 
     const contentType = response.headers.get("content-type") || "";
     const mime = contentType.split(";")[0].trim().toLowerCase();
