@@ -35,7 +35,7 @@ export function SubagentList({ subagents, color = true }) {
     return (
         <Box flexDirection="column">
             <Text>
-                <Text bold>Sous-agents</Text>
+                <Text bold={color}>Sous-agents</Text>
                 <Text color={color ? "gray" : undefined}>
                     {running ? ` (${subagents.length}) · Échap pour annuler` : ` (${subagents.length})`}
                 </Text>

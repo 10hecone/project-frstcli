@@ -22,7 +22,7 @@ export function confirmOptions({ kind = "confirm", force = false, prefix = "" } 
  * - Échap et Ctrl+C répondent « n ». Par défaut, la sélection est sur « Non ».
  * onAnswer(value) n'est appelé qu'une fois.
  */
-export function ConfirmDialog({ question = "", kind = "confirm", force = false, prefix = "", isActive = true, onAnswer }) {
+export function ConfirmDialog({ question = "", kind = "confirm", force = false, prefix = "", isActive = true, onAnswer, color = true }) {
     const options = confirmOptions({ kind, force, prefix });
     const selectedRef = useRef(Math.max(0, options.findIndex((option) => option.value === "n")));
     const doneRef = useRef(false);
@@ -54,14 +54,14 @@ const hasAlways = options.some((option) => option.value === "t");
 
     const selected = selectedRef.current;
     return (
-        <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
-            <Text bold>{question}</Text>
+        <Box flexDirection="column" borderStyle="round" borderColor={color ? "yellow" : undefined} paddingX={1}>
+            <Text bold={color}>{question}</Text>
             {options.map((option, index) => (
-                <Text key={option.value} color={index === selected ? "cyan" : undefined} bold={index === selected}>
+                <Text key={option.value} color={color && index === selected ? "cyan" : undefined} bold={color && index === selected}>
                     {`${index === selected ? "❯" : " "} ${option.value} — ${option.label}`}
                 </Text>
             ))}
-            <Text dimColor>{`↑/↓ choisir · Entrée valider · ${hasAlways ? "o/n/t" : "o/n"} · Échap = non`}</Text>
+            <Text dimColor={color}>{`↑/↓ choisir · Entrée valider · ${hasAlways ? "o/n/t" : "o/n"} · Échap = non`}</Text>
         </Box>
     );
 }

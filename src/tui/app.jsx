@@ -18,7 +18,7 @@ function useStore(store) {
 }
 
 /** Dialogue d'un prompt en attente : confirm/command → ConfirmDialog, ask/secret → TextPrompt. */
-function PromptDialog({ prompt, onAnswer }) {
+function PromptDialog({ prompt, onAnswer, color = true }) {
     const answer = (value) => {
         if (onAnswer) onAnswer(prompt.id, value);
     };
@@ -32,6 +32,7 @@ function PromptDialog({ prompt, onAnswer }) {
                 prefix={prompt.prefix ?? ""}
                 isActive={Boolean(onAnswer)}
                 onAnswer={answer}
+                color={color}
             />
         );
     }
@@ -42,6 +43,7 @@ function PromptDialog({ prompt, onAnswer }) {
             secret={Boolean(prompt.secret || prompt.kind === "secret")}
             isActive={Boolean(onAnswer)}
             onAnswer={answer}
+            color={color}
         />
     );
 }
@@ -74,7 +76,7 @@ export function App({
     const canType = Boolean(onSubmit && !busy);
 
     const command = current.command ? (
-        <CommandOutput lines={current.command.lines} hidden={current.command.total - current.command.lines.length} />
+        <CommandOutput lines={current.command.lines} hidden={current.command.total - current.command.lines.length} color={color} />
     ) : null;
     const todoList = (
         <Box flexDirection="column">
@@ -93,7 +95,7 @@ export function App({
         <Spinner spinner={current.spinner} now={now} interval={spinnerInterval} color={color} />
     ) : null;
     const input = prompt ? (
-        <PromptDialog key={`prompt-${prompt.id}`} prompt={prompt} onAnswer={onAnswer} />
+        <PromptDialog key={`prompt-${prompt.id}`} prompt={prompt} onAnswer={onAnswer} color={color} />
     ) : canType || onInterrupt ? (
         <PromptInput
             key="main"
@@ -106,6 +108,7 @@ export function App({
             onExit={onExit}
             onClear={onClear}
             clipboard={clipboard}
+            color={color}
             onSubmit={(value) => {
                 if (onSubmit && !busy) onSubmit(value);
             }}
@@ -137,6 +140,7 @@ export function App({
                     model={(welcome && welcome.model) || status.model}
                     workspace={(welcome && welcome.workspace) || status.workspace}
                     cwd={cwd}
+                    color={color}
                 />
                 <ConversationView
                     key={`conversation-${current.epoch || 0}`}

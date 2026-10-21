@@ -82,7 +82,7 @@ export function StatusBar({
         <Box width={width}>
             <Text wrap="truncate-end">
                 {parts.map((part, index) => (
-                    <Text key={part.key} dimColor={!part.color || !color} color={color && part.color ? part.color : undefined}>
+                    <Text key={part.key} dimColor={color && !part.color} color={color && part.color ? part.color : undefined}>
                         {`${index > 0 ? " · " : ""}${part.text}`}
                     </Text>
                 ))}

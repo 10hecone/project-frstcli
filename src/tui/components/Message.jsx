@@ -2,13 +2,13 @@ import { Box, Text } from "ink";
 import { renderMarkdownLine, renderMarkdownLite } from "../../markdown.js";
 
 /** Message utilisateur : préfixe « > ». */
-export function UserMessage({ text }) {
+export function UserMessage({ text, color = true }) {
     const lines = String(text ?? "").split("\n");
     return (
         <Box flexDirection="column" marginTop={1}>
             {lines.map((line, index) => (
                 <Text key={index}>
-                    <Text color="cyan" bold>{index === 0 ? "> " : "  "}</Text>
+                    <Text color={color ? "cyan" : undefined} bold={color}>{index === 0 ? "> " : "  "}</Text>
                     {line}
                 </Text>
             ))}
@@ -35,7 +35,7 @@ export function AssistantMessage({ text, line = false, inCode = false, color = t
 
 export function Message({ entry, color = true }) {
     if (!entry) return null;
-    if (entry.type === "user") return <UserMessage text={entry.text} />;
+    if (entry.type === "user") return <UserMessage text={entry.text} color={color} />;
     return <AssistantMessage text={entry.text} line={Boolean(entry.line)} inCode={entry.inCode} color={color} />;
 }
 

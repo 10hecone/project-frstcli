@@ -69,7 +69,8 @@ export function PromptInput({
     onEscape,
     onExit,
     onClear,
-    clipboard
+    clipboard,
+    color = true
 }) {
     const stateRef = useRef(null);
     if (stateRef.current === null) {
@@ -217,10 +218,10 @@ export function PromptInput({
             borderBottom
             borderLeft={false}
             borderRight={false}
-            borderDimColor
+            borderDimColor={color}
         >
             {model.lines.map((line, row) => {
-                const prefix = row === 0 ? <Text color="cyan" bold>{label}</Text> : <Text>{pad}</Text>;
+                const prefix = row === 0 ? <Text color={color ? "cyan" : undefined} bold={color}>{label}</Text> : <Text>{pad}</Text>;
                 if (row !== model.row) return <Text key={row}>{prefix}{mask(line)}</Text>;
                 const at = line.slice(model.col, model.col + 1);
                 return (
@@ -232,7 +233,7 @@ export function PromptInput({
                     </Text>
                 );
             })}
-            {hint ? <Text dimColor>{hint}</Text> : null}
+            {hint ? <Text dimColor={color}>{hint}</Text> : null}
         </Box>
         {menu.length ? (
             <Box flexDirection="column" width={width}>
@@ -240,9 +241,9 @@ export function PromptInput({
                     <Text
                         key={command}
                         wrap="truncate-end"
-                        color={index === selected ? "cyan" : undefined}
-                        bold={index === selected}
-                        dimColor={index !== selected}
+                        color={color && index === selected ? "cyan" : undefined}
+                        bold={color && index === selected}
+                        dimColor={color && index !== selected}
                     >
                         {`${index === selected ? "› " : "  "}${command}`}
                     </Text>

@@ -40,7 +40,7 @@ export function TodoList({ todos, color = true }) {
     return (
         <Box flexDirection="column">
             <Text>
-                <Text bold>Tâches</Text>
+                <Text bold={color}>Tâches</Text>
                 <Text color={color ? "gray" : undefined}>{` (${done}/${todos.length})`}</Text>
             </Text>
             {items.map((todo, index) => {
@@ -50,7 +50,7 @@ export function TodoList({ todos, color = true }) {
                     return (
                         <Text key={todo.id ?? index}>
                             <Text color={color ? "cyan" : undefined}>{`  ${symbol}`}</Text>
-                            <Text bold>{` ${text}`}</Text>
+                            <Text bold={color}>{` ${text}`}</Text>
                         </Text>
                     );
                 }
@@ -58,7 +58,7 @@ export function TodoList({ todos, color = true }) {
                     return (
                         <Text key={todo.id ?? index}>
                             <Text color={color ? "green" : undefined}>{`  ${symbol}`}</Text>
-                            <Text dimColor>{` ${text}`}</Text>
+                            <Text dimColor={color}>{` ${text}`}</Text>
                         </Text>
                     );
                 }
@@ -69,7 +69,7 @@ export function TodoList({ todos, color = true }) {
                     </Text>
                 );
             })}
-            {hidden > 0 ? <Text dimColor>{`  + ${hidden} autres`}</Text> : null}
+            {hidden > 0 ? <Text dimColor={color}>{`  + ${hidden} autres`}</Text> : null}
         </Box>
     );
 }
