@@ -436,10 +436,10 @@ async function fallbackPlainAnswer(task, observations) {
 
     const readFiles = observations.filter(o => o.tool === "read_file" && o.result);
 
-    const perFile = Math.floor(
+    const perFile = Math.max(0, Math.floor(
         (CONFIG.messageBudget - clip(task, 50_000).length - 5_000) /
         Math.max(1, readFiles.length)
-    );
+    ));
 
     const files = readFiles
         .map(o => `--- ${o.result.path} ---\n${clip(o.result.content, perFile)}`)
@@ -630,7 +630,7 @@ async function runAgent(task, options = {}) {
     if (task.length > CONFIG.messageBudget / 2) {
         throw new Error(
             `Demande trop longue : ${fmt(task.length)} caractères ` +
-            `(limite ${fmt(CONFIG.maxMessageChars)} par message).`
+            `(limite ${fmt(Math.floor(CONFIG.messageBudget / 2))} par message).`
         );
     }
 
@@ -666,14 +666,18 @@ async function runAgent(task, options = {}) {
         };
 
         state.conversationSettings.agent = settings;
-        await conversations.touch({
-            id: state.chatIds.agent,
-            firstMessage: task,
-            model: state.model,
-            workspace: state.workspace,
-            mode: "agent",
-            settings,
-        });
+        try {
+            await conversations.touch({
+                id: state.chatIds.agent,
+                firstMessage: task,
+                model: state.model,
+                workspace: state.workspace,
+                mode: "agent",
+                settings,
+            });
+        } catch {
+            // Historique local indisponible : sans effet sur la réponse de l'agent.
+        }
     }
 
     async function finish(message) {
@@ -902,7 +906,7 @@ async function runAgent(task, options = {}) {
             observations.push({
                 tool: action.name,
                 args: recorded,
-                ok: !result.denied,
+                ok: !result?.denied,
                 result
             });
         } catch (error) {
@@ -940,5 +944,6 @@ module.exports = {
     maybeAutoCompact,
     buildCompactPrompt,
     extractSummary,
-    runDelegate
+    runDelegate,
+    detectPackageInfo
 };

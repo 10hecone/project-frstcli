@@ -207,7 +207,8 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       if (!requireProject()) break;
 
       const { initInstructions } = require("../project/instructions");
-      const result = await initInstructions(state.workspace, { testCommand: "npm test" });
+      const { testCommand } = await require("../agent/agent").detectPackageInfo(state.workspace);
+      const result = await initInstructions(state.workspace, { testCommand });
       require("../agent/agent").clearAgentContextCache();
       ui.info(
         result.created
