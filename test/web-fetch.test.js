@@ -36,6 +36,10 @@ test.before(async () => {
                 res.writeHead(200, { "content-type": "application/json" });
                 res.end('{"ok":true}');
                 break;
+            case "/host":
+                res.writeHead(200, { "content-type": "text/plain" });
+                res.end(String(req.headers.host));
+                break;
             case "/redir":
                 res.writeHead(302, { location: "/page" });
                 res.end();
@@ -135,6 +139,32 @@ test("web_fetch : adresses locales ou privées refusées, y compris après redir
     await assert.rejects(webFetch({ url: `${base}/redir-private` }, OPTS), /192\.168\.1\.10/);
     const lookup = async () => [{ address: "93.184.216.34" }, { address: "10.0.0.5" }];
     await assert.rejects(webFetch({ url: "http://piege.exemple/" }, { ...OPTS, lookup }), /10\.0\.0\.5/);
+});
+
+test("web_fetch : connexion épinglée sur l'IP vérifiée, sans nouvelle résolution DNS", async () => {
+    resetConfirmedHosts();
+    const port = server.address().port;
+    const resolved = [];
+    const lookup = async host => {
+        resolved.push(host);
+        return [{ address: "127.0.0.1" }];
+    };
+    // rebind.invalid n'existe pas dans le DNS système : la page n'est lue que si la
+    // connexion utilise l'adresse vérifiée par lookup.
+    const result = await webFetch({ url: `http://rebind.invalid:${port}/host` }, { ...OPTS, lookup });
+    assert.equal(result.content, `rebind.invalid:${port}`);
+    assert.ok(resolved.length > 0 && resolved.every(host => host === "rebind.invalid"));
+});
+
+test("web_fetch : DNS rebinding refusé, l'adresse privée n'est jamais contactée", async () => {
+    resetConfirmedHosts();
+    const port = server.address().port;
+    let calls = 0;
+    const lookup = async () => [{ address: calls++ === 0 ? "127.0.0.1" : "10.0.0.5" }];
+    await assert.rejects(
+        webFetch({ url: `http://rebind.invalid:${port}/json` }, { ...OPTS, lookup }),
+        /10\.0\.0\.5/
+    );
 });
 
 test("web_fetch : protocole et type de contenu refusés", async () => {

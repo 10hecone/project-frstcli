@@ -1,7 +1,11 @@
 "use strict";
 
 const dns = require("node:dns/promises");
+const http = require("node:http");
+const https = require("node:https");
 const net = require("node:net");
+const zlib = require("node:zlib");
+const { pipeline } = require("node:stream");
 
 const { CONFIG } = require("../../config");
 const { ui } = require("../../ui-bridge");
@@ -92,7 +96,10 @@ function parseUrl(raw) {
 
 const hostOf = url => url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
 
-/** Vérifie l'hôte après résolution DNS : toutesses adresses doivent être publiques. */
+/**
+ * Vérifie l'hôte après résolution DNS : toutes ses adresses doivent être publiques.
+ * Renvoie la première adresse vérifiée { address, family } : la connexion y est épinglée.
+ */
 async function assertPublicHost(url, options) {
     const host = hostOf(url);
 
@@ -121,13 +128,16 @@ async function assertPublicHost(url, options) {
             throw new Error(`Adresse refusée : ${host} (${address}) est locale ou privée.`);
         }
     }
+
+    const { address } = addresses[0];
+    return { address, family: net.isIP(address) };
 }
 
 const tooBig = maxBytes => new Error(`Page trop volumineuse (plus de ${Math.round(maxBytes / 1024)} Ko).`);
 
 async function cancelBody(response) {
     try {
-        await response.body?.cancel();
+        response.body?.destroy();
     } catch {
         // corps déjà fermé
     }
@@ -151,6 +161,69 @@ async function readLimited(response, maxBytes) {
     }
 
     return Buffer.concat(chunks);
+}
+
+const DECODERS = {
+    gzip: () => zlib.createGunzip(),
+    "x-gzip": () => zlib.createGunzip(),
+    deflate: () => zlib.createInflate(),
+    br: () => zlib.createBrotliDecompress()
+};
+
+/**
+ * Requête GET envoyée à l'adresse IP déjà vérifiée (épinglage) : la connexion ne refait
+ * pas de résolution DNS, ce qui empêche le DNS rebinding. Le nom d'hôte reste utilisé
+ * pour l'en-tête Host et le certificat HTTPS.
+ * Renvoie { status, ok, headers.get(), body }, body étant un flux déjà décompressé.
+ */
+function requestPinned(url, pinned, { signal, headers }) {
+    const client = url.protocol === "https:" ? https : http;
+    const host = hostOf(url);
+    const lookup = (hostname, opts, callback) => {
+        if (typeof opts === "function") {
+            callback = opts;
+            opts = {};
+        }
+        if (opts?.all) callback(null, [{ address: pinned.address, family: pinned.family }]);
+        else callback(null, pinned.address, pinned.family);
+    };
+
+    return new Promise((resolve, reject) => {
+        const req = client.request({
+            protocol: url.protocol,
+            hostname: host,
+            port: url.port || undefined,
+            path: `${url.pathname}${url.search}`,
+            method: "GET",
+            headers: { ...headers, "accept-encoding": "gzip, deflate, br" },
+            agent: false,
+            lookup,
+            signal,
+            ...(net.isIP(host) ? {} : { servername: host })
+        }, res => {
+            const encoding = String(res.headers["content-encoding"] || "").trim().toLowerCase();
+            const decoder = DECODERS[encoding];
+            const body = decoder ? pipeline(res, decoder(), () => {}) : res;
+            resolve({
+                status: res.statusCode,
+                ok: res.statusCode >= 200 && res.statusCode < 300,
+                headers: {
+                    get: name => {
+                        const value = res.headers[String(name).toLowerCase()];
+                        if (value === undefined) return null;
+                        return Array.isArray(value) ? value.join(", ") : String(value);
+                    }
+                },
+                body
+            });
+        });
+
+        req.on("error", error => {
+            if (signal?.aborted) reject(error);
+            else reject(new Error(`Échec de la connexion : ${error.code || error.message}.`));
+        });
+        req.end();
+    });
 }
 
 /**
@@ -178,7 +251,7 @@ async function fetchPage(startUrl, options, startRedirects = 0) {
         let url = startUrl;
 
         for (let redirects = startRedirects; ; redirects++) {
-            await assertPublicHost(url, options);
+            const pinned = await assertPublicHost(url, options);
             // Redirection vers un hôte pas encore autorisé : on rend la main à webFetch
             // pour demander la confirmation (en dehors du délai de lecture).
             if (redirects > startRedirects && !confirmedHosts.has(hostOf(url))) {
@@ -186,8 +259,7 @@ async function fetchPage(startUrl, options, startRedirects = 0) {
             }
             if (controller.signal.aborted) throw new Error("Lecture interrompue.");
 
-            const response = await fetch(url, {
-                redirect: "manual",
+            const response = await requestPinned(url, pinned, {
                 signal: controller.signal,
                 headers: {
                     "user-agent": "FranceStudent-Code (web_fetch)",
@@ -217,9 +289,6 @@ async function fetchPage(startUrl, options, startRedirects = 0) {
     } catch (error) {
         if (timedOut) throw new Error(`Délai dépassé (${timeoutMs} ms) pour ${startUrl.href}.`);
         if (options.signal?.aborted) throw new Error("Lecture web annulée.");
-        if (error?.name === "TypeError" && error.cause) {
-            throw new Error(`Échec de la connexion : ${error.cause.code || error.cause.message}.`);
-        }
         throw error;
     } finally {
         clearTimeout(timer);
