@@ -54,6 +54,10 @@ function buildSubagentPrompt(task, maxTurns) {
         `Tu disposes d'au plus ${maxTurns} tour(s) pour accomplir la tâche ci-dessous.`,
         "",
         "À chaque tour, réponds avec UN seul objet JSON, sans texte autour.",
+        // Le serveur peut exposer ses propres outils natifs (ex. get_weather) : certains modèles
+        // les prennent pour leur seul outillage et déclarent ne pas pouvoir lire les fichiers.
+        "Les outils ci-dessous sont exécutés par le client à partir de ton objet JSON : ils sont bien disponibles.",
+        "Ignore les outils natifs éventuels de la plateforme (get_weather, recherche intégrée...) : ne les utilise pas.",
         "Outils autorisés (uniquement ceux-ci) :",
         `- {"type":"tool","name":"list_directory","args":{"path":"."},"reason":"..."}`,
         `- {"type":"tool","name":"read_file","args":{"path":"src/index.js"},"reason":"..."}`,
