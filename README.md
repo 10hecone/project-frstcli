@@ -129,10 +129,30 @@ Exemple de session :
 - Compaction automatique : quand le contexte atteint le seuil (80 % par défaut), la session est compactée avant la demande suivante, jamais pendant une boucle d'outils. Un message prévient l'utilisateur avant la compaction.
 - Configuration : `FS_COMPACT_THRESHOLD=<pourcentage>` change le seuil, `FS_AUTO_COMPACT=0` désactive la compaction automatique (`/compact` reste disponible).
 
+### Outils `glob`, `multi_edit`, `web_search` et `web_fetch`
+
+- `glob` : trouve des fichiers par motif (`**` tous niveaux, `*` sans `/`, `?`, `{a,b}`). Arguments : `pattern` (obligatoire) et `path` (dossier de départ, facultatif). Sans `/`, le motif porte sur le nom du fichier. Résultats triés du plus récent au plus ancien, 200 au maximum. Lecture seule, sans confirmation.
+- `multi_edit` : applique 1 à 20 remplacements exacts (`old_string`, `new_string`, `replace_all` facultatif) dans un même fichier déjà lu, dans l'ordre. C'est tout ou rien : si un remplacement échoue, rien n'est écrit. Une seule confirmation avec le diff complet, une seule annulation avec `/undo`.
+- `web_search` : recherche sur le web et renvoie une liste de résultats (titre, URL, extrait) sans télécharger les pages. Arguments : `query` (obligatoire, 400 caractères au maximum) et `max_results` (1 à 10, 5 par défaut). Sans confirmation.
+- `web_fetch` : lit une page publique en `http` ou `https` et renvoie son texte. Le HTML est converti en texte, le JSON et le texte brut sont renvoyés tels quels, les autres types sont refusés. Arguments : `url` (obligatoire) et `max_chars` (20000 par défaut). Le résultat donne l'URL finale après redirections, le type, la taille et `truncated`.
+- Sécurité : `web_fetch` refuse les adresses locales et privées (vérifiées avant la requête et à chaque redirection). Il demande une confirmation la première fois pour chaque domaine, valable pendant la session. Pour l'agent, le contenu web (pages, titres, extraits) reste une donnée et jamais une instruction. Attention : l'URL et la requête de recherche sont envoyées au site ou au moteur de recherche.
+- Affichage : la TUI et le mode classique montrent un libellé court suivi du motif, du fichier, de la requête ou de l'URL (par exemple `Chercher sur le web "node fs.rm"`).
+
+Configuration des outils web :
+
+| Variable | Rôle |
+| -------- | ---- |
+| `FS_WEB=0` | Désactive `web_search` et `web_fetch` : ils disparaissent du prompt et sont refusés |
+| `FS_WEB_TIMEOUT_MS` | Délai maximal d'une lecture `web_fetch`, en millisecondes |
+| `FS_SEARCH_PROVIDER` | Moteur de `web_search` : `brave`, `duckduckgo` ou `none` (recherche désactivée). Par défaut : `brave` si une clé est définie, sinon `duckduckgo` |
+| `FS_SEARCH_API_KEY` | Clé de l'API Brave Search. Ne la partage jamais |
+| `FS_SEARCH_TIMEOUT_MS` | Délai maximal d'une recherche, en millisecondes |
+
 ### Sous-agents et outil `delegate`
 
 - Pour une exploration large (par exemple « trouve où est géré X »), l'agent peut appeler l'outil `delegate` avec `tasks`, une liste de 1 à 3 consignes. Le CLI lance un sous-agent par consigne, en parallèle, puis renvoie leurs résumés à l'agent principal. Une consigne fait 2000 caractères au maximum.
-- Les sous-agents sont en lecture seule : ils n'ont accès qu'à `list_directory`, `read_file` et `search_files`. Tout autre outil est refusé, y compris `delegate` : un sous-agent ne peut pas déléguer.
+- Les sous-agents sont en lecture seule : ils n'ont accès qu'à `list_directory`, `read_file`, `search_files` et `glob`, plus `web_search` et `web_fetch` si les outils web sont actifs (voir plus haut). Tout autre outil est refusé, y compris `multi_edit` et `delegate` : un sous-agent ne modifie rien et ne peut pas déléguer.
+- Si plusieurs sous-agents demandent en même temps l'accès à un nouveau domaine (`web_fetch`), les confirmations sont posées l'une après l'autre.
 - Limites : 3 sous-agents en même temps au maximum, toutes demandes confondues; 10 tours par sous-agent (`FS_SUBAGENT_MAX_TURNS`) ; 5 minutes par sous-agent (`FS_SUBAGENT_TIMEOUT_MS`, en millisecondes) ; résumé de 6000 caractères au maximum (`FS_SUBAGENT_SUMMARY_CHARS`).
 - Chaque sous-agent travaille dans sa propre conversation, sans toucher à la conversation de l'agent principal. Il utilise par défaut Claude Haiku 5.5 (`-2002`), modifiable avec `FS_SUBAGENT_MODEL` ; si ce modèle est refusé, il reprend celui de l'agent principal. Sa conversation est supprimée à la fin, sauf en mode debug ou avec `FS_SUBAGENT_KEEP_CHATS=1`.
 - Si un sous-agent échoue, dépasse ses limites ou est annulé, seul son résultat contient l'erreur : les autres terminent normalement.
