@@ -13,7 +13,8 @@ const TOOL_LABELS = {
     delete_path: "Supprimer",
     remember: "Mémoriser",
     run_command: "Commande",
-    web_fetch: "Lire le web"
+    web_fetch: "Lire le web",
+    web_search: "Chercher sur le web"
 };
 
 function toolLabel(name) {

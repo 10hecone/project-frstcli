@@ -47,6 +47,10 @@ const CONFIG = {
     web: process.env.FS_WEB !== "0",
     webTimeoutMs: envInt("FS_WEB_TIMEOUT_MS", 15_000),
     webMaxBytes: 2 * 1024 * 1024,
+    // web_search : FS_SEARCH_PROVIDER (brave, duckduckgo, none) ; sans valeur, brave si
+    // FS_SEARCH_API_KEY est défini, sinon duckduckgo. La clé n'est jamais copiée dans CONFIG.
+    searchProvider: process.env.FS_SEARCH_PROVIDER || "",
+    webSearchTimeoutMs: envInt("FS_SEARCH_TIMEOUT_MS", 10_000),
 
     // Fichiers
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque

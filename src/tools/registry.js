@@ -60,6 +60,7 @@ const MODULES = [
     require("./todo-write"),
     require("./delegate"),
     require("./web/web-fetch"),
+    require("./web/web-search"),
     runCommandTool,
     jobOutputTool,
     jobStopTool
