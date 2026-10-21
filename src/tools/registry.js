@@ -59,6 +59,7 @@ const MODULES = [
     require("./fs/remember"),
     require("./todo-write"),
     require("./delegate"),
+    require("./web/web-fetch"),
     runCommandTool,
     jobOutputTool,
     jobStopTool

@@ -43,6 +43,11 @@ const CONFIG = {
     subagentSummaryChars: envInt("FS_SUBAGENT_SUMMARY_CHARS", 6_000),
     subagentKeepChats: process.env.FS_SUBAGENT_KEEP_CHATS === "1",
 
+    // Outils web (web_fetch) : FS_WEB=0 les désactive (absents du prompt, refusés à l'exécution).
+    web: process.env.FS_WEB !== "0",
+    webTimeoutMs: envInt("FS_WEB_TIMEOUT_MS", 15_000),
+    webMaxBytes: 2 * 1024 * 1024,
+
     // Fichiers
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque
     maxReadChars: 40_000,           // caractères renvoyés au modèle par read_file
