@@ -45,7 +45,14 @@ async function requestJson(method, route, body, retried = false) {
     }
 
     const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    if (!text) return null;
+    try {
+        return JSON.parse(text);
+    } catch {
+        const error = new Error(`Réponse illisible sur ${method} ${route} (JSON attendu).`);
+        error.status = response.status;
+        throw error;
+    }
 }
 
 async function listProjects() {

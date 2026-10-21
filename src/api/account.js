@@ -32,7 +32,14 @@ async function getJson(path, retried = false) {
     }
 
     const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    if (!text) return null;
+    try {
+        return JSON.parse(text);
+    } catch {
+        const error = new Error(`Réponse illisible sur ${path} (JSON attendu).`);
+        error.status = response.status;
+        throw error;
+    }
 }
 
 /** GET /chats/{chatId}/usage -> ChatUsageDto { tokenUsage, contextUsagePercent }. */

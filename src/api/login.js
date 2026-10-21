@@ -129,7 +129,7 @@ async function startOAuth(session) {
                 p => p?.type === "oauth" && typeof p.signinUrl === "string"
             );
 
-            if (oauth && oauth.signinUrl.startsWith(origin)) signinUrl = oauth.signinUrl;
+            if (oauth && new URL(oauth.signinUrl).origin === new URL(origin).origin) signinUrl = oauth.signinUrl;
         } else {
             await drain(response);
         }
@@ -145,7 +145,12 @@ async function startOAuth(session) {
         throw new AuthError(`csrf : HTTP ${csrfResponse.status}`, csrfResponse.status);
     }
 
-    const { csrfToken } = await csrfResponse.json();
+    let csrfToken;
+    try {
+        ({ csrfToken } = (await csrfResponse.json()) ?? {});
+    } catch {
+        throw new AuthError("csrf : réponse illisible (JSON attendu).", csrfResponse.status);
+    }
 
     if (!csrfToken) throw new AuthError("csrf : aucun jeton reçu.");
 
