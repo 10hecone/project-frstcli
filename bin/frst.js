@@ -41,7 +41,7 @@ function restoreTerminal({ stdin = process.stdin, stdout = process.stdout } = {}
 
 async function main() {
     try {
-        require("dotenv").config();
+        require("dotenv").config({ quiet: true });
     } catch {
     }
 

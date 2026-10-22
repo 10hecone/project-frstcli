@@ -86,7 +86,7 @@ function save(scope) {
             await fsp.writeFile(tmp, json, { mode: 0o600 });
             await fsp.rename(tmp, profile.file);
         } catch (error) {
-            require("../cli/ui").ui.warn(`Profil non enregistré : ${error.message}`);
+            require("../ui-bridge").ui.warn(`Profil non enregistré : ${error.message}`);
         }
     });
 

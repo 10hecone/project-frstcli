@@ -91,7 +91,7 @@ function save() {
             await fs.writeFile(tmp, data);
             await fs.rename(tmp, file);
         } catch (error) {
-            require("../cli/ui").ui.warn(`Mémoire non enregistrée : ${error.message}`);
+            require("../ui-bridge").ui.warn(`Mémoire non enregistrée : ${error.message}`);
         }
     });
 

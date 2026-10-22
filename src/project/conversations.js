@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const { CONFIG } = require("../config");
-const { ui } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 
 /*
  * Historique local des conversations du chat normal.

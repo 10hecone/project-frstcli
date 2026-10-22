@@ -3,7 +3,7 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
-const { ui } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 
 /*
  * Projets connus du CLI, enregistrés dans projects.json à la racine de ce dépôt

@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const { state, resetConversation, setConversation } = require("../state");
-const { ui } = require("../cli/ui");
+const { ui } = require("../ui-bridge");
 const memory = require("../project/memory");
 const projectContext = require("../project/project-context");
 const conversations = require("../project/conversations");
