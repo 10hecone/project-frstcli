@@ -93,6 +93,16 @@ function createTuiBackend(store, {
             append({ type: "plan", items: Array.isArray(items) ? [...items] : [] });
         },
 
+        /** Liste de tâches (todo_write) : affichée en direct au-dessus de la saisie, hors transcript. */
+        todos(list) {
+            store.dispatch({ type: "todos", todos: Array.isArray(list) ? list : [] });
+        },
+
+        /** Sous-agents (delegate) : affichés en direct au-dessus de la saisie, hors transcript. */
+        subagents(list) {
+            store.dispatch({ type: "subagents", subagents: Array.isArray(list) ? list : [] });
+        },
+
         tool(name, arg) {
             append({ type: "tool", name, arg: arg ?? "" });
         },
@@ -265,6 +275,7 @@ function createTuiBackend(store, {
                     autoApprove: Boolean(state.autoApprove),
                     jobs,
                     usage,
+                    context: typeof state.contextUsagePercent === "number" ? state.contextUsagePercent : null,
                     ...extra
                 }
             });

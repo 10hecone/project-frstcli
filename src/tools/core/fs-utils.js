@@ -19,6 +19,39 @@ async function statOrNull(target) {
 
 const toRel = abs => path.relative(state.workspace, abs).split(path.sep).join("/");
 
+async function bigStatOrNull(target) {
+    try {
+        return await fs.stat(target, { bigint: true });
+    } catch (error) {
+        if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+        throw error;
+    }
+}
+
+/**
+ * Vrai si a et b désignent le même fichier sur le disque (même périphérique et même inode).
+ * Sert à reconnaître un renommage qui ne change que la casse sur un système insensible à la casse.
+ * Sur un système sensible à la casse, « A.js » et « a.js » sont deux fichiers distincts : faux.
+ */
+async function isSameFile(a, b) {
+    const [x, y] = await Promise.all([bigStatOrNull(a), bigStatOrNull(b)]);
+
+    if (!x || !y) return false;
+
+    // Inode inconnu (0) sur certains systèmes de fichiers : repli sur la plateforme.
+    if (x.ino === 0n || y.ino === 0n) {
+        return process.platform === "win32" || process.platform === "darwin";
+    }
+
+    return x.dev === y.dev && x.ino === y.ino;
+}
+
+/** Renommage qui ne change que la casse d'un même fichier (src et dst existent et sont identiques). */
+async function isCaseOnlyRename(src, dst) {
+    if (src === dst || src.toLowerCase() !== dst.toLowerCase()) return false;
+    return isSameFile(src, dst);
+}
+
 function denied(rel) {
     return { path: rel, changed: false, denied: true, message: "Action refusée par l'utilisateur. Ne la redemande pas." };
 }
@@ -116,6 +149,8 @@ async function cleanCreatedDirs(entry) {
 
 module.exports = {
     statOrNull,
+    isSameFile,
+    isCaseOnlyRename,
     toRel,
     denied,
     firstMissingAncestor,

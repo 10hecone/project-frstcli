@@ -30,6 +30,28 @@ const CONFIG = {
     maxProtocolAttempts: 2,
     maxPreloadFiles: 3,
 
+    // Compaction automatique : au-delà du seuil (% de contexte), la session est résumée
+    // entre deux demandes. FS_AUTO_COMPACT=0 la désactive.
+    autoCompact: process.env.FS_AUTO_COMPACT !== "0",
+    autoCompactThreshold: envInt("FS_COMPACT_THRESHOLD", 80),
+
+    // Sous-agents (lecture seule) : modèle léger par défaut (Claude Haiku 5.5),
+    // limites, et suppression de leur conversation une fois la mission terminée.
+    subagentModel: envInt("FS_SUBAGENT_MODEL", -2002),
+    subagentMaxTurns: envInt("FS_SUBAGENT_MAX_TURNS", 10),
+    subagentTimeoutMs: envInt("FS_SUBAGENT_TIMEOUT_MS", 300_000),
+    subagentSummaryChars: envInt("FS_SUBAGENT_SUMMARY_CHARS", 6_000),
+    subagentKeepChats: process.env.FS_SUBAGENT_KEEP_CHATS === "1",
+
+    // Outils web (web_fetch) : FS_WEB=0 les désactive (absents du prompt, refusés à l'exécution).
+    web: process.env.FS_WEB !== "0",
+    webTimeoutMs: envInt("FS_WEB_TIMEOUT_MS", 15_000),
+    webMaxBytes: 2 * 1024 * 1024,
+    // web_search : FS_SEARCH_PROVIDER (brave, duckduckgo, none) ; sans valeur, brave si
+    // FS_SEARCH_API_KEY est défini, sinon duckduckgo. La clé n'est jamais copiée dans CONFIG.
+    searchProvider: process.env.FS_SEARCH_PROVIDER || "",
+    webSearchTimeoutMs: envInt("FS_SEARCH_TIMEOUT_MS", 10_000),
+
     // Fichiers
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque
     maxReadChars: 40_000,           // caractères renvoyés au modèle par read_file

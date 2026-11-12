@@ -39,6 +39,8 @@ function showHelp() {
     ["/auto on|off", "Autoriser sans confirmation (session)"],
     ["/mode auto|agent|chat", "Quand utiliser les outils fichiers"],
     ["/new", "Nouvelle conversation"],
+    ["/compact [consigne]", "Résumer la session dans une nouvelle conversation"],
+    ["/context", "Contexte utilisé, chat ID agent, tours et seuil de compaction"],
     ["/chat-id [n|id]", "Voir le chat ID / reprendre une conversation"],
     ["/history [all]", "Dernières conversations (id + titre)"],
     ["/messages", "Messages de la conversation (session)"],
@@ -205,7 +207,8 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       if (!requireProject()) break;
 
       const { initInstructions } = require("../project/instructions");
-      const result = await initInstructions(state.workspace, { testCommand: "npm test" });
+      const { testCommand } = await require("../agent/agent").detectPackageInfo(state.workspace);
+      const result = await initInstructions(state.workspace, { testCommand });
       require("../agent/agent").clearAgentContextCache();
       ui.info(
         result.created
@@ -413,6 +416,50 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       resetConversation(state.mode === "agent" ? "agent" : "chat");
       ui.info("Nouvelle conversation.");
       break;
+
+    case "/compact": {
+      const { compactSession } = require("../agent/agent");
+      if (!state.chatIds.agent) {
+        ui.info("Aucune conversation agent à résumer (/compact s'utilise après une demande à l'agent).");
+        break;
+      }
+
+      const spin = ui.spinner("Résumé de la session");
+      try {
+        const result = await compactSession({ instruction: unquote(value) });
+        spin.stop();
+        ui.info(
+          `Session compactée : résumé de ${result.chars} caractères, ` +
+            `nouvelle conversation ${result.chatId || "(id attribué au prochain message)"}.`,
+        );
+        ui.info(
+          result.contextUsagePercent == null
+            ? "Contexte : inconnu."
+            : `Contexte : ${Math.round(result.contextUsagePercent)} %.`,
+        );
+      } catch (error) {
+        spin.stop();
+        ui.warn(`Compaction impossible : ${error.message}`);
+      }
+      break;
+    }
+
+    case "/context": {
+      const { CONFIG } = require("../config");
+      const percent = state.contextUsagePercent;
+      const turns = state.history.filter((entry) => entry.role === "user").length;
+      ui.info(
+        `Contexte : ${typeof percent === "number" ? `${Math.round(percent)} %` : "inconnu"}`,
+      );
+      ui.info(`Conversation agent : ${state.chatIds.agent || "aucune"}`);
+      ui.info(`Tours (session) : ${turns}`);
+      ui.info(
+        CONFIG.autoCompact
+          ? `Compaction automatique : à partir de ${CONFIG.autoCompactThreshold} %`
+          : "Compaction automatique : désactivée (FS_AUTO_COMPACT=0)",
+      );
+      break;
+    }
 
     case "/chat-id": {
       if (!value) {

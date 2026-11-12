@@ -73,7 +73,11 @@ async function handleInput(rawInput, { onChatDelta, sendChat } = {}) {
         return { exit: false };
     }
 
-    if (router.shouldUseAgent(input)) await agent.runAgent(input);
+    if (router.shouldUseAgent(input)) {
+        // Entre deux demandes : compaction automatique si le contexte dépasse le seuil.
+        await agent.maybeAutoCompact();
+        await agent.runAgent(input);
+    }
     else if (sendChat) await sendChat(input);
     else await chat.send(input, { onDelta: onChatDelta });
 

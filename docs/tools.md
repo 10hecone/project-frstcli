@@ -6,7 +6,7 @@
 - `registry.js` : la liste des outils. Chaque module fournit `name`, `run`, `check` et `describe`. validateToolCall vérifie le nom et les arguments avant l'exécution.
 - `security.js` : normalizeRelative, resolveInWorkspace, assertRealInside et PATH_LIMITS. Ce fichier contient les blocages (fichiers d'identifiants, noms réservés Windows, sortie du projet).
 - `diff.js` : affichage des différences.
-- `fs/` : un fichier par outil (list-directory, read-file, search-files, create-directory, write-file, edit-file, move-path, copy-path, delete-path, remember), plus pair.js pour les outils à deux chemins.
+- `fs/` : un fichier par outil (list-directory, read-file, search-files, glob, create-directory, write-file, edit-file, multi-edit, move-path, copy-path, delete-path, remember), plus pair.js pour les outils à deux chemins.
 - `core/` : briques communes.
   - `args.js` : contrôle des arguments (requireString, optionalString, optionalInt).
   - `fs-utils.js` : ensureParent (mkdir en mode 0o700), entre autres.
@@ -15,6 +15,11 @@
   - `journal.js` : journal des modifications et undoLast.
   - `walk.js` : walkFiles(dir, relDir, {maxFiles}).
 - `command/` : run_command (index.js, parse.js, runner.js, program.js). program.js contient filterEnv, killTree et resolveProgram, sortis de runner.js.
+- `web/` : outils web, actifs seulement si CONFIG.web (FS_WEB différent de 0).
+  - `web-search.js` : web_search, avec Brave (clé FS_SEARCH_API_KEY, aucune redirection suivie) ou DuckDuckGo (par défaut, sans clé), selon FS_SEARCH_PROVIDER.
+  - `web-fetch.js` : web_fetch, pour http et https uniquement. Les adresses locales et privées sont refusées à chaque requête, et l'utilisateur confirme une fois par domaine et par session, y compris pour un domaine atteint par redirection (5 redirections au maximum). Taille et délai sont limités.
+- `delegate.js` : outil delegate, qui lance un sous-agent en lecture seule (src/agent/subagent.js).
+- `todo-write.js` : outil todo_write, la liste de tâches de l'agent.
 
 ## Ajouter un outil
 

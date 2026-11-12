@@ -5,16 +5,16 @@ const { ui } = require("../../ui-bridge");
 const { resolveInWorkspace } = require("../security");
 const memory = require("../../project/memory");
 const { requireString } = require("../core/args");
-const { statOrNull, denied, ensureParent, moveAcross } = require("../core/fs-utils");
+const { statOrNull, denied, ensureParent, moveAcross, isCaseOnlyRename } = require("../core/fs-utils");
 const { finishMutation } = require("../core/journal");
 const { resolvePair } = require("./pair");
 
 async function movePathTool(args = {}) {
     const { src, dst } = await resolvePair(args);
 
-    // Renommage qui ne change que la casse (Windows) : même fichier.
-    const caseOnly =
-        src.target.toLowerCase() === dst.target.toLowerCase() && src.target !== dst.target;
+    // Renommage qui ne change que la casse d'un même fichier (système insensible à la casse).
+    // Sur un système sensible à la casse, une destination existante est un autre fichier.
+    const caseOnly = await isCaseOnlyRename(src.target, dst.target);
 
     if (!caseOnly && (await statOrNull(dst.target))) {
         throw new Error(`${dst.rel} existe déjà.`);

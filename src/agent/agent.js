@@ -1,9 +1,10 @@
 "use strict";
 
 const { CONFIG } = require("../config");
-const { state, record, activateConversation } = require("../state");
+const { state, record, activateConversation, setConversation, resetConversation } = require("../state");
 const { ui } = require("../ui-bridge");
 const api = require("../api/api");
+const account = require("../api/account");
 const memory = require("../project/memory");
 const profile = require("../project/profile");
 const conversations = require("../project/conversations");
@@ -26,6 +27,60 @@ function git(args, cwd) {
             resolve(error ? null : String(stdout).trim());
         });
     });
+}
+
+/** Affiche la liste des sous-agents ; un backend sans ui.subagents est ignoré. */
+function showSubagents(list) {
+    try {
+        ui.subagents(list.map(item => ({ ...item })));
+    } catch {
+        // Affichage facultatif : il ne doit jamais bloquer les sous-agents.
+    }
+}
+
+/**
+ * Lance l'outil delegate avec un signal d'annulation (Ctrl+C, ou Échap dans la TUI)
+ * et affiche chaque sous-agent : consigne, tours effectués et statut.
+ */
+async function runDelegate(args) {
+    const tasks = Array.isArray(args?.tasks) ? args.tasks : [];
+    const list = tasks.map(task => ({ task: String(task ?? "").trim(), turns: 0, status: "running" }));
+    const controller = new AbortController();
+
+    let off = () => {};
+    try {
+        off = ui.onInterrupt(() => controller.abort());
+    } catch {
+        // Pas d'interruption possible avec ce backend.
+    }
+
+    showSubagents(list);
+
+    try {
+        const result = await TOOLS.delegate.run(args, {
+            signal: controller.signal,
+            onTurn: info => {
+                const item = list[info.index];
+                if (!item || !Number.isInteger(info.turn)) return;
+                item.turns = info.turn;
+                showSubagents(list);
+            }
+        });
+
+        if (Array.isArray(result?.results)) {
+            result.results.forEach((out, index) => {
+                if (!list[index]) return;
+                list[index].status = out.status;
+                list[index].turns = out.turns;
+            });
+            showSubagents(list);
+        }
+
+        return result;
+    } finally {
+        if (typeof off === "function") off();
+        showSubagents([]);
+    }
 }
 
 const fsp = require("node:fs/promises");
@@ -234,7 +289,7 @@ function parseAgentResponse(text) {
     if (action.calls !== undefined) {
         // Lecture en lot : jusqu'à MAX_BATCH_CALLS appels en lecture seule dans un seul tour.
         const MAX_BATCH_CALLS = 5;
-        const BATCH_TOOLS = new Set(["list_directory", "read_file", "search_files"]);
+        const BATCH_TOOLS = new Set(["list_directory", "read_file", "search_files", "glob"]);
 
         if (!Array.isArray(action.calls) || action.calls.length < 1 || action.calls.length > MAX_BATCH_CALLS) {
             throw new Error(`calls doit être une liste de 1 à ${MAX_BATCH_CALLS} appels.`);
@@ -381,10 +436,10 @@ async function fallbackPlainAnswer(task, observations) {
 
     const readFiles = observations.filter(o => o.tool === "read_file" && o.result);
 
-    const perFile = Math.floor(
+    const perFile = Math.max(0, Math.floor(
         (CONFIG.messageBudget - clip(task, 50_000).length - 5_000) /
         Math.max(1, readFiles.length)
-    );
+    ));
 
     const files = readFiles
         .map(o => `--- ${o.result.path} ---\n${clip(o.result.content, perFile)}`)
@@ -415,6 +470,159 @@ async function fallbackPlainAnswer(task, observations) {
     }
 }
 
+/* ---------- Pourcentage de contexte ---------- */
+
+/**
+ * Met à jour state.contextUsagePercent pour la conversation agent, sans bloquer la boucle.
+ * Renvoie la promesse (utile aux tests) ; ne lève jamais d'erreur.
+ */
+function refreshContextUsage(chatId = state.chatIds.agent) {
+    if (!chatId) return Promise.resolve(null);
+    return Promise.resolve()
+        .then(() => account.getContextUsage(chatId))
+        .then(value => {
+            // La conversation a pu changer entre-temps : on ignore une valeur périmée.
+            if (state.chatIds.agent === chatId) state.contextUsagePercent = value;
+            return value;
+        })
+        .catch(() => null);
+}
+
+/* ---------- Compaction de la session ---------- */
+
+// Taille maximale du résumé gardé pour la nouvelle conversation.
+const COMPACT_MAX_SUMMARY_CHARS = 20_000;
+
+/** Demande de résumé structuré envoyée dans la conversation agent actuelle. */
+function buildCompactPrompt(instruction = "") {
+    const extra = String(instruction || "").trim();
+    return (
+        "Résume cette session de travail pour la poursuivre dans une nouvelle conversation. " +
+        "Réponds en français, en texte simple (pas de JSON, pas d'outil), avec ces rubriques :\n" +
+        "1. Objectif\n2. Décisions prises\n3. Fichiers modifiés (chemins)\n4. Tâches restantes\n" +
+        "Sois concis et précis : chemins, noms de fonctions, commandes utiles." +
+        (extra ? `\n\nConsigne de l'utilisateur pour ce résumé : ${extra}` : "")
+    );
+}
+
+/** Premier message de la nouvelle conversation : le résumé sert de contexte de départ. */
+function buildCompactSeed(summary) {
+    return (
+        "Reprise de session : voici le résumé de la conversation précédente. " +
+        "Garde-le comme contexte pour les prochaines demandes. Réponds seulement « Compris. ».\n\n" +
+        summary
+    );
+}
+
+/** Texte du résumé : accepte une réponse JSON {"type":"final"} ou du texte brut. */
+function extractSummary(raw) {
+    const text = String(raw || "").trim();
+    try {
+        const action = parseAgentResponse(text);
+        if (action?.type === "final" && typeof action.message === "string") {
+            return clip(action.message.trim(), COMPACT_MAX_SUMMARY_CHARS);
+        }
+    } catch {
+        // Texte simple : utilisé tel quel.
+    }
+    return clip(text, COMPACT_MAX_SUMMARY_CHARS);
+}
+
+/**
+ * Résume la conversation agent puis ouvre une nouvelle conversation (chatId neuf)
+ * qui commence par ce résumé. Le journal local (/undo, /changes) n'est pas touché.
+ * En cas d'échec, la conversation précédente est conservée.
+ * Renvoie { summary, chars, previousChatId, chatId, contextUsagePercent }.
+ */
+async function compactSession({ instruction = "" } = {}) {
+    activateConversation("agent");
+    const previousChatId = state.chatIds.agent;
+    if (!previousChatId) {
+        throw new Error("Aucune conversation agent à résumer.");
+    }
+    const previousSettings = state.conversationSettings.agent;
+    const previousHistory = state.history;
+    const previousPercent = state.contextUsagePercent;
+
+    const raw = await api.requestModel(buildCompactPrompt(instruction), { conversationMode: "agent" });
+    const summary = extractSummary(raw);
+    if (!summary) {
+        throw new Error("Résumé vide : la session n'a pas été compactée.");
+    }
+
+    resetConversation("agent");
+    state.contextUsagePercent = null;
+
+    try {
+        await api.requestModel(buildCompactSeed(summary), { conversationMode: "agent" });
+    } catch (error) {
+        setConversation("agent", previousChatId, previousSettings);
+        state.history = previousHistory;
+        state.contextUsagePercent = previousPercent;
+        throw error;
+    }
+
+    state.conversationSettings.agent = previousSettings ? { ...previousSettings } : null;
+    activateConversation("agent");
+    record("assistant", `Résumé de la session précédente :\n${summary}`);
+
+    if (state.chatIds.agent) {
+        try {
+            await conversations.touch({
+                id: state.chatIds.agent,
+                firstMessage: "Session compactée (/compact)",
+                model: state.model,
+                workspace: state.workspace,
+                mode: "agent",
+                settings: state.conversationSettings.agent
+            });
+        } catch {
+            // Historique local indisponible : sans effet sur la compaction.
+        }
+    }
+
+    const contextUsagePercent = await refreshContextUsage();
+
+    return {
+        summary,
+        chars: summary.length,
+        previousChatId,
+        chatId: state.chatIds.agent,
+        contextUsagePercent
+    };
+}
+
+/**
+ * Compaction automatique, appelée entre deux demandes (jamais pendant la boucle d'outils).
+ * Se déclenche si le contexte agent atteint CONFIG.autoCompactThreshold (%),
+ * sauf si CONFIG.autoCompact est désactivé. Renvoie le résultat de compactSession,
+ * ou null si rien n'a été fait. Ne lève jamais d'erreur.
+ */
+async function maybeAutoCompact() {
+    if (!CONFIG.autoCompact) return null;
+    const threshold = Number(CONFIG.autoCompactThreshold);
+    const percent = state.contextUsagePercent;
+    if (!state.chatIds.agent || typeof percent !== "number") return null;
+    if (!(threshold > 0) || percent < threshold) return null;
+
+    ui.warn(
+        `Contexte à ${Math.round(percent)} % (seuil ${threshold} %) : compaction automatique de la session. ` +
+        "FS_AUTO_COMPACT=0 pour la désactiver."
+    );
+
+    try {
+        const result = await compactSession();
+        ui.info(
+            `Session compactée : résumé de ${result.chars} caractères` +
+            (result.contextUsagePercent == null ? "." : `, contexte à ${Math.round(result.contextUsagePercent)} %.`)
+        );
+        return result;
+    } catch (error) {
+        ui.warn(`Compaction automatique impossible : ${error.message}`);
+        return null;
+    }
+}
+
 /* ---------- Boucle agent ---------- */
 
 async function runAgent(task, options = {}) {
@@ -422,7 +630,7 @@ async function runAgent(task, options = {}) {
     if (task.length > CONFIG.messageBudget / 2) {
         throw new Error(
             `Demande trop longue : ${fmt(task.length)} caractères ` +
-            `(limite ${fmt(CONFIG.maxMessageChars)} par message).`
+            `(limite ${fmt(Math.floor(CONFIG.messageBudget / 2))} par message).`
         );
     }
 
@@ -443,6 +651,7 @@ async function runAgent(task, options = {}) {
     }
 
     let planShown = false;
+    let todoReminded = false;
     let stuck = 0;
 
     async function saveConversation() {
@@ -457,14 +666,18 @@ async function runAgent(task, options = {}) {
         };
 
         state.conversationSettings.agent = settings;
-        await conversations.touch({
-            id: state.chatIds.agent,
-            firstMessage: task,
-            model: state.model,
-            workspace: state.workspace,
-            mode: "agent",
-            settings,
-        });
+        try {
+            await conversations.touch({
+                id: state.chatIds.agent,
+                firstMessage: task,
+                model: state.model,
+                workspace: state.workspace,
+                mode: "agent",
+                settings,
+            });
+        } catch {
+            // Historique local indisponible : sans effet sur la réponse de l'agent.
+        }
     }
 
     async function finish(message) {
@@ -566,6 +779,9 @@ async function runAgent(task, options = {}) {
             spin.stop();
         }
 
+        // Réponse complète reçue : mise à jour du pourcentage de contexte, sans attendre le résultat.
+        if (lastResponse) refreshContextUsage();
+
         if (!action) {
             record("user", task);
             await fallbackPlainAnswer(task, observations);
@@ -575,6 +791,22 @@ async function runAgent(task, options = {}) {
         }
 
         if (action.type === "final") {
+            // Liste de tâches pas à jour : un rappel, puis les tâches restantes sont marquées done.
+            const unfinished = (state.todos || []).filter(todo => todo.status !== "done");
+            if (unfinished.length && !todoReminded) {
+                todoReminded = true;
+                observations.push({
+                    tool: "final",
+                    args: {},
+                    ok: false,
+                    error: `final refusé : ${unfinished.length} tâche(s) de la liste ne sont pas done (${unfinished.map(todo => todo.content).join(" ; ")}). Si elles sont finies, envoie todo_write avec la liste complète et status done, puis final. Sinon, termine-les d'abord.`
+                });
+                continue;
+            }
+            if (unfinished.length) {
+                state.todos = state.todos.map(todo => ({ ...todo, status: "done" }));
+                ui.todos(state.todos);
+            }
             await finish(action.message);
             return;
         }
@@ -646,13 +878,13 @@ async function runAgent(task, options = {}) {
         }
 
         // Mode plan (/plan) : lecture seule, toute autre action est refusée sans être exécutée.
-        if (options.readOnly && !["list_directory", "read_file", "search_files"].includes(action.name)) {
+        if (options.readOnly && !["list_directory", "read_file", "search_files", "glob"].includes(action.name)) {
             ui.result(`Mode plan : ${action.name} refusé (lecture seule)`, { tone: "error" });
             observations.push({
                 tool: action.name,
                 args: recordArgs(action.args),
                 ok: false,
-                error: "Mode plan (lecture seule) : seuls list_directory, read_file et search_files sont permis. Termine avec final et le plan détaillé."
+                error: "Mode plan (lecture seule) : seuls list_directory, read_file, search_files et glob sont permis. Termine avec final et le plan détaillé."
             });
             continue;
         }
@@ -662,14 +894,19 @@ async function runAgent(task, options = {}) {
         const recorded = recordArgs(action.args);
 
         try {
-            const result = await TOOLS[action.name].run(action.args);
+            const result = action.name === "delegate"
+                ? await runDelegate(action.args)
+                : await TOOLS[action.name].run(action.args);
 
             ui.result(summarizeResult(action.name, result));
+
+            // Liste de tâches : affichée en direct (TUI) ou réécrite en texte (CLI).
+            if (action.name === "todo_write" && Array.isArray(result?.todos)) ui.todos(result.todos);
 
             observations.push({
                 tool: action.name,
                 args: recorded,
-                ok: !result.denied,
+                ok: !result?.denied,
                 result
             });
         } catch (error) {
@@ -701,5 +938,12 @@ module.exports = {
     fitPrompt,
     compactObservations,
     loadAgentContext,
-    clearAgentContextCache
+    clearAgentContextCache,
+    refreshContextUsage,
+    compactSession,
+    maybeAutoCompact,
+    buildCompactPrompt,
+    extractSummary,
+    runDelegate,
+    detectPackageInfo
 };
