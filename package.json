@@ -20,6 +20,9 @@
     "start": "node index.js",
     "start:tui": "npm run build:tui && node bin/frst.js",
     "build:tui": "node scripts/build-tui.js",
+    "build:gui": "node scripts/build-gui.js",
+    "app": "npm run build:gui && electron electron/main.js",
+    "dist:app": "node scripts/build-gui.js --prod && electron-builder",
     "prepare": "npm run build:tui",
     "pretest": "npm run build:tui",
     "test": "node --test test/*.test.js",
@@ -38,9 +41,37 @@
     "react": "^19.3.1"
   },
   "devDependencies": {
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "ink-testing-library": "^4.0.0",
+    "react-dom": "^19.3.1",
     "tsx": "^4.23.15"
+  },
+  "build": {
+    "appId": "org.francestudent.code",
+    "productName": "FranceStudent Code",
+    "directories": {
+      "output": "release"
+    },
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "files": [
+      "package.json",
+      "electron/**/*",
+      "src/**/*",
+      "!src/gui/renderer/**/*",
+      "dist/gui/**/*",
+      "!dist/gui/**/*.map"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "allowScripts": {
     "esbuild@0.28.2": true

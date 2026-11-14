@@ -23,6 +23,7 @@ desktop.ini
 coverage/
 dist/
 build/
+release/
 backups/
 trash/
 frstud.sh

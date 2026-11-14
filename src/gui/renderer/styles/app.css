@@ -1,0 +1,497 @@
+/* Thème : toutes les couleurs sont ici, le reste du fichier n'utilise que les variables. */
+:root {
+    --bg: #0f1115;
+    --bg-elevated: #171a21;
+    --bg-input: #1d2129;
+    --border: #2a2f3a;
+    --text: #e6e8ee;
+    --muted: #8b93a7;
+    --accent: #4f7cff;
+    --accent-text: #ffffff;
+    --user: #1f2a44;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --error: #f85149;
+    --code-bg: #0b0d11;
+    --radius: 8px;
+    --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "Cascadia Code", Consolas, "SF Mono", monospace;
+    color-scheme: dark;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.55 var(--font);
+}
+
+button {
+    font: inherit;
+    border: 0;
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    background: var(--accent);
+    color: var(--accent-text);
+    cursor: pointer;
+}
+
+button.secondary {
+    background: var(--bg-input);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+kbd {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 0 5px;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    opacity: 0.8;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+/* ---- Mise en page ---- */
+
+.app {
+    display: grid;
+    grid-template-rows: auto 1fr auto auto auto;
+    height: 100%;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+    -webkit-app-region: drag;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+}
+
+.logo {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 12px;
+}
+
+.meta {
+    display: flex;
+    gap: 12px;
+    color: var(--muted);
+    -webkit-app-region: no-drag;
+}
+
+.model {
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+}
+
+/* ---- Conversation ---- */
+
+.transcript {
+    overflow-y: auto;
+    padding: 20px max(16px, calc((100% - 860px) / 2));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.welcome {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elevated);
+}
+
+.welcome h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+
+.welcome dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 2px 12px;
+    margin: 0;
+}
+
+.welcome dt {
+    color: var(--muted);
+}
+
+.welcome dd {
+    margin: 0;
+    word-break: break-all;
+}
+
+.user {
+    align-self: flex-end;
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    background: var(--user);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.assistant .text {
+    margin: 0 0 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.code,
+.print {
+    margin: 0 0 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--code-bg);
+    font: 13px/1.45 var(--mono);
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.print.command {
+    color: var(--muted);
+}
+
+.hidden-lines {
+    color: var(--muted);
+    font-style: italic;
+}
+
+.caret {
+    display: inline-block;
+    width: 7px;
+    height: 14px;
+    background: var(--text);
+    animation: blink 1s steps(1) infinite;
+}
+
+.tool {
+    display: flex;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+}
+
+.tool-name {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.tool-arg {
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.result {
+    padding-left: 14px;
+    border-left: 2px solid var(--border);
+    color: var(--muted);
+    white-space: pre-wrap;
+}
+
+.result.error {
+    color: var(--error);
+}
+
+.result.ok,
+.result.success {
+    color: var(--ok);
+}
+
+.plan {
+    margin: 0;
+    padding: 10px 10px 10px 32px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+.notice {
+    font-size: 13px;
+    white-space: pre-wrap;
+}
+
+.notice.info {
+    color: var(--muted);
+}
+
+.notice.warn {
+    color: var(--warn);
+}
+
+.notice.error {
+    color: var(--error);
+}
+
+.notice.debug {
+    opacity: 0.6;
+}
+
+/* ---- Diff ---- */
+
+.diff {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    font: 13px/1.45 var(--mono);
+}
+
+.diff-body {
+    overflow-x: auto;
+    background: var(--code-bg);
+}
+
+.diff-line {
+    display: grid;
+    grid-template-columns: 48px 16px 1fr;
+    white-space: pre;
+}
+
+.diff-line .num {
+    text-align: right;
+    padding-right: 8px;
+    color: var(--muted);
+}
+
+.diff-line.add {
+    background: rgba(63, 185, 80, 0.12);
+    color: var(--ok);
+}
+
+.diff-line.remove {
+    background: rgba(248, 81, 73, 0.12);
+    color: var(--error);
+}
+
+.diff-line.context,
+.diff-line.gap {
+    color: var(--muted);
+}
+
+.diff-stats {
+    padding: 4px 10px;
+    background: var(--bg-elevated);
+}
+
+.diff-stats .add {
+    color: var(--ok);
+}
+
+.diff-stats .remove {
+    color: var(--error);
+}
+
+/* ---- Chargement ---- */
+
+.spinner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+}
+
+.spinner .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1s ease-in-out infinite;
+}
+
+/* ---- Tâches et sous-agents ---- */
+
+.tasks {
+    display: flex;
+    gap: 24px;
+    padding: 8px max(16px, calc((100% - 860px) / 2));
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
+    max-height: 30vh;
+    overflow-y: auto;
+}
+
+.tasks h3 {
+    margin: 0 0 4px;
+    font-size: 13px;
+}
+
+.tasks ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+}
+
+.todo.done {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.todo.in_progress {
+    color: var(--accent);
+}
+
+.badge {
+    font-size: 11px;
+    padding: 0 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+}
+
+/* ---- Saisie ---- */
+
+.composer {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    padding: 12px max(16px, calc((100% - 860px) / 2));
+    border-top: 1px solid var(--border);
+}
+
+.composer textarea {
+    flex: 1;
+    resize: none;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-input);
+    color: var(--text);
+    font: inherit;
+}
+
+/* ---- Barre d'état ---- */
+
+.statusbar {
+    display: flex;
+    gap: 16px;
+    padding: 4px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.phase.ready {
+    color: var(--ok);
+}
+
+.phase.failed {
+    color: var(--error);
+}
+
+.statusbar .warn,
+.context.medium {
+    color: var(--warn);
+}
+
+.context.high {
+    color: var(--error);
+}
+
+/* ---- Dialogues ---- */
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.dialog {
+    width: min(560px, 90vw);
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elevated);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dialog .question {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.dialog .prefix {
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    background: var(--code-bg);
+    font-family: var(--mono);
+}
+
+.dialog input {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-input);
+    color: var(--text);
+    font: inherit;
+}
+
+.dialog .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+@keyframes pulse {
+    50% {
+        opacity: 0.3;
+        transform: scale(0.8);
+    }
+}
