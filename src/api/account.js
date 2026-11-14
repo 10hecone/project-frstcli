@@ -63,6 +63,51 @@ async function getContextUsage(chatId) {
     }
 }
 
+/** GET /chats/{chatId}/context -> ChatContextUsageDto (fenêtre, tokens utilisés, catégories). */
+const fetchChatContext = chatId => getJson(`/chats/${encodeURIComponent(chatId)}/context`);
+
+const toNumber = value => {
+    if (value === null || value === undefined || value === "") return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+};
+
+/** ChatContextUsageDto -> détails normalisés, ou null si le pourcentage est inexploitable. */
+function normalizeContext(dto) {
+    if (!dto || typeof dto !== "object") return null;
+    const used = toNumber(dto.usedTokens);
+    const windowSize = toNumber(dto.contextWindow);
+    let percent = toNumber(dto.usagePercent);
+    if (percent === null && used !== null && windowSize > 0) percent = (used / windowSize) * 100;
+    if (percent === null) return null;
+    const categories = Array.isArray(dto.categories)
+        ? dto.categories
+            .map(c => ({ key: String(c?.key ?? ""), tokens: toNumber(c?.tokens) ?? 0 }))
+            .filter(c => c.key)
+        : [];
+    return {
+        percent: Math.min(100, Math.max(0, percent)),
+        usedTokens: used,
+        contextWindow: windowSize,
+        freeTokens: toNumber(dto.freeTokens),
+        compactThreshold: toNumber(dto.compactThreshold),
+        measured: dto.measured !== false,
+        model: dto.model ?? null,
+        modelName: dto.modelName ?? null,
+        categories
+    };
+}
+
+/** Détails du contexte de la conversation, ou null en cas d'erreur ou de réponse inexploitable. */
+async function getContextDetails(chatId) {
+    if (!chatId) return null;
+    try {
+        return normalizeContext(await fetchChatContext(chatId));
+    } catch {
+        return null;
+    }
+}
+
 /** Volume de la session locale (compteurs de api.usage). */
 function describeSession(usage) {
     if (!usage || !usage.requests) return ["Session : aucune requête envoyée."];
@@ -101,4 +146,15 @@ function describeUserUsage(dto) {
     return lines;
 }
 
-module.exports = { getJson, fetchChatUsage, fetchUserUsage, getContextUsage, describeSession, describeChatUsage, describeUserUsage };
+module.exports = {
+    getJson,
+    fetchChatUsage,
+    fetchUserUsage,
+    fetchChatContext,
+    normalizeContext,
+    getContextUsage,
+    getContextDetails,
+    describeSession,
+    describeChatUsage,
+    describeUserUsage
+};

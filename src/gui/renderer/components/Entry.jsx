@@ -25,7 +25,14 @@ export function Entry({ entry }) {
             );
 
         case "user":
-            return <div className="user">{entry.text}</div>;
+            return (
+                <div className="user">
+                    {entry.text}
+                    {entry.files > 0 ? (
+                        <span className="user-files">📎 {entry.files} fichier{entry.files > 1 ? "s" : ""}</span>
+                    ) : null}
+                </div>
+            );
 
         case "assistant":
             return <AssistantText lines={String(entry.text ?? "").split("\n")} />;

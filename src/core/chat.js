@@ -285,7 +285,7 @@ function reportUsage(before) {
  * Boucle des outils client : tant que la réponse contient des appels
  * (completed.message.toolCalls), ils sont exécutés en local, puis tous les résultats
  * partent en un seul envoi (POST /chats/{chatId}). Chaque envoi compte comme une requête.
- * Toutes les CONFIG.maxAgentTurns rondes, l'utilisateur confirme la suite.
+ * Sans limite par défaut ; si CONFIG.maxAgentTurns > 0, l'utilisateur confirme la suite toutes les N rondes.
  *
  * options.onDelta     : texte du modèle pendant le streaming (toutes les rondes).
  * options.onToolCalls : appelé avant chaque ronde d'outils (ex. vider l'affichage en cours).
@@ -313,7 +313,8 @@ async function send(input, { onDelta, onToolCalls, readOnly = false } = {}) {
         if (usesSummary) state.compactSummary = null;
         texts.push(turn.text);
 
-        const step = Math.max(1, CONFIG.maxAgentTurns);
+        // 0 (par défaut) : aucune limite. Sinon, confirmation toutes les N rondes.
+        const step = CONFIG.maxAgentTurns > 0 ? CONFIG.maxAgentTurns : Infinity;
         let maxRounds = step;
         for (let round = 1; turn.toolCalls?.length; round++) {
             if (round > maxRounds) {

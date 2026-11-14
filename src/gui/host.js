@@ -23,11 +23,22 @@ function createGuiHost({
     bridge = null,
     createBackend = null,
     jobs = null,
-    memory = null
+    memory = null,
+    stateModule = null,
+    statusExtra = null,
+    refreshContext = undefined
 } = {}) {
     const core = session || require("../core/session");
     const port = bridge || require("../ui-bridge");
     const makeBackend = createBackend || require("../tui/adapter").createTuiBackend;
+    const { state } = stateModule || require("../state");
+
+    // Contexte via GET /chats/{id}/context (pas en test, sauf injection explicite).
+    const loadContext = refreshContext !== undefined
+        ? refreshContext
+        : session
+            ? null
+            : () => require("../core/compact").refreshContextUsage();
 
     const store = createRemoteStore(send);
     const backend = makeBackend(store);
@@ -36,9 +47,43 @@ function createGuiHost({
     let starting = null;
     let running = false;
     let disposed = false;
+    // Champs de la barre d'état calculés hors de l'adaptateur (ex. branche git).
+    let extra = {};
 
     function refresh() {
-        if (typeof backend.refreshStatus === "function") backend.refreshStatus();
+        if (typeof backend.refreshStatus !== "function") return;
+        backend.refreshStatus({
+            ...extra,
+            modelId: state.model,
+            chatId: (state.chatIds && state.chatIds.chat) || null,
+            project: state.frProject ? state.frProject.name || null : null
+        });
+    }
+
+    /** Recalcule les champs asynchrones (statusExtra, contexte) puis rafraîchit la barre d'état. */
+    async function syncStatus() {
+        if (typeof statusExtra === "function") {
+            try {
+                extra = { ...extra, ...((await statusExtra()) || {}) };
+            } catch {
+                // Information facultative : la barre d'état reste valable sans elle.
+            }
+        }
+        if (typeof loadContext === "function") {
+            try {
+                await loadContext();
+            } catch {
+                // Pourcentage facultatif : la barre d'état garde la dernière valeur.
+            }
+        }
+        if (!disposed) refresh();
+    }
+
+    /** Ids Files v2 valides (chaînes non vides, sans doublon, 20 au plus). */
+    function cleanFiles(files) {
+        if (!Array.isArray(files)) return [];
+        const ids = files.map((id) => String(id ?? "").trim()).filter(Boolean);
+        return [...new Set(ids)].slice(0, 20);
     }
 
     /** Démarrage unique : accueil, authentification, restauration de la conversation. */
@@ -58,6 +103,7 @@ function createGuiHost({
                 return { ok: false, reason };
             }
             refresh();
+            syncStatus();
             // Liste réelle des agents en arrière-plan, comme la TUI (pas en test).
             if (!session) {
                 Promise.resolve()
@@ -72,9 +118,13 @@ function createGuiHost({
         return starting;
     }
 
-    /** Envoie une saisie (message ou commande /...) et diffuse la réponse. */
-    async function submit(raw) {
+    /**
+     * Envoie une saisie (message ou commande /...) et diffuse la réponse.
+     * files : ids Files v2 joints au message (ignorés pour une commande /...).
+     */
+    async function submit(raw, files = []) {
         const text = String(raw ?? "");
+        const attachments = text.trim().startsWith("/") ? [] : cleanFiles(files);
         if (!text.trim()) return { ok: false, reason: "Saisie vide." };
         if (disposed) return { ok: false, reason: "Session fermée." };
         if (running) return { ok: false, reason: "Une demande est déjà en cours." };
@@ -83,7 +133,11 @@ function createGuiHost({
         if (!boot.ok) return boot;
 
         running = true;
-        store.dispatch({ type: "append", entry: { type: "user", text } });
+        state.pendingFiles = attachments;
+        store.dispatch({
+            type: "append",
+            entry: attachments.length ? { type: "user", text, files: attachments.length } : { type: "user", text }
+        });
         store.dispatch({ type: "status", status: { busy: true } });
 
         let stream = null;
@@ -101,9 +155,12 @@ function createGuiHost({
             if (stream) stream.end();
             store.dispatch({ type: "commandEnd" });
             store.dispatch({ type: "status", status: { busy: false } });
+            // Jamais renvoyées avec un message suivant, même après une erreur.
+            state.pendingFiles = [];
             refresh();
             running = false;
         }
+        syncStatus();
 
         const exit = Boolean(result && result.exit);
         if (exit && typeof onExit === "function") onExit();
@@ -154,6 +211,8 @@ function createGuiHost({
         interrupt,
         snapshot,
         dispose,
+        refresh,
+        syncStatus,
         isRunning: () => running,
         backend,
         store

@@ -25,8 +25,8 @@ const CONFIG = {
     firstByteTimeoutMs: envInt("FS_FIRST_BYTE_TIMEOUT_MS", 60_000),
     idleTimeoutMs: envInt("FS_IDLE_TIMEOUT_MS", 90_000),
 
-    // Boucle d'outils client : confirmation demandée toutes les N rondes.
-    maxAgentTurns: envInt("FS_MAX_AGENT_TURNS", 15),
+    // Boucle d'outils client : 0 = sans limite, sinon confirmation toutes les N rondes.
+    maxAgentTurns: envInt("FS_MAX_AGENT_TURNS", 0),
 
     // Fichiers
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque

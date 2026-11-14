@@ -2,6 +2,7 @@
 
 const { state, resetConversation, setConversation } = require("../state");
 const { c } = require("./ui");
+const { COMMANDS } = require("./command-list");
 const { ui } = require("../ui-bridge");
 const memory = require("../project/memory");
 const projectContext = require("../project/project-context");
@@ -17,43 +18,7 @@ const {
 } = require("../tools/tools");
 
 function showHelp() {
-  const rows = [
-    ["/help", "Afficher cette aide"],
-    ["/project <dossier>", "Choisir un projet local"],
-    ["/unproject", "Quitter le mode projet"],
-    ["/fr-project <nom>|off", "Rattacher les conversations à un projet FranceStudent"],
-    ["/pwd", "Afficher le projet sélectionné"],
-    ["/tree [dossier]", "Lister un dossier (2 niveaux)"],
-    ["/read <fichier>", "Lire localement un fichier"],
-    ["/index [force]", "Résumer le projet avec l'IA (RESUME.md, pour /resume)"],
-    ["/init", "Créer FRSTCLI.md (instructions du projet)"],
-    ["/plan <demande>", "Plan en lecture seule, sans modification"],
-    ["/resume", "Afficher le résumé du projet (RESUME.md)"],
-    ["/undo", "Annuler la dernière modification"],
-    ["/changes", "Historique des modifications annulables"],
-    ["/memory", "Notes et dernières actions du projet"],
-    ["/remember <texte>", "Ajouter une note durable au projet"],
-    ["/forget <n|all>", "Supprimer une note (ou toutes)"],
-    ["/permissions [remove <n|préfixe>|clear]", "Règles des commandes autorisées (projet)"],
-    ["/jobs [stop <id>|stop-all]", "Commandes en arrière-plan (liste / arrêt)"],
-    ["/auto on|off", "Autoriser sans confirmation (session)"],
-    ["/mode auto|chat", "Outils : auto = avec /project, chat = aucun"],
-    ["/new", "Nouvelle conversation"],
-    ["/compact [consigne]", "Résumer la session et repartir d'une nouvelle conversation"],
-    ["/context", "Contexte utilisé, conversation et tours"],
-    ["/chat-id [n|id]", "Voir le chat ID / reprendre une conversation"],
-    ["/history [all]", "Dernières conversations (id + titre)"],
-    ["/messages", "Messages de la conversation (session)"],
-    ["/usage", "Consommation : session, conversation, limites du compte"],
-    ["/model [nom]", "Lister les agents de l'API / changer d'agent"],
-    ["/web on|off", "Recherche web (chat normal)"],
-    ["/auth [refresh]", "État de la connexion / renouvellement"],
-    ["/login", "Se connecter avec e-mail et mot de passe"],
-    ["/profil [user|projet] [learn <fait>|forget <n>]", "Profil appris (utilisateur ou projet)"],
-    ["/preprompt [user|projet] <texte>|clear", "Consigne ajoutée à chaque demande"],
-    ["/clear", "Effacer le terminal"],
-    ["/exit", "Quitter (alias : /quit)"],
-  ];
+  const rows = COMMANDS;
 
   ui.print(`\n${c.bold("Commandes")}`);
 
@@ -140,7 +105,7 @@ async function handleCommand(input) {
         const { project, created } = await frProjects.findOrCreateProject(name);
         await frProjects.saveSelected(project);
         resetConversation();
-        state.contextUsagePercent = null;
+        state.contextUsagePercent = state.contextDetails = null;
         ui.info(
           `${created ? "Projet FranceStudent créé" : "Projet FranceStudent existant"} : ${project.name} (${project.id}). ` +
             "Les prochaines conversations y seront rattachées.",
@@ -438,7 +403,7 @@ async function handleCommand(input) {
 
     case "/new":
       resetConversation("chat");
-      state.contextUsagePercent = null;
+      state.contextUsagePercent = state.contextDetails = null;
       ui.info("Nouvelle conversation.");
       break;
 
@@ -517,7 +482,7 @@ async function handleCommand(input) {
         id,
         target?.settings || (Number.isInteger(target?.model) ? { model: target.model } : null),
       );
-      state.contextUsagePercent = null;
+      state.contextUsagePercent = state.contextDetails = null;
 
       ui.info(
         target
@@ -571,7 +536,7 @@ async function handleCommand(input) {
 
       state.model = agent.id;
       resetConversation("chat");
-      state.contextUsagePercent = null;
+      state.contextUsagePercent = state.contextDetails = null;
       ui.info(`Agent sélectionné : ${agent.name}`);
       break;
     }

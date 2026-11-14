@@ -21,12 +21,15 @@ function guiBuilt() {
 
 function createMainWindow() {
     const win = new BrowserWindow({
-        width: 1100,
-        height: 760,
+        width: 1240,
+        height: 800,
         minWidth: 720,
         minHeight: 480,
         title: "FranceStudent Code",
-        backgroundColor: "#0f1115",
+        // Windows 11 : matériau acrylique sous la page (thème verre) ; ailleurs, fond plein.
+        ...(process.platform === "win32"
+            ? { backgroundMaterial: "acrylic", backgroundColor: "#00000000" }
+            : { backgroundColor: "#0f1115" }),
         autoHideMenuBar: true,
         show: false,
         webPreferences: {

@@ -31,6 +31,90 @@ export function groupEntries(transcript = [], live = null) {
     return items;
 }
 
+/** Caractères streamés par l'assistant depuis le dernier message de l'utilisateur. */
+export function streamedChars(transcript = [], live = null) {
+    let total = live && typeof live.text === "string" ? live.text.length : 0;
+    for (let i = transcript.length - 1; i >= 0; i--) {
+        const entry = transcript[i];
+        if (!entry) continue;
+        if (entry.type === "user") break;
+        if (entry.type === "assistant" && entry.streamed) total += String(entry.text ?? "").length + 1;
+    }
+    return total;
+}
+
+/** Entrée qui suit un appel d'outil : son résultat, son diff ou la sortie de commande. */
+function followsTool(entry) {
+    return entry.type === "result" || entry.type === "diff" || (entry.type === "print" && entry.command);
+}
+
+/**
+ * Regroupe les appels d'outils consécutifs en { type: "activity", id, steps }.
+ * Une étape = un « tool » suivi de ses résultats ; l'interface n'affiche que la
+ * dernière, les précédentes restent dépliables. Un texte de l'assistant, un
+ * message ou un avertissement termine le groupe.
+ */
+export function groupActivity(items = []) {
+    const out = [];
+    for (const entry of items) {
+        const last = out[out.length - 1];
+        const group = last && last.type === "activity" ? last : null;
+        if (entry && entry.type === "tool") {
+            const step = { id: entry.id, entries: [entry] };
+            if (group) group.steps.push(step);
+            else out.push({ type: "activity", id: `activity-${entry.id}`, steps: [step] });
+            continue;
+        }
+        if (entry && group && followsTool(entry)) {
+            group.steps[group.steps.length - 1].entries.push(entry);
+            continue;
+        }
+        out.push(entry);
+    }
+    return out;
+}
+
+/** Nombre d'étapes en erreur (résultat au ton « error »). */
+export function failedSteps(steps = []) {
+    return steps.filter((step) => step.entries.some((entry) => entry.type === "result" && entry.tone === "error")).length;
+}
+
+const TOOL_KINDS = {
+    list_directory: { kind: "list", label: "Liste" },
+    read_file: { kind: "read", label: "Lecture" },
+    search_files: { kind: "search", label: "Recherche" },
+    edit_file: { kind: "edit", label: "Modification" },
+    write_file: { kind: "write", label: "Écriture" },
+    run_command: { kind: "command", label: "Commande" }
+};
+
+/** Famille d'un outil (icône) et libellé lisible ; outil inconnu : { kind: "other", label: nom }. */
+export function toolKind(name) {
+    const known = TOOL_KINDS[String(name || "")];
+    return known || { kind: "other", label: String(name || "Outil") };
+}
+
+/** État d'une étape : error (résultat en erreur), done (résultat ou sortie), running sinon. */
+export function stepStatus(step) {
+    const rest = ((step && step.entries) || []).slice(1);
+    if (rest.some((entry) => entry.type === "result" && entry.tone === "error")) return "error";
+    return rest.length ? "done" : "running";
+}
+
+/**
+ * Diff en attente de confirmation : edit_file et write_file affichent le diff
+ * puis demandent l'accord. On renvoie le dernier diff après le dernier outil.
+ */
+export function pendingDiff(transcript = []) {
+    for (let i = transcript.length - 1; i >= 0; i--) {
+        const entry = transcript[i];
+        if (!entry) continue;
+        if (entry.type === "diff") return entry;
+        if (entry.type === "tool" || entry.type === "user") return null;
+    }
+    return null;
+}
+
 const FENCE_RE = /^\s*(```|~~~)\s*([\w+-]*)/;
 
 /**

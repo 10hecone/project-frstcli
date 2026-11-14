@@ -1,0 +1,209 @@
+/*
+ * Éléments de chat ajoutés pour les étapes 1 et 2 de la feuille de route :
+ * actions détaillées (Activity.jsx), file d'attente (Composer.jsx), indicateur
+ * (Spinner.jsx), diff de confirmation (PromptDialog.jsx), détail du contexte
+ * (UsageMeter.jsx).
+ */
+
+/* ---------- Actions : une puce par action, résultat en retrait ---------- */
+
+.step-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 13px;
+}
+
+.step-bullet {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ok);
+}
+
+.activity-step.is-running .step-bullet {
+    background: var(--muted);
+    animation: step-pulse 1.2s ease-in-out infinite;
+}
+
+.activity-step.is-error .step-bullet {
+    background: var(--error);
+}
+
+@keyframes step-pulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+
+.tool-icon {
+    flex: none;
+    color: var(--text-secondary);
+}
+
+.step-label {
+    flex: none;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.step-arg {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Résultat sous l'action, avec le coude « ⎿ » de Claude Code. */
+.step-output {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    margin-left: 4px;
+    padding-left: 20px;
+}
+
+.step-output::before {
+    content: "⎿";
+    position: absolute;
+    left: 4px;
+    top: 0;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+/* ---------- Indicateur ---------- */
+
+.spinner kbd,
+.queue kbd {
+    padding: 0 4px;
+    border: 1px solid var(--edge-strong);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+}
+
+/* ---------- File d'attente des messages ---------- */
+
+.queue {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0 0 6px;
+    padding: 0;
+    list-style: none;
+}
+
+.queued {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 4px 6px 4px 10px;
+    border: 1px dashed var(--edge-strong);
+    border-radius: var(--radius);
+    background: var(--glass-hover);
+    font-size: 12px;
+}
+
+.queued-rank {
+    flex: none;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.queued-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+}
+
+.queued-files {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: var(--muted);
+}
+
+/* ---------- Diff dans la fenêtre de confirmation ---------- */
+
+.dialog-diff {
+    max-height: min(50vh, 420px);
+    margin: 8px 0;
+    overflow: auto;
+    border: 1px solid var(--edge);
+    border-radius: var(--radius);
+    background: var(--code-bg);
+}
+
+/* ---------- Détail du contexte (popover d'usage) ---------- */
+
+.context-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.context-tokens,
+.context-threshold {
+    margin: 0;
+}
+
+.context-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.context-categories li {
+    display: grid;
+    grid-template-columns: 110px 1fr auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.context-category {
+    color: var(--text-secondary);
+}
+
+.context-bar {
+    height: 4px;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background: var(--edge);
+}
+
+.context-bar > span {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+    border-radius: inherit;
+    background: var(--accent);
+}
+
+.context-count {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .activity-step.is-running .step-bullet {
+        animation: none;
+    }
+}

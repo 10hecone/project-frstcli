@@ -16,16 +16,31 @@ const account = require("../api/account");
 /* ---------- Pourcentage de contexte ---------- */
 
 /**
+ * Détails via GET /chats/{id}/context d'abord, repli sur le pourcentage de /usage.
+ * Passe par l'objet account pour rester remplaçable dans les tests.
+ */
+async function loadContext(chatId) {
+    const details = typeof account.getContextDetails === "function"
+        ? await Promise.resolve(account.getContextDetails(chatId)).catch(() => null)
+        : null;
+    if (details) return { value: details.percent, details };
+    return { value: await account.getContextUsage(chatId), details: null };
+}
+
+/**
  * Met à jour state.contextUsagePercent pour la conversation chat, sans bloquer l'appelant.
  * Renvoie la promesse (utile aux tests) ; ne lève jamais d'erreur.
  */
 function refreshContextUsage(chatId = state.chatIds.chat) {
     if (!chatId) return Promise.resolve(null);
     return Promise.resolve()
-        .then(() => account.getContextUsage(chatId))
-        .then(value => {
+        .then(() => loadContext(chatId))
+        .then(({ value, details }) => {
             // La conversation a pu changer entre-temps : on ignore une valeur périmée.
-            if (state.chatIds.chat === chatId) state.contextUsagePercent = value;
+            if (state.chatIds.chat === chatId) {
+                state.contextUsagePercent = value;
+                state.contextDetails = details;
+            }
             return value;
         })
         .catch(() => null);
@@ -108,6 +123,7 @@ async function compactSession({ instruction = "" } = {}) {
     state.conversationSettings.chat = previousSettings ? { ...previousSettings } : null;
     activateConversation("chat");
     state.contextUsagePercent = null;
+    state.contextDetails = null;
     state.compactSummary = summary;
     record("assistant", `Résumé de la session précédente :\n${summary}`);
 

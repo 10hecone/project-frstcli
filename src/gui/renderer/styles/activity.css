@@ -1,0 +1,95 @@
+/* Suite d'appels d'outils : seule la dernière étape est affichée (voir Activity.jsx). */
+
+.activity {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.activity-toggle {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px 2px 4px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 160ms var(--ease-out), color 160ms var(--ease-out);
+}
+
+.activity-toggle:hover {
+    background: var(--glass-hover);
+    color: var(--text);
+}
+
+.activity-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.activity-chevron {
+    display: inline-block;
+    transition: transform 200ms var(--ease-out);
+}
+
+.activity-toggle[aria-expanded="true"] .activity-chevron {
+    transform: rotate(90deg);
+}
+
+.activity-failed {
+    color: var(--error);
+}
+
+.activity-history {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 10px;
+    box-shadow: inset 1px 0 0 var(--edge-strong);
+    opacity: 0.75;
+}
+
+.activity-step {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+/* Chaque nouvelle étape remplace la précédente (clé React différente) : fondu court. */
+.activity-step.is-current {
+    animation: activity-in 220ms var(--ease-out);
+}
+
+@keyframes activity-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .activity-step.is-current {
+        animation: activity-fade 160ms linear;
+    }
+
+    .activity-chevron,
+    .activity-toggle {
+        transition: none;
+    }
+}
+
+@keyframes activity-fade {
+    from {
+        opacity: 0;
+    }
+}

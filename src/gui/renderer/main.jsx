@@ -1,11 +1,14 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.jsx";
-import { getClient } from "./api/client.js";
+import { getClient, withWorkspace } from "./api/client.js";
 import "./styles/app.css";
+import "./styles/activity.css";
+import "./styles/chat.css";
 
 // Le client est choisi une seule fois : Electron (window.frst) ou mode hors ligne.
-const client = getClient();
+// withWorkspace complète les méthodes d'espace de travail absentes (repli hors ligne).
+const client = withWorkspace(getClient());
 
 createRoot(document.getElementById("root")).render(
     <StrictMode>

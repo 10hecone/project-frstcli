@@ -276,6 +276,7 @@ function createTuiBackend(store, {
                     jobs,
                     usage,
                     context: typeof state.contextUsagePercent === "number" ? state.contextUsagePercent : null,
+                    contextDetails: state.contextDetails || null,
                     ...extra
                 }
             });

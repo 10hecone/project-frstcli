@@ -1,18 +1,19 @@
-import { baseName } from "../lib/entries.js";
+/** Nom lisible du projet rattaché, quelle que soit sa forme (chaîne ou objet). */
+export function projectName(project) {
+    if (!project) return null;
+    if (typeof project === "string") return project;
+    return project.name || project.title || null;
+}
 
-export function Header({ status = {} }) {
+/** En-tête de la zone principale : titre du chat courant et projet rattaché. */
+export function Header({ title = "Nouveau thread", project = null }) {
+    const name = projectName(project);
     return (
         <header className="header">
-            <div className="brand">
-                <span className="logo" aria-hidden="true">
-                    FS
-                </span>
-                <span>FranceStudent Code</span>
-            </div>
-            <div className="meta">
-                {status.workspace ? <span title={status.workspace}>📁 {baseName(status.workspace)}</span> : null}
-                {status.model ? <span className="model">{status.model}</span> : null}
-            </div>
+            <h1 className="thread-title" title={title}>
+                {title}
+            </h1>
+            {name ? <span className="chip project-chip">{name}</span> : null}
         </header>
     );
 }

@@ -150,7 +150,7 @@ Exemple de session :
 
 - Au premier message d'une conversation avec un projet ouvert, le CLI joint un contexte court (3 000 caractères au maximum) : nom du projet, système, branche Git, gestionnaire de paquets, commande de test et premier niveau de l'arborescence. Le contenu des fichiers n'est jamais joint : le modèle le lit avec les outils. `FRSTCLI.md` (instructions du projet, voir `/init`) et le pré-prompt sont joints aussi. Les messages suivants partent seuls.
 - `RESUME.md` n'est plus généré à l'ouverture du projet ni envoyé au modèle. `/index` le génère à la demande (seuls les fichiers modifiés depuis le dernier résumé sont renvoyés à l'IA, `/index force` refait tout) et `/resume` l'affiche.
-- Toutes les 15 rondes d'outils (`FS_MAX_AGENT_TURNS`), le CLI demande s'il faut continuer.
+- Pas de limite de rondes d'outils par défaut. Avec `FS_MAX_AGENT_TURNS=N` (N > 0), le CLI demande toutes les N rondes s'il faut continuer.
 
 ### Contexte et compaction
 
@@ -181,7 +181,7 @@ Toutes sont facultatives. Un fichier `.env` à la racine est lu au démarrage.
 | `FS_EMAIL`, `FS_PASSWORD` | Connexion sans saisie | — |
 | `FS_SESSION_TOKEN` | Cookie de session fourni à la main | — |
 | `FS_AGENT_ID` | Agent utilisé au démarrage | `-1002` |
-| `FS_MAX_AGENT_TURNS` | Rondes d'outils avant de demander s'il faut continuer | `15` |
+| `FS_MAX_AGENT_TURNS` | Rondes d'outils avant de demander s'il faut continuer (`0` = sans limite) | `0` |
 | `FS_FIRST_BYTE_TIMEOUT_MS` | Délai max avant le premier octet de réponse | `60000` |
 | `FS_IDLE_TIMEOUT_MS` | Délai max sans données pendant le flux | `90000` |
 | `FS_DATA_DIR` | Dossier des données du CLI (session, historique, mémoire, sauvegardes) | `~/.francestudent-cli` |

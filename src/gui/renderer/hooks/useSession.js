@@ -78,7 +78,7 @@ export function useSession(client) {
         };
     }, [client]);
 
-    const submit = useCallback((text) => client.submit(text), [client]);
+    const submit = useCallback((text, files = []) => client.submit(text, files), [client]);
     const answer = useCallback((id, value) => client.answer(id, value), [client]);
     const interrupt = useCallback(() => client.interrupt(), [client]);
 

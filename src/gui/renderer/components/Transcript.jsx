@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Entry } from "./Entry.jsx";
 import { Spinner } from "./Spinner.jsx";
-import { groupEntries } from "../lib/entries.js";
+import { Activity } from "./Activity.jsx";
+import { groupActivity, groupEntries, streamedChars } from "../lib/entries.js";
 
 // Distance (px) en dessous de laquelle on considère l'utilisateur « en bas ».
 const STICK_THRESHOLD = 80;
@@ -10,9 +11,11 @@ const STICK_THRESHOLD = 80;
  * Conversation : entrées terminées, texte en cours de streaming, sortie de
  * commande en direct et indicateur de chargement. Suit le bas automatiquement,
  * sauf si l'utilisateur est remonté dans l'historique.
+ * expandAll (Ctrl+O) déplie toutes les actions.
  */
-export function Transcript({ transcript, live, command, spinner }) {
-    const items = useMemo(() => groupEntries(transcript, live), [transcript, live]);
+export function Transcript({ transcript, live, command, spinner, expandAll = false }) {
+    const items = useMemo(() => groupActivity(groupEntries(transcript, live)), [transcript, live]);
+    const chars = useMemo(() => (spinner ? streamedChars(transcript, live) : 0), [spinner, transcript, live]);
     const ref = useRef(null);
     const stickRef = useRef(true);
 
@@ -30,7 +33,11 @@ export function Transcript({ transcript, live, command, spinner }) {
     return (
         <main className="transcript" ref={ref} onScroll={onScroll}>
             {items.map((entry) => (
-                <Entry key={entry.id} entry={entry} />
+                entry.type === "activity" ? (
+                    <Activity key={entry.id} group={entry} expandAll={expandAll} />
+                ) : (
+                    <Entry key={entry.id} entry={entry} />
+                )
             ))}
             {command ? (
                 <pre className="print command is-live">
@@ -42,7 +49,7 @@ export function Transcript({ transcript, live, command, spinner }) {
                     {command.lines.join("\n")}
                 </pre>
             ) : null}
-            <Spinner spinner={spinner} />
+            <Spinner spinner={spinner} streamedChars={chars} />
         </main>
     );
 }

@@ -219,7 +219,10 @@ function checkLength(message) {
 async function requestTurn(message, options = {}) {
     checkLength(message);
     try {
-        return await withRetry(() => streamOnce({ kind: "message", message }, options));
+        const turn = await withRetry(() => streamOnce({ kind: "message", message }, options));
+        // Pièces jointes envoyées : elles ne sont pas renvoyées avec le message suivant.
+        if (!options.fresh) state.pendingFiles = [];
+        return turn;
     } catch (error) {
         throw options.clientTools?.length ? explainClientToolsError(error) : error;
     }
@@ -334,6 +337,11 @@ async function streamOnce(request, options) {
         ? { clientTools: options.clientTools }
         : {};
 
+    // Pièces jointes Files v2 (interface graphique) : seulement sur la conversation suivie.
+    const attachedFiles = storeChatId && Array.isArray(state.pendingFiles) && state.pendingFiles.length
+        ? { files: [...state.pendingFiles] }
+        : {};
+
     let url;
     let body;
     if (isResults) {
@@ -352,6 +360,7 @@ async function streamOnce(request, options) {
             enableWebSearch: options.fresh ? false : state.webSearch,
             images: [],
             initialContent: request.message,
+            ...attachedFiles,
             isIncognito: state.incognito,
             isPrivate: state.private,
             ...clientTools,

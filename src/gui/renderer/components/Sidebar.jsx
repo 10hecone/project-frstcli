@@ -1,0 +1,342 @@
+import { useEffect, useRef, useState } from "react";
+import { relativeTime } from "../lib/format.js";
+
+const TABS = [
+    { id: "chats", label: "Chats" },
+    { id: "projects", label: "Projets" }
+];
+
+const VIEW_TITLES = { threads: "Conversations", skills: "Skills" };
+
+const errorText = (err) => (err && err.message ? err.message : String(err));
+
+/**
+ * Barre latérale pilotée par la barre d'activité : vue Conversations
+ * (Chats / Projets) ou vue Skills. Repliée, elle reste montée mais inerte.
+ */
+export function Sidebar({ id, view = "threads", open = true, workspace, status = {}, busy = false }) {
+    const [tab, setTab] = useState("chats");
+    const [toast, setToast] = useState(null);
+    const { loadProjects, loadSkills } = workspace;
+
+    useEffect(() => {
+        if (!open) return;
+        if (view === "skills") loadSkills();
+        else if (tab === "projects") loadProjects();
+    }, [open, view, tab, loadProjects, loadSkills]);
+
+    useEffect(() => {
+        if (!toast) return undefined;
+        const timer = setTimeout(() => setToast(null), 4000);
+        return () => clearTimeout(timer);
+    }, [toast]);
+
+    /** Lance une action et affiche la raison d’un échec. */
+    const act = async (fn) => {
+        const result = await fn();
+        if (result && result.ok === false) setToast(result.reason || "Action impossible.");
+        return result;
+    };
+
+    const busyReason = busy ? "Indisponible pendant une réponse" : undefined;
+    const title = VIEW_TITLES[view] || VIEW_TITLES.threads;
+
+    return (
+        <aside id={id} className="sidebar" aria-label={title} aria-hidden={!open} inert={!open}>
+            <div className="sidebar-inner">
+                <div className="sidebar-top">
+                    <h2 className="sidebar-title">{title}</h2>
+                    {view === "skills" ? (
+                        <p className="panel-hint">
+                            Tape <kbd>$</kbd> dans la barre de chat pour mentionner un skill.
+                        </p>
+                    ) : (
+                        <>
+                            <button
+                                type="button"
+                                className="new-thread"
+                                disabled={busy}
+                                title={busyReason || "Nouveau thread (Ctrl+N)"}
+                                onClick={() => act(workspace.newThread)}
+                            >
+                                <span aria-hidden="true">＋</span> Nouveau thread
+                            </button>
+                            <div className="segmented" role="tablist" aria-label="Sections">
+                                {TABS.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={tab === item.id}
+                                        className={tab === item.id ? "selected" : ""}
+                                        onClick={() => setTab(item.id)}
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <ScrollArea className="sidebar-body" resetKey={view + ":" + tab}>
+                    {view === "skills" ? (
+                        <SkillsPanel
+                            skills={workspace.skills}
+                            onToggle={(skill, enabled) => act(() => workspace.toggleSkill(skill.id, enabled, skill.shared))}
+                        />
+                    ) : tab === "projects" ? (
+                        <ProjectsPanel
+                            projects={workspace.projects}
+                            activeId={status.chatId}
+                            disabled={busy}
+                            fetchChats={workspace.fetchChats}
+                            onOpen={(chatId) => act(() => workspace.openChat(chatId))}
+                            onSelect={(projectId) => act(() => workspace.selectProject(projectId))}
+                        />
+                    ) : (
+                        <ChatsPanel
+                            chats={workspace.chats}
+                            activeId={status.chatId}
+                            disabled={busy}
+                            onLoad={workspace.loadChats}
+                            onOpen={(chatId) => act(() => workspace.openChat(chatId))}
+                        />
+                    )}
+                </ScrollArea>
+
+                <div className={"toast" + (toast ? " visible" : "")} role="status" aria-live="polite">
+                    {toast}
+                </div>
+            </div>
+        </aside>
+    );
+}
+
+/**
+ * Zone défilante avec effets de bord : un fondu apparaît en haut ou en bas
+ * seulement quand il reste du contenu caché, au lieu d’un séparateur fixe.
+ */
+function ScrollArea({ className, resetKey, children }) {
+    const ref = useRef(null);
+    const [edges, setEdges] = useState({ top: false, bottom: false });
+
+    const measure = () => {
+        const el = ref.current;
+        if (!el) return;
+        const top = el.scrollTop > 2;
+        const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 2;
+        setEdges((prev) => (prev.top === top && prev.bottom === bottom ? prev : { top, bottom }));
+    };
+
+    useEffect(() => {
+        if (ref.current) ref.current.scrollTop = 0;
+        measure();
+    }, [resetKey]);
+
+    useEffect(() => {
+        const el = ref.current;
+        if (!el || typeof ResizeObserver === "undefined") return undefined;
+        const observer = new ResizeObserver(measure);
+        observer.observe(el);
+        for (const child of el.children) observer.observe(child);
+        return () => observer.disconnect();
+    });
+
+    return (
+        <div
+            ref={ref}
+            className={`scroll-area ${className || ""}`}
+            data-edge-top={edges.top || undefined}
+            data-edge-bottom={edges.bottom || undefined}
+            onScroll={measure}
+        >
+            <div className="scroll-content">{children}</div>
+        </div>
+    );
+}
+
+function ChatsPanel({ chats, activeId, disabled, onLoad, onOpen }) {
+    const [query, setQuery] = useState("");
+
+    useEffect(() => {
+        const timer = setTimeout(() => onLoad({ query: query.trim() }), query ? 250 : 0);
+        return () => clearTimeout(timer);
+    }, [query, onLoad]);
+
+    // Un nouveau chat apparaît après le premier message : on recharge la liste.
+    useEffect(() => {
+        if (activeId && !chats.items.some((chat) => chat.id === activeId)) onLoad({});
+    }, [activeId]);
+
+    const pinned = chats.items.filter((chat) => chat.isPinned);
+    const others = chats.items.filter((chat) => !chat.isPinned);
+    const last = chats.items[chats.items.length - 1];
+
+    return (
+        <div className="panel">
+            <input
+                type="search"
+                className="search"
+                placeholder="Rechercher"
+                aria-label="Rechercher dans les chats"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+            />
+            {pinned.length ? <ChatList title="Épinglés" items={pinned} activeId={activeId} disabled={disabled} onOpen={onOpen} /> : null}
+            <ChatList title={pinned.length ? "Récents" : null} items={others} activeId={activeId} disabled={disabled} onOpen={onOpen} />
+            {chats.error ? <p className="panel-error">{chats.error}</p> : null}
+            {!chats.loading && !chats.error && chats.items.length === 0 ? (
+                <p className="panel-empty">{query ? "Aucun chat ne correspond." : "Aucun chat pour l’instant."}</p>
+            ) : null}
+            {chats.loading ? <p className="panel-empty">Chargement…</p> : null}
+            {chats.hasMore && !chats.loading && last ? (
+                <button type="button" className="ghost more" onClick={() => onLoad({ cursor: last.id })}>
+                    Afficher plus
+                </button>
+            ) : null}
+        </div>
+    );
+}
+
+function ChatList({ title, items, activeId, disabled, onOpen }) {
+    if (!items.length) return null;
+    return (
+        <section className="chat-group">
+            {title ? <h3 className="group-title">{title}</h3> : null}
+            <ul className="chat-list">
+                {items.map((chat) => {
+                    const active = chat.id === activeId;
+                    return (
+                        <li key={chat.id}>
+                            <button
+                                type="button"
+                                className={`chat-item${active ? " active" : ""}`}
+                                aria-current={active ? "true" : undefined}
+                                disabled={disabled && !active}
+                                title={chat.title}
+                                onClick={() => (active ? null : onOpen(chat.id))}
+                            >
+                                <span className="chat-title">{chat.title}</span>
+                                <span className="chat-time">{relativeTime(chat.lastMessageAt)}</span>
+                            </button>
+                        </li>
+                    );
+                })}
+            </ul>
+        </section>
+    );
+}
+
+function ProjectsPanel({ projects, activeId, disabled, fetchChats, onOpen, onSelect }) {
+    const [open, setOpen] = useState({});
+
+    const toggle = async (id) => {
+        if (open[id]) {
+            setOpen((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+            });
+            return;
+        }
+        setOpen((prev) => ({ ...prev, [id]: { loading: true, chats: [], error: null } }));
+        let entry;
+        try {
+            const result = await fetchChats({ projectId: id });
+            entry = { loading: false, chats: result.chats, error: null };
+        } catch (err) {
+            entry = { loading: false, chats: [], error: errorText(err) };
+        }
+        setOpen((prev) => (prev[id] ? { ...prev, [id]: entry } : prev));
+    };
+
+    return (
+        <div className="panel">
+            <p className="panel-hint">Le projet rattaché reçoit les nouveaux chats de ce dossier.</p>
+            {projects.error ? <p className="panel-error">{projects.error}</p> : null}
+            {!projects.loading && !projects.error && projects.items.length === 0 ? (
+                <p className="panel-empty">Aucun projet.</p>
+            ) : null}
+            <ul className="project-list">
+                {projects.items.map((project) => {
+                    const expanded = Boolean(open[project.id]);
+                    const selected = project.id === projects.selectedId;
+                    const detail = open[project.id];
+                    return (
+                        <li key={project.id} className={`project${selected ? " selected" : ""}`}>
+                            <div className="project-row">
+                                <button
+                                    type="button"
+                                    className="disclosure"
+                                    aria-expanded={expanded}
+                                    onClick={() => toggle(project.id)}
+                                >
+                                    <span className="chevron" aria-hidden="true">
+                                        ›
+                                    </span>
+                                    <span className="project-name">{project.name}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`pill${selected ? " on" : ""}`}
+                                    disabled={disabled}
+                                    title={selected ? "Détacher ce projet du dossier" : "Rattacher ce projet au dossier"}
+                                    onClick={() => onSelect(selected ? null : project.id)}
+                                >
+                                    {selected ? "Rattaché" : "Rattacher"}
+                                </button>
+                            </div>
+                            {expanded ? (
+                                <div className="project-chats">
+                                    {detail.loading ? <p className="panel-empty">Chargement…</p> : null}
+                                    {detail.error ? <p className="panel-error">{detail.error}</p> : null}
+                                    {!detail.loading && !detail.error && detail.chats.length === 0 ? (
+                                        <p className="panel-empty">Aucun chat dans ce projet.</p>
+                                    ) : null}
+                                    <ChatList items={detail.chats} activeId={activeId} disabled={disabled} onOpen={onOpen} />
+                                </div>
+                            ) : null}
+                        </li>
+                    );
+                })}
+            </ul>
+            {projects.loading ? <p className="panel-empty">Chargement…</p> : null}
+        </div>
+    );
+}
+
+function SkillsPanel({ skills, onToggle }) {
+    return (
+        <div className="panel">
+            {skills.error ? <p className="panel-error">{skills.error}</p> : null}
+            {!skills.loading && !skills.error && skills.items.length === 0 ? (
+                <p className="panel-empty">Aucun skill installé.</p>
+            ) : null}
+            <ul className="skill-list">
+                {skills.items.map((skill) => (
+                    <li key={skill.id} className="skill">
+                        <div className="skill-text">
+                            <span className="skill-name">
+                                {skill.name}
+                                {skill.shared ? <span className="tag">partagé</span> : null}
+                            </span>
+                            {skill.description ? <span className="skill-description">{skill.description}</span> : null}
+                        </div>
+                        <button
+                            type="button"
+                            role="switch"
+                            aria-checked={skill.enabled}
+                            aria-label={`${skill.enabled ? "Désactiver" : "Activer"} ${skill.name}`}
+                            className="switch"
+                            onClick={() => onToggle(skill, !skill.enabled)}
+                        >
+                            <span className="knob" />
+                        </button>
+                    </li>
+                ))}
+            </ul>
+            {skills.loading ? <p className="panel-empty">Chargement…</p> : null}
+        </div>
+    );
+}
