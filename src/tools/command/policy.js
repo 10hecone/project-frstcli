@@ -208,6 +208,35 @@ function judgeFind(args) {
     return safe("Recherche de fichiers en lecture seule.");
 }
 
+// Options courtes de grep suivies d'une valeur (collée ou séparée).
+const GREP_VALUE_FLAGS = new Set(["e", "f", "m", "A", "B", "C", "d", "D"]);
+
+/**
+ * Vrai si grep parcourt des dossiers : -r, -R, --recursive, --dereference-recursive,
+ * -d recurse, --directories=recurse, y compris en options groupées (-rn, -nRi).
+ */
+function isRecursiveGrep(args) {
+    for (let i = 0; i < args.length; i += 1) {
+        const a = String(args[i]);
+        if (a === "--") return false;
+        if (a === "--recursive" || a === "--dereference-recursive") return true;
+        if (a.toLowerCase() === "--directories=recurse") return true;
+        if (a === "--directories" && String(args[i + 1] ?? "").toLowerCase() === "recurse") return true;
+        if (a.startsWith("--") || !a.startsWith("-") || a === "-") continue;
+        for (let j = 1; j < a.length; j += 1) {
+            const ch = a[j];
+            if (ch === "r" || ch === "R") return true;
+            if (GREP_VALUE_FLAGS.has(ch)) {
+                const value = j === a.length - 1 ? String(args[i + 1] ?? "") : a.slice(j + 1);
+                if (ch === "d" && value.toLowerCase() === "recurse") return true;
+                if (j === a.length - 1) i += 1;
+                break;
+            }
+        }
+    }
+    return false;
+}
+
 function isCallFlag(a) {
     return a === "-c" || a === "--call" || a.startsWith("--call=");
 }
@@ -282,6 +311,17 @@ function judge({ file, args = [], cwd, workspace } = {}) {
 
     if (name === "git") return judgeGit(list);
     if (name === "find") return judgeFind(list);
+    // Une recherche récursive lit des fichiers non nommés dans la commande
+    // (.env, clés...) : la vérification des chemins ne peut pas les voir.
+    if ((name === "grep" || name === "egrep" || name === "fgrep") && isRecursiveGrep(list)) {
+        return ask("grep récursif : peut afficher le contenu de fichiers sensibles (.env, clés).");
+    }
+    if (name === "rg" || name === "ag" || name === "ack") {
+        return ask(`${name} parcourt les dossiers : peut afficher le contenu de fichiers sensibles (.env, clés).`);
+    }
+    if (name === "findstr" && list.some(a => /^[/-][a-z]*s[a-z]*$/i.test(a))) {
+        return ask("findstr /s récursif : peut afficher le contenu de fichiers sensibles (.env, clés).");
+    }
     if (PACKAGE_MANAGERS.has(name)) return judgePackageManager(name, list);
     if (name === "node") {
         if (list.length === 1 && (list[0] === "--version" || list[0] === "-v")) return safe("Version de Node.js.");

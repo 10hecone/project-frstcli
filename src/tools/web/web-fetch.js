@@ -409,7 +409,8 @@ async function webFetch(args = {}, options = {}) {
         const host = hostOf(target);
         if (!confirmedHosts.has(host)) {
             ui.result(`Lecture web : ${target.href}`);
-            const confirm = options.confirm || (message => ui.confirm(message));
+            // force : l'auto-approbation (/auto on) ne couvre pas l'accès à un nouveau domaine.
+            const confirm = options.confirm || (message => ui.confirm(message, { force: true }));
             if (!(await confirm(`Autoriser la lecture de pages sur ${host} pendant cette session ?`))) {
                 return denied(".");
             }

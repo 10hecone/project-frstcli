@@ -115,6 +115,10 @@ async function requestModel(message, options = {}) {
             // Annulation volontaire (Ctrl+C) : jamais de relance.
             if (error.cancelled) throw error;
 
+            // Erreur déclarée non réessayable par l'API (ex. CONTENT_POLICY_VIOLATION) :
+            // un nouvel envoi peut aggraver la situation (suspension du compte).
+            if (error.retryable === false) throw error;
+
             const status = error.status;
             const isClientError = status >= 400 && status < 500;
 
@@ -387,7 +391,17 @@ async function requestModelOnce(message, options) {
         }
 
         if (streamError) {
-            throw new Error(`Erreur du flux : ${JSON.stringify(streamError)}`);
+            const details = streamError && typeof streamError.error === "object" && streamError.error
+                ? streamError.error
+                : streamError;
+            const error = new Error(`Erreur du flux : ${JSON.stringify(streamError)}`);
+            const code = details?.code ?? streamError?.code;
+            if (code) error.code = code;
+            const retryable = details?.retryable ?? streamError?.retryable;
+            if (typeof retryable === "boolean") error.retryable = retryable;
+            // Violation de politique : jamais de relance (risque de suspension du compte).
+            if (/POLICY/i.test(String(code ?? ""))) error.retryable = false;
+            throw error;
         }
 
         if (!output.trim()) {

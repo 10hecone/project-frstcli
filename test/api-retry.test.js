@@ -206,3 +206,54 @@ test("cancelStream sans chatId ne fait aucun appel", { concurrency: false }, asy
     assert.equal(await cancelStream(null), false);
     assert.equal(calls, 0);
 });
+
+function sseErrorResponse(payload) {
+    const body = new ReadableStream({
+        start(controller) {
+            controller.enqueue(new TextEncoder().encode(`event: error\ndata: ${JSON.stringify(payload)}\n\n`));
+            controller.close();
+        },
+    });
+    return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+}
+
+test("une erreur SSE retryable:false (violation de politique) n'est envoyée qu'une fois", { concurrency: false }, async () => {
+    prepareAuth();
+    let calls = 0;
+    global.fetch = async () => {
+        calls++;
+        return sseErrorResponse({ code: "CONTENT_POLICY_VIOLATION", message: "refus", retryable: false });
+    };
+
+    await assert.rejects(requestModel("bonjour"), error => {
+        assert.equal(error.code, "CONTENT_POLICY_VIOLATION");
+        assert.equal(error.retryable, false);
+        return true;
+    });
+    assert.equal(calls, 1);
+});
+
+test("une violation de politique sans champ retryable n'est pas relancée", { concurrency: false }, async () => {
+    prepareAuth();
+    let calls = 0;
+    global.fetch = async () => {
+        calls++;
+        return sseErrorResponse({ error: { code: "CONTENT_POLICY_VIOLATION", message: "refus" } });
+    };
+
+    await assert.rejects(requestModel("bonjour"), /CONTENT_POLICY_VIOLATION/);
+    assert.equal(calls, 1);
+});
+
+test("une erreur SSE retryable:true reste relancée", { concurrency: false }, async () => {
+    prepareAuth();
+    let calls = 0;
+    global.fetch = async () => {
+        calls++;
+        if (calls === 1) return sseErrorResponse({ code: "UPSTREAM_ERROR", retryable: true });
+        return successfulResponse();
+    };
+
+    assert.equal(await requestModel("bonjour"), "ok");
+    assert.equal(calls, 2);
+});

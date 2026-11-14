@@ -33,7 +33,7 @@ export const SLASH_COMMANDS = [
     "/help", "/project", "/unproject", "/pwd", "/tree", "/read", "/index", "/init", "/plan",
     "/resume", "/undo", "/changes", "/memory", "/remember", "/forget", "/permissions", "/jobs",
     "/auto", "/mode", "/new", "/compact", "/context", "/chat-id", "/history", "/messages", "/usage", "/model", "/web",
-    "/auth", "/login", "/clear", "/exit", "/quit"
+        "/auth", "/login", "/profil", "/preprompt", "/clear", "/exit", "/quit"
 ];
 
 const HOME_SEQUENCES = new Set(["\u001b[H", "\u001b[1~", "\u001bOH", "[H", "[1~"]);

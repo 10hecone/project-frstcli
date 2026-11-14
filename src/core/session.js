@@ -9,6 +9,11 @@ const commands = require("../cli/commands");
 const conversations = require("../project/conversations");
 const chat = require("./chat");
 const router = require("../cli/router");
+const profile = require("../project/profile");
+const { handleProfileCommand } = require("../cli/profile-commands");
+
+// Commandes de profil, communes au CLI et à la TUI.
+const PROFILE_COMMAND_RE = /^\/(preprompt|profil)(\s|$)/i;
 
 /**
  * Démarrage de la session : authentification (connexion si besoin),
@@ -55,10 +60,20 @@ async function handleInput(rawInput, { onChatDelta, sendChat } = {}) {
 
     if (!input) return { exit: false };
 
+    if (PROFILE_COMMAND_RE.test(input)) {
+        await handleProfileCommand(input);
+        return { exit: false };
+    }
+
     if (input.startsWith("/")) {
         const keepGoing = await commands.handleCommand(input);
         return { exit: !keepGoing };
     }
+
+    // Le profil apprend des messages normaux (CLI et TUI), sans bloquer la saisie.
+    Promise.resolve()
+        .then(() => profile.observe(input))
+        .catch(error => ui.debug(`Profil non mis à jour : ${error.message}`));
 
     if (router.isWorkspaceQuestion(input)) {
         ui.assistant(`Projet actuel : ${state.workspace || "aucun projet sélectionné."}`);

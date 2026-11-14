@@ -39,6 +39,20 @@ Pour disposer des commandes `frst` et `frstcli` partout :
 npm link
 ```
 
+Sous PowerShell, si `frst` reste introuvable après `npm link`, le dossier npm global
+doit être dans le `PATH`. Pour la session courante :
+
+```powershell
+$prefix = npm config get prefix
+$env:Path += ";$prefix"
+frst
+```
+
+Pour conserver ce réglage pour les prochaines sessions PowerShell, ajoute ce
+dossier au `PATH` utilisateur dans les paramètres Windows, puis ouvre un
+nouveau terminal. Pour lancer le CLI sans modifier le `PATH`, utilise
+`node .\bin\frst.js` depuis le dépôt.
+
 Lancement :
 
 | Commande | Interface |

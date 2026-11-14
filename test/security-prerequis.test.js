@@ -21,7 +21,8 @@ test("policy : option courte collée à un chemin hors du projet refusée", () =
     assert.equal(level("grep", ["-f/etc/passwd", "x"]), "deny");
     assert.equal(level("grep", ["-f../secret.txt", "x"]), "deny");
     assert.equal(level("cat", ["-n.env"]), "deny");
-    assert.equal(level("grep", ["-r", "token", "src"]), "safe");
+    // grep récursif : confirmation demandée (correctif « recherches récursives » de policy.js).
+    assert.equal(level("grep", ["-r", "token", "src"]), "ask");
     assert.equal(level("grep", ["-n5", "x", "src/app.js"]), "safe");
 });
 

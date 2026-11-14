@@ -14,8 +14,10 @@ const { ui } = require("../ui-bridge");
 
 const projects = require("./projects");
 
-// Historique enregistré dans ce dépôt (racine du CLI), jamais dans le projet ouvert.
-const FILE = path.join(projects.REPO_ROOT, "history.json");
+// Historique enregistré dans CONFIG.dataDir (~/.francestudent-cli par défaut), jamais dans le projet ouvert.
+// Ancien emplacement (racine du dépôt du CLI) : relu s'il n'y a rien dans dataDir, puis recopié, jamais supprimé.
+const LEGACY_FILE = path.join(projects.REPO_ROOT, "history.json");
+const FILE = path.join(CONFIG.dataDir, "history.json");
 const MAX_ENTRIES = 50;
 const TITLE_CHARS = 70;
 
@@ -25,14 +27,18 @@ let saving = Promise.resolve();
 async function load() {
   if (entries) return entries;
 
-  try {
-    const raw = JSON.parse(await fs.readFile(FILE, "utf8"));
-    entries = Array.isArray(raw)
-      ? raw.filter((e) => e && typeof e.id === "string" && e.id)
-      : [];
-  } catch {
-    entries = []; // première utilisation ou fichier illisible
+  let { found, data } = await projects.readStore(FILE);
+  let migrate = false;
+  if (!found) {
+    ({ found, data } = await projects.readStore(LEGACY_FILE));
+    migrate = found && data !== null;
   }
+
+  // Première utilisation ou fichier illisible : historique vide.
+  entries = Array.isArray(data)
+    ? data.filter((e) => e && typeof e.id === "string" && e.id)
+    : [];
+  if (migrate) await save();
 
   return entries;
 }
@@ -54,14 +60,14 @@ function save() {
 
   saving = saving.then(async () => {
     try {
-      await fs.mkdir(path.dirname(FILE), { recursive: true });
+      await fs.mkdir(path.dirname(FILE), { recursive: true, mode: 0o700 });
 
       const tmp = `${FILE}.${process.pid}.tmp`;
 
       await fs.writeFile(tmp, data, { mode: 0o600 });
       await fs.rename(tmp, FILE);
     } catch (error) {
-      ui.debug(
+      ui.warn(
         `Historique des conversations non enregistré : ${error.message}`,
       );
     }
@@ -139,4 +145,4 @@ async function find(ref) {
   return null;
 }
 
-module.exports = { touch, recent, find, findForWorkspace, makeTitle, MAX_ENTRIES };
+module.exports = { touch, recent, find, findForWorkspace, makeTitle, MAX_ENTRIES, FILE, LEGACY_FILE };

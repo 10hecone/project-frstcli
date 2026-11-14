@@ -201,6 +201,35 @@ test("web_fetch : confirmation une seule fois par domaine, refus respecté", asy
     assert.equal(asked, 1);
 });
 
+test("web_fetch : /auto on ne saute pas la confirmation de domaine (force:true)", async () => {
+    const { setUiBackend } = require("../src/ui-bridge");
+    const { state } = require("../src/state");
+    resetConfirmedHosts();
+    const calls = [];
+    const savedAuto = state.autoApprove;
+    state.autoApprove = true;
+    setUiBackend({
+        result() {},
+        debug() {},
+        async confirm(question, options = {}) {
+            calls.push(options);
+            // Reproduit le comportement réel : l'auto-approbation n'est ignorée qu'avec force.
+            if (!options.force && state.autoApprove) return true;
+            return false;
+        }
+    });
+    try {
+        const result = await webFetch({ url: `${base}/json` }, { allowLoopback: true });
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].force, true);
+        assert.equal(result.content, undefined);
+    } finally {
+        setUiBackend(null);
+        state.autoApprove = savedAuto;
+        resetConfirmedHosts();
+    }
+});
+
 test("web_fetch : registre, validation et FS_WEB=0", () => {
     assert.ok(TOOLS.web_fetch);
     validateToolCall({ name: "web_fetch", args: { url: "https://exemple.fr" } });

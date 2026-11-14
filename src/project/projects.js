@@ -3,17 +3,20 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
+const { CONFIG } = require("../config");
 const { ui } = require("../ui-bridge");
 
 /*
- * Projets connus du CLI, enregistrés dans projects.json à la racine de ce dépôt
- * (jamais dans le projet ouvert). Un projet = une conversation chat + une conversation agent.
+ * Projets connus du CLI, enregistrés dans CONFIG.dataDir/projects.json
+ * (~/.francestudent-cli par défaut, jamais dans le projet ouvert). Un projet = une conversation chat + une conversation agent.
  * Forme : { "<clé>": { path, createdAt, lastOpenedAt, conversations: { chat, agent } } }
  * avec chat / agent = { id, settings, updatedAt } ou null.
  */
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
-const FILE = path.join(REPO_ROOT, "projects.json");
+// Ancien emplacement (racine du dépôt du CLI) : relu s'il n'y a rien dans dataDir, puis recopié, jamais supprimé.
+const LEGACY_FILE = path.join(REPO_ROOT, "projects.json");
+const FILE = path.join(CONFIG.dataDir, "projects.json");
 
 let projects = null;
 let saving = Promise.resolve();
@@ -27,15 +30,28 @@ function emptyConversations() {
     return { chat: null, agent: null };
 }
 
+/** Lit un fichier JSON : found vaut false seulement si le fichier n'existe pas. */
+async function readStore(file) {
+    try {
+        return { found: true, data: JSON.parse(await fs.readFile(file, "utf8")) };
+    } catch (error) {
+        return { found: Boolean(error && error.code !== "ENOENT"), data: null };
+    }
+}
+
 async function load() {
     if (projects) return projects;
 
-    try {
-        const raw = JSON.parse(await fs.readFile(FILE, "utf8"));
-        projects = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
-    } catch {
-        projects = {}; // première utilisation ou fichier illisible
+    let { found, data } = await readStore(FILE);
+    let migrate = false;
+    if (!found) {
+        ({ found, data } = await readStore(LEGACY_FILE));
+        migrate = found && data !== null;
     }
+
+    // Première utilisation ou fichier illisible : aucun projet.
+    projects = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+    if (migrate) await save();
 
     return projects;
 }
@@ -45,11 +61,12 @@ function save() {
 
     saving = saving.then(async () => {
         try {
+            await fs.mkdir(path.dirname(FILE), { recursive: true, mode: 0o700 });
             const tmp = `${FILE}.${process.pid}.tmp`;
             await fs.writeFile(tmp, data, { mode: 0o600 });
             await fs.rename(tmp, FILE);
         } catch (error) {
-            ui.debug(`projects.json non enregistré : ${error.message}`);
+            ui.warn(`projects.json non enregistré : ${error.message}`);
         }
     });
 
@@ -101,4 +118,4 @@ await load();
     await save();
 }
 
-module.exports = { open, get, setConversation, FILE, REPO_ROOT };
+module.exports = { open, get, setConversation, readStore, FILE, LEGACY_FILE, REPO_ROOT };

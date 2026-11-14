@@ -49,6 +49,8 @@ function showHelp() {
     ["/web on|off", "Recherche web (chat normal)"],
     ["/auth [refresh]", "État de la connexion / renouvellement"],
     ["/login", "Se connecter avec e-mail et mot de passe"],
+    ["/profil [user|projet] [learn <fait>|forget <n>]", "Profil appris (utilisateur ou projet)"],
+    ["/preprompt [user|projet] <texte>|clear", "Consigne ajoutée à chaque demande"],
     ["/clear", "Effacer le terminal"],
     ["/exit", "Quitter (alias : /quit)"],
   ];
