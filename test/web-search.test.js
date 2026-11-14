@@ -6,7 +6,6 @@ const assert = require("node:assert/strict");
 const { CONFIG } = require("../src/config");
 const { webSearch, resolveEngine, parseDuckHtml } = require("../src/tools/web/web-search");
 const { TOOLS, validateToolCall, describeCall } = require("../src/tools/registry");
-const { WEB_CATALOG } = require("../src/agent/prompt");
 
 const KEY = "cle-secrete-123";
 
@@ -138,15 +137,13 @@ test("web_search : annulation par signal", async () => {
     );
 });
 
-test("web_search : registre, validation, prompt et FS_WEB=0", () => {
+test("web_search : registre, validation et FS_WEB=0", () => {
     assert.ok(TOOLS.web_search);
     validateToolCall({ name: "web_search", args: { query: "node fs" } });
     assert.throws(() => validateToolCall({ name: "web_search", args: {} }), /query/);
     assert.throws(() => validateToolCall({ name: "web_search", args: { query: "   " } }), /vide/);
     assert.throws(() => validateToolCall({ name: "web_search", args: { query: "x".repeat(401) } }), /trop longue/);
     assert.equal(describeCall({ name: "web_search", args: { query: "node fs" } }), "\"node fs\"");
-    assert.match(WEB_CATALOG, /"name":"web_search"/);
-    assert.match(WEB_CATALOG, /web_search, puis lis les pages utiles avec web_fetch/);
 
     const saved = CONFIG.web;
     CONFIG.web = false;

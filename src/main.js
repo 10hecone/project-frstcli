@@ -5,7 +5,7 @@ const chat = require("./core/chat");
 const session = require("./core/session");
 
 // Rendu CLI d'un message en mode chat : spinner, Markdown en streaming,
-// puis l'ID de la conversation si elle vient d'être créée.
+// lignes d'outils entre les rondes, puis l'ID de la conversation si elle vient d'être créée.
 async function chatNormally(input) {
   const spin = ui.spinner("Réflexion");
   let started = false;
@@ -22,6 +22,16 @@ async function chatNormally(input) {
           started = true;
         }
         md.write(text);
+      },
+      // Avant une ronde d'outils : arrête le spinner et termine la ligne de texte en cours,
+      // pour que les lignes d'outils ne se mélangent pas au texte du modèle.
+      onToolCalls() {
+        spin.stop();
+        if (started) {
+          md.flush();
+          process.stdout.write("\n");
+          started = false;
+        }
       },
     });
 

@@ -7,7 +7,7 @@ const { CONFIG } = require("../../config");
 const { state } = require("../../state");
 const { normalizeRelative, resolveInWorkspace } = require("../security");
 const memory = require("../../project/memory");
-const { optionalString, optionalBool } = require("../core/args");
+const { optionalString, optionalBool, optionalInt } = require("../core/args");
 
 async function walkDirectory(absDir, relDir, depth, maxDepth, out) {
     const dirents = await fs.readdir(absDir, { withFileTypes: true });
@@ -44,6 +44,12 @@ async function walkDirectory(absDir, relDir, depth, maxDepth, out) {
     }
 }
 
+/** depth (1 à 3, catalogue de l'API) prime sur l'ancien recursive (équivaut à depth 3). */
+function maxDepthOf(args) {
+    if (args.depth !== undefined) return args.depth - 1;
+    return args.recursive === true ? 2 : 0;
+}
+
 async function listDirectory(args = {}) {
     const { rel, target } = await resolveInWorkspace(state.workspace, args.path ?? ".");
     const info = await fs.stat(target);
@@ -51,7 +57,7 @@ async function listDirectory(args = {}) {
     if (!info.isDirectory()) throw new Error("Ce chemin n'est pas un dossier.");
 
     const entries = [];
-    await walkDirectory(target, rel, 0, args.recursive === true ? 2 : 0, entries);
+    await walkDirectory(target, rel, 0, maxDepthOf(args), entries);
 
     const shown = entries.slice(0, CONFIG.maxDirectoryEntries);
 
@@ -68,10 +74,16 @@ async function listDirectory(args = {}) {
 function check(args) {
     optionalString(args.path, "path");
     optionalBool(args.recursive, "recursive");
+    optionalInt(args.depth, "depth");
+
+    if (args.depth !== undefined && (args.depth < 1 || args.depth > 3)) {
+        throw new Error("depth doit être compris entre 1 et 3.");
+    }
 }
 
 function describe(a) {
-    return a.path ?? ".";
+    const where = a.path ?? ".";
+    return a.depth > 1 ? `${where} (profondeur ${a.depth})` : where;
 }
 
 module.exports = { name: "list_directory", run: listDirectory, check, describe, listDirectory };

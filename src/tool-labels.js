@@ -15,7 +15,6 @@ const TOOL_LABELS = {
     run_command: "Commande",
     glob: "Trouver",
     todo_write: "Tâches",
-    delegate: "Déléguer",
     web_fetch: "Lire le web",
     web_search: "Chercher sur le web"
 };

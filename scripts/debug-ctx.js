@@ -4,7 +4,7 @@
  * Diagnostic du pourcentage de contexte (« ctx 0 % » dans la barre d'état).
  *
  * Usage :
- *   node scripts/debug-ctx.js            envoie un vrai message en mode agent, puis interroge l'usage
+ *   node scripts/debug-ctx.js            envoie un vrai message dans une nouvelle conversation chat, puis interroge l'usage
  *   node scripts/debug-ctx.js <chatId>   interroge seulement l'usage d'une conversation existante
  *
  * Affiche, à plusieurs instants, le DTO brut de GET /chats/{id}/usage
@@ -39,13 +39,13 @@ async function main() {
     let chatId = process.argv[2] || null;
 
     if (!chatId) {
-        console.log("Envoi d'un message de test en mode agent...");
+        console.log("Envoi d'un message de test dans une nouvelle conversation chat...");
+        state.chatIds.chat = null;
         const reponse = await api.requestModel("Réponds seulement : OK.", {
-            conversationMode: "agent",
             onInterrupt: () => null
         });
         console.log("Réponse du modèle :", String(reponse ?? "").slice(0, 200));
-        chatId = state.chatIds?.agent || null;
+        chatId = state.chatIds?.chat || null;
         console.log("state.chatIds :", JSON.stringify(state.chatIds));
     }
 

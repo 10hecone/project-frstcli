@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const { auth } = require("../src/api/auth");
 const account = require("../src/api/account");
 const { state } = require("../src/state");
-const { refreshContextUsage } = require("../src/agent/agent");
+const { refreshContextUsage } = require("../src/core/compact");
 
 const originalFetch = global.fetch;
 const originalGetContextUsage = account.getContextUsage;
@@ -77,25 +77,28 @@ test("getContextUsage renvoie null sans chatId, sans appel réseau", { concurren
     assert.equal(called, false);
 });
 
-test("refreshContextUsage range la valeur dans l'état de la session", { concurrency: false }, async () => {
-    const previous = state.chatIds.agent;
+test("refreshContextUsage range la valeur de la conversation chat dans l'état", { concurrency: false }, async () => {
+    const previous = { chat: state.chatIds.chat, agent: state.chatIds.agent };
     try {
-        state.chatIds.agent = "agent-1";
+        state.chatIds.chat = "chat-1";
+        state.chatIds.agent = "agent-ignore";
         state.contextUsagePercent = null;
-        account.getContextUsage = async chatId => (chatId === "agent-1" ? 37 : null);
+        account.getContextUsage = async chatId => (chatId === "chat-1" ? 37 : null);
 
         assert.equal(await refreshContextUsage(), 37);
         assert.equal(state.contextUsagePercent, 37);
     } finally {
-        state.chatIds.agent = previous;
+        state.chatIds.chat = previous.chat;
+        state.chatIds.agent = previous.agent;
+        state.contextUsagePercent = null;
         account.getContextUsage = originalGetContextUsage;
     }
 });
 
 test("refreshContextUsage ne lève jamais d'erreur et ignore une valeur périmée", { concurrency: false }, async () => {
-    const previous = state.chatIds.agent;
+    const previous = state.chatIds.chat;
     try {
-        state.chatIds.agent = "agent-1";
+        state.chatIds.chat = "chat-1";
         state.contextUsagePercent = 10;
         account.getContextUsage = async () => {
             throw new Error("panne");
@@ -105,16 +108,16 @@ test("refreshContextUsage ne lève jamais d'erreur et ignore une valeur périmé
 
         // La conversation change pendant la requête : la valeur n'est pas rangée.
         account.getContextUsage = async () => {
-            state.chatIds.agent = "agent-2";
+            state.chatIds.chat = "chat-2";
             return 90;
         };
-        await refreshContextUsage("agent-1");
+        await refreshContextUsage("chat-1");
         assert.equal(state.contextUsagePercent, 10);
 
-        state.chatIds.agent = null;
+        state.chatIds.chat = null;
         assert.equal(await refreshContextUsage(), null);
     } finally {
-        state.chatIds.agent = previous;
+        state.chatIds.chat = previous;
         state.contextUsagePercent = null;
         account.getContextUsage = originalGetContextUsage;
     }

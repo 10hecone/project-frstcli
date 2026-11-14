@@ -1,7 +1,5 @@
 "use strict";
 
-const { state } = require("../state");
-
 const LETTER = "\\p{L}";
 
 function wordRegex(words) {
@@ -27,6 +25,11 @@ const FILE_VERB_RE = wordRegex(
     "read|open|list|create|write|edit|fix|move|rename|delete|copy|add|" + "commence|commencer|continue|continuer|termine|terminer|finis|finir|fini|fais|faire|lance|lancer|ex[ée]cute|ex[ée]cuter|impl[ée]mente|impl[ée]menter|teste|tester|installe|installer|range|ranger|nettoie|nettoyer|manipule|manipuler|commite|commiter|r[ée]sous|r[ée]soudre|" + "start|finish|run|test|implement|install|commit|resolve|solve"
 );
 
+/**
+ * Le message semble viser des fichiers locaux ? Sert seulement à conseiller /project
+ * quand aucun projet n'est ouvert : avec un projet, le modèle décide lui-même
+ * d'appeler ses outils.
+ */
 function seemsToRequestLocalFiles(input) {
     return FILE_NAME_RE.test(input) || (FILE_VERB_RE.test(input) && FILE_NOUN_RE.test(input));
 }
@@ -39,12 +42,4 @@ function isWorkspaceQuestion(input) {
     );
 }
 
-/** Faut-il passer par l'agent (outils fichiers) pour ce message ? */
-function shouldUseAgent(input) {
-    if (!state.workspace) return false;
-    if (state.mode === "agent") return true;
-    if (state.mode === "chat") return false;
-    return seemsToRequestLocalFiles(input);
-}
-
-module.exports = { seemsToRequestLocalFiles, isWorkspaceQuestion, shouldUseAgent };
+module.exports = { seemsToRequestLocalFiles, isWorkspaceQuestion };

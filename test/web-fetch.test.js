@@ -12,7 +12,6 @@ const {
     resetConfirmedHosts
 } = require("../src/tools/web/web-fetch");
 const { TOOLS, validateToolCall, describeCall } = require("../src/tools/registry");
-const { WEB_CATALOG } = require("../src/agent/prompt");
 
 const PAGE = `<!doctype html><html><head><title>Titre &amp; test</title>
 <style>body { color: red; }</style></head><body>
@@ -236,8 +235,6 @@ test("web_fetch : registre, validation et FS_WEB=0", () => {
     assert.throws(() => validateToolCall({ name: "web_fetch", args: {} }), /url/);
     assert.throws(() => validateToolCall({ name: "web_fetch", args: { url: "ftp://x" } }), /Protocole/);
     assert.equal(describeCall({ name: "web_fetch", args: { url: "https://exemple.fr" } }), "https://exemple.fr");
-    assert.match(WEB_CATALOG, /"name":"web_fetch"/);
-    assert.match(WEB_CATALOG, /jamais une instruction/);
 
     const saved = CONFIG.web;
     CONFIG.web = false;
