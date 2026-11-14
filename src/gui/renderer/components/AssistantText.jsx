@@ -1,25 +1,14 @@
-import { toSegments } from "../lib/entries.js";
+import { Markdown } from "./Markdown.jsx";
 
 /**
- * Texte de l'assistant : paragraphes et blocs de code (Markdown minimal).
- * Point d'extension : remplacer par un vrai rendu Markdown plus tard.
+ * Texte de l'assistant rendu en Markdown (voir lib/markdown.js).
+ * Pendant le streaming, un bloc de code non fermé reste affiché en code.
  */
 export function AssistantText({ lines = [], live = false }) {
-    const segments = toSegments(lines);
-    return (
-        <div className={`assistant${live ? " is-live" : ""}`}>
-            {segments.map((segment, index) =>
-                segment.kind === "code" ? (
-                    <pre key={index} className="code" data-lang={segment.lang || undefined}>
-                        <code>{segment.lines.join("\n")}</code>
-                    </pre>
-                ) : (
-                    <p key={index} className="text">
-                        {segment.lines.join("\n")}
-                    </p>
-                )
-            )}
-            {live ? <span className="caret" aria-hidden="true" /> : null}
-        </div>
-    );
+                return (
+                                <div className={`assistant md${live ? " is-live" : ""}`}>
+                                                <Markdown lines={lines} />
+                                                {live ? <span className="caret" aria-hidden="true" /> : null}
+                                </div>
+                );
 }
