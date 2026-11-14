@@ -25,10 +25,10 @@ function showHelp() {
     ["/pwd", "Afficher le projet sélectionné"],
     ["/tree [dossier]", "Lister un dossier (2 niveaux)"],
     ["/read <fichier>", "Lire localement un fichier"],
-    ["/index", "Régénérer le résumé du projet (RESUME.md)"],
+    ["/index [force]", "Résumer le projet avec l'IA (RESUME.md, pour /resume)"],
     ["/init", "Créer FRSTCLI.md (instructions du projet)"],
     ["/plan <demande>", "Plan en lecture seule, sans modification"],
-    ["/resume", "Afficher le résumé du projet"],
+    ["/resume", "Afficher le résumé du projet (RESUME.md)"],
     ["/undo", "Annuler la dernière modification"],
     ["/changes", "Historique des modifications annulables"],
     ["/memory", "Notes et dernières actions du projet"],
@@ -39,8 +39,8 @@ function showHelp() {
     ["/auto on|off", "Autoriser sans confirmation (session)"],
     ["/mode auto|chat", "Outils : auto = avec /project, chat = aucun"],
     ["/new", "Nouvelle conversation"],
-    ["/compact [consigne]", "Résumer la session dans une nouvelle conversation"],
-    ["/context", "Contexte utilisé, conversation, tours et seuil de compaction"],
+    ["/compact [consigne]", "Résumer la session et repartir d'une nouvelle conversation"],
+    ["/context", "Contexte utilisé, conversation et tours"],
     ["/chat-id [n|id]", "Voir le chat ID / reprendre une conversation"],
     ["/history [all]", "Dernières conversations (id + titre)"],
     ["/messages", "Messages de la conversation (session)"],
@@ -197,8 +197,10 @@ async function handleCommand(input) {
     case "/index": {
       if (!requireProject()) break;
 
+      // Le résumé n'est plus joint aux messages : il sert à /resume.
+      // Seuls les fichiers modifiés depuis le dernier /index sont renvoyés à l'IA.
       const report = await projectContext.load(state.workspace, {
-        force: true,
+        force: value === "force",
       });
       ui.info(
         `${report.status} | ${report.files} fichier(s), ${report.skipped} ignoré(s)`,
@@ -251,7 +253,8 @@ async function handleCommand(input) {
     case "/resume": {
       if (!requireProject()) break;
 
-      ui.print(projectContext.resumeText() ?? "Aucun résumé chargé.");
+      const text = projectContext.resumeText() ?? (await projectContext.storedResume());
+      ui.print(text ?? "Aucun résumé : /index analyse le projet avec l'IA et génère RESUME.md.");
       break;
     }
 
@@ -451,14 +454,10 @@ async function handleCommand(input) {
         const result = await compactSession({ instruction: unquote(value) });
         spin.stop();
         ui.info(
-          `Session compactée : résumé de ${result.chars} caractères, ` +
-            `nouvelle conversation ${result.chatId || "(id attribué au prochain message)"}.`,
+          `Session compactée : résumé de ${result.chars} caractères. ` +
+            "Il sera joint à ton prochain message, qui ouvre une nouvelle conversation.",
         );
-        ui.info(
-          result.contextUsagePercent == null
-            ? "Contexte : inconnu."
-            : `Contexte : ${Math.round(result.contextUsagePercent)} %.`,
-        );
+        ui.info(`Ancienne conversation : ${result.previousChatId} (/chat-id ${result.previousChatId} pour y revenir).`);
       } catch (error) {
         spin.stop();
         ui.warn(`Compaction impossible : ${error.message}`);
@@ -467,7 +466,6 @@ async function handleCommand(input) {
     }
 
     case "/context": {
-      const { CONFIG } = require("../config");
       const percent = state.contextUsagePercent;
       const turns = state.history.filter((entry) => entry.role === "user").length;
       ui.info(
@@ -475,11 +473,12 @@ async function handleCommand(input) {
       );
       ui.info(`Conversation : ${state.chatIds.chat || "aucune"}`);
       ui.info(`Tours (session) : ${turns}`);
-      ui.info(
-        CONFIG.autoCompact
-          ? `Compaction automatique : à partir de ${CONFIG.autoCompactThreshold} %`
-          : "Compaction automatique : désactivée (FS_AUTO_COMPACT=0)",
-      );
+      if (state.compactSummary) {
+        ui.info(
+          `Résumé /compact en attente : ${state.compactSummary.length} caractères, joint au prochain message.`,
+        );
+      }
+      ui.info("Pas de compaction automatique : les fournisseurs compactent l'historique ; /compact repart d'une conversation neuve.");
       break;
     }
 

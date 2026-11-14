@@ -11,7 +11,6 @@ const commands = require("../src/cli/commands");
 const conversations = require("../src/project/conversations");
 const router = require("../src/cli/router");
 const chat = require("../src/core/chat");
-const compact = require("../src/core/compact");
 const session = require("../src/core/session");
 
 function setup({
@@ -24,7 +23,6 @@ function setup({
     const original = {
         handleCommand: commands.handleCommand,
         send: chat.send,
-        maybeAutoCompact: compact.maybeAutoCompact,
         isWorkspaceQuestion: router.isWorkspaceQuestion,
         seemsToRequestLocalFiles: router.seemsToRequestLocalFiles,
         initAuth: auth.initAuth,
@@ -34,7 +32,7 @@ function setup({
         mode: state.mode,
     };
 
-    const calls = { command: [], chat: [], compact: 0, ui: [], login: 0 };
+    const calls = { command: [], chat: [], ui: [], login: 0 };
 
     const fakeUi = {};
     for (const name of UI_METHODS) {
@@ -53,10 +51,6 @@ function setup({
         if (options.onDelta) options.onDelta("delta");
         return { response: "ok", newChatId: null };
     };
-    compact.maybeAutoCompact = async () => {
-        calls.compact++;
-        return null;
-    };
     router.isWorkspaceQuestion = () => workspaceQuestion;
     router.seemsToRequestLocalFiles = () => localFiles;
 
@@ -67,7 +61,6 @@ function setup({
     function restore() {
         Object.assign(commands, { handleCommand: original.handleCommand });
         chat.send = original.send;
-        compact.maybeAutoCompact = original.maybeAutoCompact;
         router.isWorkspaceQuestion = original.isWorkspaceQuestion;
         router.seemsToRequestLocalFiles = original.seemsToRequestLocalFiles;
         auth.initAuth = original.initAuth;
@@ -88,7 +81,7 @@ test("handleInput : saisie vide ignorée", async () => {
     const { calls, restore } = setup();
     try {
         assert.deepEqual(await session.handleInput("   "), { exit: false });
-        assert.equal(calls.command.length + calls.chat.length + calls.compact, 0);
+        assert.equal(calls.command.length + calls.chat.length, 0);
     } finally {
         restore();
     }
@@ -100,7 +93,6 @@ test("handleInput : une commande /... passe par handleCommand", async () => {
         assert.deepEqual(await session.handleInput("  /help "), { exit: false });
         assert.deepEqual(calls.command, ["/help"]);
         assert.equal(calls.chat.length, 0);
-        assert.equal(calls.compact, 0);
     } finally {
         restore();
     }
@@ -169,7 +161,6 @@ test("handleInput : avec un projet, une demande d'action va au chat (le modèle 
         assert.deepEqual(await session.handleInput("corrige le bug"), { exit: false });
         assert.equal(calls.chat.length, 1);
         assert.equal(calls.chat[0].input, "corrige le bug");
-        assert.equal(calls.compact, 1);
     } finally {
         restore();
     }

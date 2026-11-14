@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 
 const { state, resetConversation } = require("../src/state");
 const api = require("../src/api/api");
-const projectContext = require("../src/project/project-context");
+const shortContext = require("../src/project/short-context");
 const conversations = require("../src/project/conversations");
 const chat = require("../src/core/chat");
 const compact = require("../src/core/compact");
@@ -25,7 +25,7 @@ function silentUi(log = []) {
 function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", deltas = [] } = {}) {
     const original = {
         requestTurn: api.requestTurn,
-        promptContext: projectContext.promptContext,
+        buildShortContext: shortContext.buildShortContext,
         touch: conversations.touch,
         buildPreprompt: profile.buildPreprompt,
         refreshContextUsage: compact.refreshContextUsage,
@@ -33,7 +33,8 @@ function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", d
         mode: state.mode,
     };
 
-    const calls = { requestTurn: [], options: [], promptContext: 0, touch: [], refresh: [], ui: [] };
+    // shortContext : dossiers pour lesquels le contexte court a été construit.
+    const calls = { requestTurn: [], options: [], shortContext: [], touch: [], refresh: [], ui: [] };
 
     // Isole les tests du profil réel de l'utilisateur (~/.francestudent-cli/profile.json).
     profile.buildPreprompt = () => "";
@@ -53,8 +54,9 @@ function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", d
         }
         return { text: `réponse ${calls.requestTurn.length}`, toolCalls: [], chatId: state.chatId };
     };
-    projectContext.promptContext = () => {
-        calls.promptContext += 1;
+    // Pas de lecture du disque ni de commande git : contexte court fixe.
+    shortContext.buildShortContext = async (dir) => {
+        calls.shortContext.push(dir);
         return "CONTEXTE PROJET";
     };
     conversations.touch = async (entry) => {
@@ -72,7 +74,7 @@ function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", d
 
     function restore() {
         api.requestTurn = original.requestTurn;
-        projectContext.promptContext = original.promptContext;
+        shortContext.buildShortContext = original.buildShortContext;
         conversations.touch = original.touch;
         profile.buildPreprompt = original.buildPreprompt;
         compact.refreshContextUsage = original.refreshContextUsage;
@@ -85,17 +87,17 @@ function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", d
     return { calls, restore };
 }
 
-test("chat.send joint le contexte projet au premier message seulement", async () => {
+test("chat.send joint le contexte court du projet au premier message seulement", async () => {
     const { calls, restore } = setup({ workspace: "C:/projet" });
     try {
         const first = await chat.send("bonjour");
-        assert.equal(calls.promptContext, 1);
+        assert.deepEqual(calls.shortContext, ["C:/projet"]);
         assert.equal(calls.requestTurn[0], "CONTEXTE PROJET\n\nQUESTION : bonjour");
         assert.equal(first.response, "réponse 1");
         assert.equal(first.newChatId, "chat-123");
 
         const second = await chat.send("encore");
-        assert.equal(calls.promptContext, 1);
+        assert.deepEqual(calls.shortContext, ["C:/projet"]);
         assert.equal(calls.requestTurn[1], "encore");
         assert.equal(second.response, "réponse 2");
         assert.equal(second.newChatId, null);
@@ -126,7 +128,7 @@ test("chat.send sans projet envoie le message brut, sans outil", async () => {
     const { calls, restore } = setup({ workspace: null });
     try {
         await chat.send("salut");
-        assert.equal(calls.promptContext, 0);
+        assert.deepEqual(calls.shortContext, []);
         assert.equal(calls.requestTurn[0], "salut");
         assert.deepEqual(calls.options[0].clientTools, []);
     } finally {

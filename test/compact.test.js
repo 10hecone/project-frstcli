@@ -2,19 +2,15 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
 
 const api = require("../src/api/api");
-const account = require("../src/api/account");
-const conversations = require("../src/project/conversations");
 const memory = require("../src/project/memory");
+const profile = require("../src/project/profile");
+const chat = require("../src/core/chat");
 const { state } = require("../src/state");
 const {
     compactSession,
     buildCompactPrompt,
-    buildCompactSeed,
     extractSummary,
     COMPACT_MAX_SUMMARY_CHARS
 } = require("../src/core/compact");
@@ -22,8 +18,7 @@ const {
 const originals = {
     requestTurn: api.requestTurn,
     sendToolResults: api.sendToolResults,
-    getContextUsage: account.getContextUsage,
-    touch: conversations.touch
+    buildPreprompt: profile.buildPreprompt
 };
 
 function saveState() {
@@ -33,43 +28,45 @@ function saveState() {
         conversationSettings: { ...state.conversationSettings },
         history: state.history,
         contextUsagePercent: state.contextUsagePercent,
+        compactSummary: state.compactSummary,
         workspace: state.workspace
     };
 }
 
 function restoreState(saved) {
-    state.chatIds = saved.chatIds;
-    state.chatId = saved.chatId;
-    state.conversationSettings = saved.conversationSettings;
-    state.history = saved.history;
-    state.contextUsagePercent = saved.contextUsagePercent;
-    state.workspace = saved.workspace;
+    Object.assign(state, saved);
     api.requestTurn = originals.requestTurn;
     api.sendToolResults = originals.sendToolResults;
-    account.getContextUsage = originals.getContextUsage;
-    conversations.touch = originals.touch;
+    profile.buildPreprompt = originals.buildPreprompt;
+}
+
+/** Conversation chat en cours, hors projet (pas de FRSTCLI.md ni de contexte court). */
+function prepare({ percent = 70 } = {}) {
+    state.workspace = null;
+    state.chatIds.chat = "chat-old";
+    state.chatId = "chat-old";
+    state.conversationSettings.chat = null;
+    state.contextUsagePercent = percent;
+    state.compactSummary = null;
+    const history = [{ role: "user", content: "ancienne demande" }];
+    state.history = history;
+    return history;
 }
 
 /**
- * API simulée : comme le serveur (streamOnce), attribue un chatId à la première
- * requête d'une conversation et le range dans state.chatIds.chat.
+ * API simulée : répond par le résumé dans la conversation en cours. Une requête
+ * d'amorçage (sans conversation) serait enregistrée avec chatId null.
  */
-function mockApi({ summary = "1. Objectif\nTester.", failSeed = false, newChatId = "chat-new" } = {}) {
+function mockApi({ summary = "1. Objectif\nTester.", fail = false } = {}) {
     const calls = [];
     api.requestTurn = async (message, options = {}) => {
         calls.push({ message, options, chatId: state.chatIds.chat });
-        if (!state.chatIds.chat) {
-            if (failSeed) throw new Error("panne serveur");
-            state.chatIds.chat = newChatId;
-            state.chatId = newChatId;
-            return { text: "Compris.", toolCalls: [], chatId: newChatId };
-        }
+        if (fail) throw new Error("panne serveur");
         return { text: summary, toolCalls: [], chatId: state.chatIds.chat };
     };
     api.sendToolResults = async () => {
         throw new Error("sendToolResults ne devrait pas être appelé");
     };
-    conversations.touch = async () => {};
     return calls;
 }
 
@@ -91,45 +88,35 @@ test("extractSummary nettoie le texte et le limite en taille", () => {
     assert.match(long, /\[tronqué\]$/);
 });
 
-test("buildCompactSeed ajoute le bloc d'instructions seulement s'il existe", () => {
-    assert.doesNotMatch(buildCompactSeed("RÉSUMÉ"), /INSTRUCTIONS/);
-    const seed = buildCompactSeed("RÉSUMÉ", "INSTRUCTIONS DU PROJET\nrègle");
-    assert.ok(seed.indexOf("RÉSUMÉ") < seed.indexOf("INSTRUCTIONS DU PROJET"));
-});
-
-test("compactSession ouvre une nouvelle conversation amorcée par le résumé", { concurrency: false }, async () => {
+test("compactSession résume puis repart d'une conversation vide, sans requête d'amorçage", { concurrency: false }, async () => {
     const saved = saveState();
     try {
-        state.workspace = null;
-        state.chatIds.chat = "chat-old";
-        state.history = [{ role: "user", content: "ancienne demande" }];
+        prepare();
+        const settings = { model: state.model };
+        state.conversationSettings.chat = settings;
         const calls = mockApi();
-        let askedFor = null;
-        account.getContextUsage = async id => {
-            askedFor = id;
-            return 3;
-        };
         const changesBefore = memory.sessionChanges();
 
         const result = await compactSession({ instruction: "garde les chemins" });
 
-        assert.equal(calls.length, 2);
+        // Une seule requête : la demande de résumé, dans l'ancienne conversation.
+        assert.equal(calls.length, 1);
         assert.equal(calls[0].chatId, "chat-old");
         assert.match(calls[0].message, /garde les chemins/);
         // Aucun outil n'est proposé pendant la compaction.
         assert.equal(calls[0].options.clientTools, undefined);
-        assert.equal(calls[1].chatId, null);
-        assert.match(calls[1].message, /1\. Objectif/);
-        assert.doesNotMatch(calls[1].message, /INSTRUCTIONS DU PROJET/);
-        assert.equal(result.previousChatId, "chat-old");
-        assert.equal(result.chatId, "chat-new");
-        assert.equal(state.chatIds.chat, "chat-new");
-        assert.equal(result.chars, result.summary.length);
-        assert.equal(result.contextUsagePercent, 3);
-        assert.equal(state.contextUsagePercent, 3);
-        assert.equal(askedFor, "chat-new");
+
+        assert.deepEqual(result, { summary: "1. Objectif\nTester.", chars: 19, previousChatId: "chat-old" });
+
+        // La conversation suivante sera créée par le prochain message, qui joindra le résumé.
+        assert.equal(state.chatIds.chat, null);
+        assert.equal(state.chatId, null);
+        assert.equal(state.compactSummary, "1. Objectif\nTester.");
+        assert.equal(state.contextUsagePercent, null);
+        // Les réglages de la conversation (modèle, recherche web…) sont conservés.
+        assert.deepEqual(state.conversationSettings.chat, settings);
         assert.equal(state.history.length, 1);
-        assert.match(state.history[0].content, /Résumé de la session précédente/);
+        assert.match(state.history[0].content, /^Résumé de la session précédente :\n1\. Objectif/);
         // Le journal local (/undo) n'est pas touché.
         assert.equal(memory.sessionChanges(), changesBefore);
     } finally {
@@ -137,39 +124,28 @@ test("compactSession ouvre une nouvelle conversation amorcée par le résumé", 
     }
 });
 
-test("compactSession réinjecte FRSTCLI.md dans la nouvelle conversation", { concurrency: false }, async () => {
+test("après /compact, le premier message de la conversation suivante porte le résumé", { concurrency: false }, async () => {
     const saved = saveState();
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fscli-compact-"));
     try {
-        fs.writeFileSync(path.join(dir, "FRSTCLI.md"), "Toujours répondre en français.\n");
-        state.workspace = dir;
-        state.chatIds.chat = "chat-old";
-        state.history = [];
-        const calls = mockApi();
-        account.getContextUsage = async () => null;
+        prepare();
+        mockApi();
+        profile.buildPreprompt = () => "";
 
         await compactSession();
+        const message = await chat.buildMessage("on continue");
 
-        assert.equal(calls.length, 2);
-        assert.doesNotMatch(calls[0].message, /INSTRUCTIONS DU PROJET/);
-        assert.match(calls[1].message, /INSTRUCTIONS DU PROJET \(FRSTCLI\.md/);
-        assert.match(calls[1].message, /Toujours répondre en français\./);
+        assert.match(message, /^RÉSUMÉ DE LA SESSION PRÉCÉDENTE \(écrit par \/compact/);
+        assert.ok(message.indexOf("1. Objectif") < message.indexOf("on continue"));
+        assert.ok(message.endsWith("on continue"));
     } finally {
         restoreState(saved);
-        fs.rmSync(dir, { recursive: true, force: true });
     }
 });
 
 test("compactSession refuse les appels d'outils puis annule si le modèle insiste", { concurrency: false }, async () => {
     const saved = saveState();
     try {
-        state.workspace = null;
-        state.chatIds.chat = "chat-old";
-        const history = [{ role: "user", content: "demande" }];
-        state.history = history;
-        state.contextUsagePercent = 70;
-        conversations.touch = async () => {};
-        account.getContextUsage = async () => 1;
+        const history = prepare();
 
         const toolTurn = id => ({
             text: "",
@@ -194,10 +170,11 @@ test("compactSession refuse les appels d'outils puis annule si le modèle insist
         assert.equal(sent[0].chatId, "chat-old");
         assert.deepEqual(sent[0].results.map(r => r.callId), ["call-0"]);
         assert.equal(sent[0].results[0].isError, true);
-        // Échec avant l'ouverture de la nouvelle conversation : rien n'a changé.
+        // Échec : la conversation actuelle est conservée telle quelle.
         assert.equal(state.chatIds.chat, "chat-old");
         assert.equal(state.history, history);
         assert.equal(state.contextUsagePercent, 70);
+        assert.equal(state.compactSummary, null);
     } finally {
         restoreState(saved);
     }
@@ -206,49 +183,34 @@ test("compactSession refuse les appels d'outils puis annule si le modèle insist
 test("compactSession accepte un résumé obtenu après un refus d'outil", { concurrency: false }, async () => {
     const saved = saveState();
     try {
-        state.workspace = null;
-        state.chatIds.chat = "chat-old";
-        state.history = [];
-        conversations.touch = async () => {};
-        account.getContextUsage = async () => null;
-
-        api.requestTurn = async () => {
-            if (!state.chatIds.chat) {
-                state.chatIds.chat = "chat-new";
-                state.chatId = "chat-new";
-                return { text: "Compris.", toolCalls: [], chatId: "chat-new" };
-            }
-            return {
-                text: "",
-                toolCalls: [{ callId: "call-1", name: "list_directory", arguments: {} }],
-                chatId: "chat-old"
-            };
-        };
+        prepare();
+        api.requestTurn = async () => ({
+            text: "",
+            toolCalls: [{ callId: "call-1", name: "list_directory", arguments: {} }],
+            chatId: "chat-old"
+        });
         api.sendToolResults = async () => ({ text: "1. Objectif\nFinir.", toolCalls: [], chatId: "chat-old" });
 
         const result = await compactSession();
         assert.equal(result.summary, "1. Objectif\nFinir.");
-        assert.equal(state.chatIds.chat, "chat-new");
+        assert.equal(state.chatIds.chat, null);
+        assert.equal(state.compactSummary, "1. Objectif\nFinir.");
     } finally {
         restoreState(saved);
     }
 });
 
-test("compactSession conserve la conversation si l'ouverture échoue", { concurrency: false }, async () => {
+test("compactSession conserve la conversation si la demande de résumé échoue", { concurrency: false }, async () => {
     const saved = saveState();
     try {
-        state.workspace = null;
-        state.chatIds.chat = "chat-old";
-        state.contextUsagePercent = 85;
-        const history = [{ role: "user", content: "demande" }];
-        state.history = history;
-        mockApi({ failSeed: true });
-        account.getContextUsage = async () => 1;
+        const history = prepare({ percent: 85 });
+        mockApi({ fail: true });
 
         await assert.rejects(compactSession(), /panne serveur/);
         assert.equal(state.chatIds.chat, "chat-old");
         assert.equal(state.history, history);
         assert.equal(state.contextUsagePercent, 85);
+        assert.equal(state.compactSummary, null);
     } finally {
         restoreState(saved);
     }
@@ -257,7 +219,7 @@ test("compactSession conserve la conversation si l'ouverture échoue", { concurr
 test("compactSession refuse un résumé vide ou l'absence de conversation", { concurrency: false }, async () => {
     const saved = saveState();
     try {
-        state.workspace = null;
+        prepare();
         state.chatIds.chat = null;
         state.chatIds.agent = "agent-old";
         const calls = mockApi();
@@ -269,6 +231,7 @@ test("compactSession refuse un résumé vide ou l'absence de conversation", { co
         mockApi({ summary: "   " });
         await assert.rejects(compactSession(), /Résumé vide/);
         assert.equal(state.chatIds.chat, "chat-old");
+        assert.equal(state.compactSummary, null);
     } finally {
         restoreState(saved);
     }

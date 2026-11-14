@@ -10,7 +10,7 @@ const { state, resetConversation } = require("../src/state");
 const { CONFIG } = require("../src/config");
 const api = require("../src/api/api");
 const registry = require("../src/tools/registry");
-const projectContext = require("../src/project/project-context");
+const shortContext = require("../src/project/short-context");
 const conversations = require("../src/project/conversations");
 const profile = require("../src/project/profile");
 const chat = require("../src/core/chat");
@@ -39,7 +39,7 @@ function setup({ workspace = "C:/projet", turns = [], runTool, confirm = async (
         requestTurn: api.requestTurn,
         sendToolResults: api.sendToolResults,
         runClientTool: registry.runClientTool,
-        promptContext: projectContext.promptContext,
+        buildShortContext: shortContext.buildShortContext,
         buildPreprompt: profile.buildPreprompt,
         touch: conversations.touch,
         refreshContextUsage: compact.refreshContextUsage,
@@ -76,7 +76,7 @@ function setup({ workspace = "C:/projet", turns = [], runTool, confirm = async (
         log.runClientTool.push({ name, args, allowed });
         return runTool ? runTool(name, args, allowed) : { ok: true };
     };
-    projectContext.promptContext = () => "CONTEXTE";
+    shortContext.buildShortContext = async () => "CONTEXTE";
     profile.buildPreprompt = () => "";
     conversations.touch = async (entry) => {
         log.touch.push(entry);
@@ -106,7 +106,7 @@ function setup({ workspace = "C:/projet", turns = [], runTool, confirm = async (
         api.requestTurn = original.requestTurn;
         api.sendToolResults = original.sendToolResults;
         registry.runClientTool = original.runClientTool;
-        projectContext.promptContext = original.promptContext;
+        shortContext.buildShortContext = original.buildShortContext;
         profile.buildPreprompt = original.buildPreprompt;
         conversations.touch = original.touch;
         compact.refreshContextUsage = original.refreshContextUsage;
@@ -129,6 +129,7 @@ test("une ronde : un résultat par callId, dans l'ordre, en un seul envoi", asyn
             ]),
             turn("Fini."),
         ],
+        // Formes inconnues du formateur : renvoyées en JSON.
         runTool: (name, args) => ({ tool: name, path: args.path }),
     });
     try {
@@ -154,6 +155,31 @@ test("une ronde : un résultat par callId, dans l'ordre, en un seul envoi", asyn
         assert.deepEqual(deltas, ["Je regarde.", "Fini."]);
         assert.deepEqual(state.history.map((e) => e.content), ["analyse", "Je regarde.\n\nFini."]);
         assert.equal(env.log.requestTurn[0].message, "CONTEXTE\n\nQUESTION : analyse");
+    } finally {
+        env.restore();
+    }
+});
+
+test("résultats en texte : read_file numéroté, list_directory une entrée par ligne", async () => {
+    const env = setup({
+        turns: [
+            turn("", [
+                call("r", "read_file", { path: "a.js" }),
+                call("l", "list_directory", { path: "." }),
+            ]),
+            turn("ok"),
+        ],
+        runTool: (name) =>
+            name === "read_file"
+                ? { path: "a.js", total_lines: 2, range: null, truncated: false, next_line: null, content: "un\ndeux\n", message: "Fichier lu." }
+                : { path: ".", entries: [{ path: "src", type: "directory" }, { path: "a.js", type: "file" }], truncated: false, message: "2 élément(s)." },
+    });
+    try {
+        await chat.send("go");
+        const [read, list] = env.log.sendToolResults[0].results;
+        assert.match(read.output, /^Fichier : a\.js \(2 ligne\(s\) au total, lignes 1 à 2 affichées\)/);
+        assert.match(read.output, /\n1\tun\n2\tdeux$/);
+        assert.equal(list.output, "Dossier : .\nsrc/\na.js");
     } finally {
         env.restore();
     }
@@ -293,6 +319,40 @@ test("sans projet : aucun outil proposé, message brut", async () => {
     }
 });
 
+test("résumé de /compact : joint au premier message puis oublié", async () => {
+    const env = setup({ turns: [turn("vu"), turn("encore")] });
+    try {
+        state.compactSummary = "Objectif : finir la refonte.";
+        await chat.send("on reprend");
+        assert.match(
+            env.log.requestTurn[0].message,
+            /^RÉSUMÉ DE LA SESSION PRÉCÉDENTE[^\n]*\nObjectif : finir la refonte\.\n\nCONTEXTE\n\nQUESTION : on reprend$/,
+        );
+        assert.equal(state.compactSummary, null);
+
+        await chat.send("suite");
+        assert.equal(env.log.requestTurn[1].message, "suite");
+    } finally {
+        env.restore();
+    }
+});
+
+test("plus de 32 appels : seuls les 32 premiers sont exécutés et envoyés", async () => {
+    const calls = Array.from({ length: 40 }, (_, i) => call(`c${i}`, "read_file", { path: `f${i}` }));
+    const env = setup({ turns: [turn("", calls), turn("ok")] });
+    try {
+        await chat.send("go");
+        const results = env.log.sendToolResults[0].results;
+        assert.equal(results.length, chat.MAX_RESULTS_PER_SEND);
+        assert.equal(results.length, 32);
+        assert.deepEqual(results.map((r) => r.callId), calls.slice(0, 32).map((c) => c.callId));
+        assert.equal(env.log.runClientTool.length, 32);
+        assert.ok(env.log.ui.some(([method, text]) => method === "warn" && /32 premiers/.test(text)));
+    } finally {
+        env.restore();
+    }
+});
+
 test("limite de rondes : confirmation forcée, arrêt si l'utilisateur refuse", async () => {
     const env = setup({
         turns: [
@@ -305,11 +365,38 @@ test("limite de rondes : confirmation forcée, arrêt si l'utilisateur refuse", 
     try {
         const { response } = await chat.send("go");
         assert.equal(env.log.confirm.length, 1);
+        assert.match(env.log.confirm[0][0], /^1 rondes d'outils effectuées\. Continuer 1 rondes de plus \?$/);
         assert.deepEqual(env.log.confirm[0][1], { force: true });
         assert.equal(env.log.sendToolResults.length, 1);
         assert.equal(env.log.runClientTool.length, 1);
         assert.ok(env.log.ui.some(([method]) => method === "warn"));
         assert.equal(response, "1\n\n2");
+    } finally {
+        env.restore();
+    }
+});
+
+test("limite de rondes : nouvelle confirmation toutes les N rondes", async () => {
+    const env = setup({
+        turns: [
+            turn("", [call("a", "read_file", { path: "a" })]),
+            turn("", [call("b", "read_file", { path: "b" })]),
+            turn("", [call("c", "read_file", { path: "c" })]),
+            turn("", [call("d", "read_file", { path: "d" })]),
+            turn("", [call("e", "read_file", { path: "e" })]),
+            turn("fini"),
+        ],
+        confirm: async () => true,
+    });
+    CONFIG.maxAgentTurns = 2;
+    try {
+        const { response } = await chat.send("go");
+        // Rondes 3 et 5 : une confirmation chacune.
+        assert.equal(env.log.confirm.length, 2);
+        assert.match(env.log.confirm[0][0], /^2 rondes/);
+        assert.match(env.log.confirm[1][0], /^4 rondes/);
+        assert.equal(env.log.sendToolResults.length, 5);
+        assert.equal(response, "fini");
     } finally {
         env.restore();
     }
@@ -335,14 +422,16 @@ test("limite de rondes : la boucle continue si l'utilisateur accepte", async () 
     }
 });
 
-test("fitOutputs : 40 000 caractères par résultat, 120 000 par envoi", () => {
-    const big = (callId) => ({ callId, output: "x".repeat(50_000) });
+test("fitOutputs : 40 000 caractères par résultat, 120 000 par envoi, début et fin gardés", () => {
+    const big = (callId) => ({ callId, output: `DEBUT${"x".repeat(49_990)}FIN` });
     const fitted = chat.fitOutputs([big("a"), big("b"), big("c"), big("d")]);
 
     assert.deepEqual(fitted.map((r) => r.callId), ["a", "b", "c", "d"]);
     for (const r of fitted) {
         assert.ok(r.output.length <= 30_000);
-        assert.match(r.output, /\[tronqué : 50000 caractères au total\]$/);
+        assert.match(r.output, /\[tronqué : 49998 caractères au total, début et fin conservés\]/);
+        assert.ok(r.output.startsWith("DEBUT"));
+        assert.ok(r.output.endsWith("FIN"));
     }
     assert.ok(fitted.reduce((sum, r) => sum + r.output.length, 0) <= 120_000);
 

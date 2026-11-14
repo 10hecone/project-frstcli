@@ -3,10 +3,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { CONFIG } = require("../src/config");
 const { state } = require("../src/state");
 const { setUiBackend, UI_METHODS } = require("../src/ui-bridge");
 const conversations = require("../src/project/conversations");
+const compact = require("../src/core/compact");
 const commands = require("../src/cli/commands");
 
 function captureUi() {
@@ -17,6 +17,8 @@ function captureUi() {
             if (name === "info" || name === "warn") lines.push(String(args[0]));
         };
     }
+    // /compact affiche un indicateur d'attente pendant le résumé.
+    fakeUi.spinner = () => ({ update() {}, stop() {} });
     setUiBackend(fakeUi);
     return lines;
 }
@@ -30,9 +32,9 @@ function saveState() {
         mode: state.mode,
         model: state.model,
         contextUsagePercent: state.contextUsagePercent,
-        autoCompact: CONFIG.autoCompact,
-        threshold: CONFIG.autoCompactThreshold,
-        find: conversations.find
+        compactSummary: state.compactSummary,
+        find: conversations.find,
+        compactSession: compact.compactSession
     };
 }
 
@@ -44,38 +46,40 @@ function restore(saved) {
     state.mode = saved.mode;
     state.model = saved.model;
     state.contextUsagePercent = saved.contextUsagePercent;
-    CONFIG.autoCompact = saved.autoCompact;
-    CONFIG.autoCompactThreshold = saved.threshold;
+    state.compactSummary = saved.compactSummary;
     conversations.find = saved.find;
+    compact.compactSession = saved.compactSession;
     setUiBackend(null);
 }
 
-test("/context affiche le pourcentage, la conversation, les tours et le seuil", { concurrency: false }, async () => {
+test("/context affiche le pourcentage, la conversation et les tours", { concurrency: false }, async () => {
     const saved = saveState();
     try {
         const lines = captureUi();
         state.chatIds = { chat: "chat-42", agent: null };
         state.contextUsagePercent = 42.4;
+        state.compactSummary = null;
         state.history = [
             { role: "user", content: "a" },
             { role: "assistant", content: "b" },
             { role: "user", content: "c" }
         ];
-        CONFIG.autoCompact = true;
-        CONFIG.autoCompactThreshold = 80;
 
         await commands.handleCommand("/context");
         const text = lines.join("\n");
         assert.match(text, /Contexte : 42 %/);
         assert.match(text, /Conversation : chat-42/);
         assert.match(text, /Tours \(session\) : 2/);
-        assert.match(text, /à partir de 80 %/);
+        assert.doesNotMatch(text, /en attente/);
+        // Plus de seuil de compaction automatique.
+        assert.match(text, /Pas de compaction automatique/);
+        assert.doesNotMatch(text, /à partir de \d+ %/);
     } finally {
         restore(saved);
     }
 });
 
-test("/context sans valeur ni conversation, compaction désactivée", { concurrency: false }, async () => {
+test("/context sans valeur ni conversation, avec un résumé /compact en attente", { concurrency: false }, async () => {
     const saved = saveState();
     try {
         const lines = captureUi();
@@ -83,7 +87,7 @@ test("/context sans valeur ni conversation, compaction désactivée", { concurre
         state.chatIds = { chat: null, agent: "agent-1" };
         state.contextUsagePercent = null;
         state.history = [];
-        CONFIG.autoCompact = false;
+        state.compactSummary = "x".repeat(120);
 
         await commands.handleCommand("/context");
         const text = lines.join("\n");
@@ -91,7 +95,7 @@ test("/context sans valeur ni conversation, compaction désactivée", { concurre
         assert.match(text, /Conversation : aucune/);
         assert.doesNotMatch(text, /agent-1/);
         assert.match(text, /Tours \(session\) : 0/);
-        assert.match(text, /désactivée/);
+        assert.match(text, /Résumé \/compact en attente : 120 caractères, joint au prochain message/);
     } finally {
         restore(saved);
     }
@@ -141,8 +145,6 @@ test("/new vide la conversation chat et le pourcentage de contexte", { concurren
 
 test("/compact sans conversation chat : message, aucun appel", { concurrency: false }, async () => {
     const saved = saveState();
-    const compact = require("../src/core/compact");
-    const original = compact.compactSession;
     let called = false;
     compact.compactSession = async () => {
         called = true;
@@ -156,7 +158,44 @@ test("/compact sans conversation chat : message, aucun appel", { concurrency: fa
         assert.equal(called, false);
         assert.match(lines.join("\n"), /Aucune conversation à résumer/);
     } finally {
-        compact.compactSession = original;
+        restore(saved);
+    }
+});
+
+test("/compact : consigne transmise, résumé joint au prochain message, ancienne conversation indiquée", { concurrency: false }, async () => {
+    const saved = saveState();
+    const received = [];
+    compact.compactSession = async (options) => {
+        received.push(options);
+        return { summary: "x".repeat(42), chars: 42, previousChatId: "chat-old" };
+    };
+    try {
+        const lines = captureUi();
+        state.chatIds = { chat: "chat-old", agent: null };
+
+        await commands.handleCommand("/compact garde les chemins");
+        assert.deepEqual(received, [{ instruction: "garde les chemins" }]);
+        const text = lines.join("\n");
+        assert.match(text, /Session compactée : résumé de 42 caractères/);
+        assert.match(text, /joint à ton prochain message/);
+        assert.match(text, /\/chat-id chat-old pour y revenir/);
+    } finally {
+        restore(saved);
+    }
+});
+
+test("/compact : un échec est signalé sans lever d'erreur", { concurrency: false }, async () => {
+    const saved = saveState();
+    compact.compactSession = async () => {
+        throw new Error("Résumé vide : la session n'a pas été compactée.");
+    };
+    try {
+        const lines = captureUi();
+        state.chatIds = { chat: "chat-old", agent: null };
+
+        await commands.handleCommand("/compact");
+        assert.match(lines.join("\n"), /Compaction impossible : Résumé vide/);
+    } finally {
         restore(saved);
     }
 });

@@ -1,17 +1,17 @@
 "use strict";
 
 /**
- * Pourcentage de contexte et compaction de la conversation (/compact, compaction automatique).
- * Repris de l'ancien agent (src/agent/agent.js) pour la conversation unique « chat ».
+ * Pourcentage de contexte et compaction manuelle de la conversation (/compact).
+ *
+ * Pas de compaction automatique : l'API rejoue l'historique à chaque tour et les
+ * fournisseurs le compactent eux-mêmes. /compact sert à repartir d'une conversation
+ * neuve : le modèle résume la session, puis le résumé est joint au premier message
+ * de la conversation suivante (core/chat.js, buildMessage), sans requête d'amorçage.
  */
 
-const { CONFIG } = require("../config");
-const { state, record, activateConversation, setConversation, resetConversation } = require("../state");
-const { ui } = require("../ui-bridge");
+const { state, record, activateConversation, resetConversation } = require("../state");
 const api = require("../api/api");
 const account = require("../api/account");
-const conversations = require("../project/conversations");
-const { instructionsBlock } = require("../project/instructions");
 
 /* ---------- Pourcentage de contexte ---------- */
 
@@ -31,9 +31,9 @@ function refreshContextUsage(chatId = state.chatIds.chat) {
         .catch(() => null);
 }
 
-/* ---------- Compaction de la session ---------- */
+/* ---------- Compaction de la session (/compact) ---------- */
 
-// Taille maximale du résumé gardé pour la nouvelle conversation.
+// Taille maximale du résumé joint au premier message de la conversation suivante.
 const COMPACT_MAX_SUMMARY_CHARS = 20_000;
 
 // Aucun outil n'est proposé pendant la compaction. Si le modèle en appelle quand même,
@@ -55,20 +55,6 @@ function buildCompactPrompt(instruction = "") {
         "1. Objectif\n2. Décisions prises\n3. Fichiers modifiés (chemins)\n4. Tâches restantes\n" +
         "Sois concis et précis : chemins, noms de fonctions, commandes utiles." +
         (extra ? `\n\nConsigne de l'utilisateur pour ce résumé : ${extra}` : "")
-    );
-}
-
-/**
- * Premier message de la nouvelle conversation : le résumé sert de contexte de départ.
- * `instructions` : bloc FRSTCLI.md (instructionsBlock), repris car la nouvelle
- * conversation ne passe pas par le premier message habituel de core/chat.js.
- */
-function buildCompactSeed(summary, instructions = "") {
-    return (
-        "Reprise de session : voici le résumé de la conversation précédente. " +
-        "Garde-le comme contexte pour les prochaines demandes. Réponds seulement « Compris. ».\n\n" +
-        summary +
-        (instructions ? `\n\n${instructions}` : "")
     );
 }
 
@@ -99,10 +85,11 @@ async function askText(message) {
 }
 
 /**
- * Résume la conversation chat puis ouvre une nouvelle conversation (chatId neuf)
- * qui commence par ce résumé. Le journal local (/undo, /changes) n'est pas touché.
- * En cas d'échec, la conversation précédente est conservée.
- * Renvoie { summary, chars, previousChatId, chatId, contextUsagePercent }.
+ * Résume la conversation chat, puis repart d'une conversation vide : le résumé
+ * (state.compactSummary) sera joint au premier message suivant, qui crée la nouvelle
+ * conversation. Aucune requête supplémentaire. Le journal local (/undo, /changes)
+ * n'est pas touché. En cas d'échec, la conversation actuelle est conservée.
+ * Renvoie { summary, chars, previousChatId }.
  */
 async function compactSession({ instruction = "" } = {}) {
     activateConversation("chat");
@@ -111,95 +98,26 @@ async function compactSession({ instruction = "" } = {}) {
         throw new Error("Aucune conversation à résumer.");
     }
     const previousSettings = state.conversationSettings.chat;
-    const previousHistory = state.history;
-    const previousPercent = state.contextUsagePercent;
 
     const summary = extractSummary(await askText(buildCompactPrompt(instruction)));
     if (!summary) {
         throw new Error("Résumé vide : la session n'a pas été compactée.");
     }
 
-    const instructions = state.workspace ? await instructionsBlock(state.workspace) : "";
-
     resetConversation("chat");
-    state.contextUsagePercent = null;
-
-    try {
-        await askText(buildCompactSeed(summary, instructions));
-    } catch (error) {
-        setConversation("chat", previousChatId, previousSettings);
-        state.history = previousHistory;
-        state.contextUsagePercent = previousPercent;
-        throw error;
-    }
-
     state.conversationSettings.chat = previousSettings ? { ...previousSettings } : null;
     activateConversation("chat");
+    state.contextUsagePercent = null;
+    state.compactSummary = summary;
     record("assistant", `Résumé de la session précédente :\n${summary}`);
 
-    if (state.chatIds.chat) {
-        try {
-            await conversations.touch({
-                id: state.chatIds.chat,
-                firstMessage: "Session compactée (/compact)",
-                model: state.model,
-                workspace: state.workspace,
-                mode: "chat",
-                settings: state.conversationSettings.chat
-            });
-        } catch {
-            // Historique local indisponible : sans effet sur la compaction.
-        }
-    }
-
-    const contextUsagePercent = await refreshContextUsage();
-
-    return {
-        summary,
-        chars: summary.length,
-        previousChatId,
-        chatId: state.chatIds.chat,
-        contextUsagePercent
-    };
-}
-
-/**
- * Compaction automatique, appelée entre deux demandes (jamais pendant une ronde d'outils).
- * Se déclenche si le contexte atteint CONFIG.autoCompactThreshold (%), sauf si
- * CONFIG.autoCompact est désactivé. Renvoie le résultat de compactSession,
- * ou null si rien n'a été fait. Ne lève jamais d'erreur.
- */
-async function maybeAutoCompact() {
-    if (!CONFIG.autoCompact) return null;
-    const threshold = Number(CONFIG.autoCompactThreshold);
-    const percent = state.contextUsagePercent;
-    if (!state.chatIds.chat || typeof percent !== "number") return null;
-    if (!(threshold > 0) || percent < threshold) return null;
-
-    ui.warn(
-        `Contexte à ${Math.round(percent)} % (seuil ${threshold} %) : compaction automatique de la session. ` +
-        "FS_AUTO_COMPACT=0 pour la désactiver."
-    );
-
-    try {
-        const result = await compactSession();
-        ui.info(
-            `Session compactée : résumé de ${result.chars} caractères` +
-            (result.contextUsagePercent == null ? "." : `, contexte à ${Math.round(result.contextUsagePercent)} %.`)
-        );
-        return result;
-    } catch (error) {
-        ui.warn(`Compaction automatique impossible : ${error.message}`);
-        return null;
-    }
+    return { summary, chars: summary.length, previousChatId };
 }
 
 module.exports = {
     refreshContextUsage,
     compactSession,
-    maybeAutoCompact,
     buildCompactPrompt,
-    buildCompactSeed,
     extractSummary,
     COMPACT_MAX_SUMMARY_CHARS
 };

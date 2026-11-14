@@ -7,7 +7,6 @@ const login = require("../api/login");
 const commands = require("../cli/commands");
 const conversations = require("../project/conversations");
 const chat = require("./chat");
-const compact = require("./compact");
 const router = require("../cli/router");
 const profile = require("../project/profile");
 const { handleProfileCommand } = require("../cli/profile-commands");
@@ -53,6 +52,9 @@ async function bootstrap() {
  * onChatDelta reçoit le texte en streaming. sendChat (optionnel) remplace l'envoi
  * par défaut (utilisé par le CLI pour son rendu).
  * Renvoie { exit } : true si la session doit s'arrêter.
+ *
+ * Pas de compaction automatique : les fournisseurs compactent eux-mêmes l'historique
+ * rejoué par l'API. /compact reste disponible pour repartir d'un résumé.
  */
 async function handleInput(rawInput, { onChatDelta, sendChat } = {}) {
     const input = String(rawInput ?? "").trim();
@@ -86,9 +88,6 @@ async function handleInput(rawInput, { onChatDelta, sendChat } = {}) {
         );
         return { exit: false };
     }
-
-    // Entre deux demandes : compaction automatique si le contexte dépasse le seuil.
-    await compact.maybeAutoCompact();
 
     if (sendChat) await sendChat(input);
     else await chat.send(input, { onDelta: onChatDelta });
