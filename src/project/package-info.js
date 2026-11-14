@@ -40,4 +40,4 @@ async function detectPackageInfo(workspace) {
     return info;
 }
 
-module.exports = { detectPackageInfo };
+module.exports = { detectPackageInfo, LOCKFILES };
