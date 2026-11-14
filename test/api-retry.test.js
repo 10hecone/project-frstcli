@@ -51,11 +51,13 @@ test("sans champ usage, les compteurs de tokens ne bougent pas", { concurrency: 
     assert.equal(usage.inputTokens, before.inputTokens);
 });
 
-function successfulResponse() {
+function successfulResponse(chatId = null) {
+    const opening = chatId ? `event: chat\ndata: {"chat_id":"${chatId}"}\n\n` : "";
     const body = new ReadableStream({
         start(controller) {
             controller.enqueue(
                 new TextEncoder().encode(
+                    opening +
                     'event: response.output_text.delta\ndata: {"delta":"ok"}\n\n' +
                     "data: [DONE]\n\n",
                 ),
@@ -103,40 +105,75 @@ test("requestModel abandonne après deux échecs", { concurrency: false }, async
     assert.equal(calls, MAX_REQUEST_FAILURES + 1);
 });
 
-test("requestModel ouvre une nouvelle conversation agent après un 409", { concurrency: false }, async () => {
+test("requestModel range la nouvelle conversation dans state.chatIds.chat", { concurrency: false }, async () => {
     prepareAuth();
-    state.chatId = "agent-1";
-    state.chatIds.agent = "agent-1";
-    const chatIds = [];
-    let calls = 0;
+    const savedProject = state.frProject;
+    const savedAgent = state.chatIds.agent;
+    state.frProject = null;
+    state.chatIds.chat = null;
+    state.chatIds.agent = "ancienne-conversation-agent";
+    const bodies = [];
     global.fetch = async (url, init) => {
-        calls++;
-        chatIds.push(JSON.parse(init.body).chatId);
-        if (calls === 1) return new Response("A stream is already active for this chat", { status: 409 });
-        return successfulResponse();
+        bodies.push(JSON.parse(init.body));
+        return successfulResponse("chat-neuf");
     };
 
-    assert.equal(await requestModel("bonjour", { conversationMode: "agent" }), "ok");
-    assert.equal(calls, 2);
-    assert.equal(chatIds[0], "agent-1");
-    assert.ok(chatIds[1] == null);
+    try {
+        assert.equal(await requestModel("bonjour"), "ok");
+        assert.equal(bodies[0].chatId, null);
+        assert.equal(bodies[0].agentId, -1002);
+        assert.equal("clientTools" in bodies[0], false);
+        assert.equal(state.chatIds.chat, "chat-neuf");
+        assert.equal(state.chatId, "chat-neuf");
+        assert.equal(state.chatIds.agent, "ancienne-conversation-agent");
+
+        // Tour suivant : la même conversation est reprise.
+        await requestModel("suite");
+        assert.equal(bodies[1].chatId, "chat-neuf");
+    } finally {
+        state.frProject = savedProject;
+        state.chatIds.agent = savedAgent;
+    }
 });
 
-test("après un 409 agent, le message complet remplace le message « suite »", { concurrency: false }, async () => {
+test("requestModel fresh : conversation à part, state intact, ni recherche web ni projet", { concurrency: false }, async () => {
     prepareAuth();
-    state.chatId = "agent-1";
-    state.chatIds.agent = "agent-1";
-    const sent = [];
-    let calls = 0;
+    const saved = { project: state.frProject, webSearch: state.webSearch, chatId: state.chatId };
+    state.frProject = { id: "projet-1" };
+    state.webSearch = true;
+    state.chatId = "chat-1";
+    const bodies = [];
     global.fetch = async (url, init) => {
-        calls++;
-        sent.push(JSON.parse(init.body).initialContent);
-        if (calls === 1) return new Response("A stream is already active for this chat", { status: 409 });
+        bodies.push(JSON.parse(init.body));
+        return successfulResponse("resume-projet");
+    };
+
+    try {
+        assert.equal(await requestModel("résume le projet", { fresh: true, agentId: -2002 }), "ok");
+        assert.equal(bodies.length, 1);
+        assert.equal(bodies[0].chatId, null);
+        assert.equal(bodies[0].agentId, -2002);
+        assert.equal(bodies[0].enableWebSearch, false);
+        assert.equal("projectId" in bodies[0], false);
+        assert.equal(state.chatIds.chat, "chat-1");
+        assert.equal(state.chatId, "chat-1");
+    } finally {
+        state.frProject = saved.project;
+        state.webSearch = saved.webSearch;
+        state.chatId = saved.chatId;
+    }
+});
+
+test("requestModel ne propose jamais d'outils client", { concurrency: false }, async () => {
+    prepareAuth();
+    const bodies = [];
+    global.fetch = async (url, init) => {
+        bodies.push(JSON.parse(init.body));
         return successfulResponse();
     };
 
-    await requestModel("suite courte", { conversationMode: "agent", freshMessage: () => "message complet" });
-    assert.deepEqual(sent, ["suite courte", "message complet"]);
+    assert.equal(await requestModel("bonjour", { clientTools: ["read_file"] }), "ok");
+    assert.equal("clientTools" in bodies[0], false);
 });
 
 test("un 429 « budget épuisé » n'est pas relancé et indique l'heure de reprise", { concurrency: false }, async () => {
@@ -205,4 +242,55 @@ test("cancelStream sans chatId ne fait aucun appel", { concurrency: false }, asy
 
     assert.equal(await cancelStream(null), false);
     assert.equal(calls, 0);
+});
+
+function sseErrorResponse(payload) {
+    const body = new ReadableStream({
+        start(controller) {
+            controller.enqueue(new TextEncoder().encode(`event: error\ndata: ${JSON.stringify(payload)}\n\n`));
+            controller.close();
+        },
+    });
+    return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+}
+
+test("une erreur SSE retryable:false (violation de politique) n'est envoyée qu'une fois", { concurrency: false }, async () => {
+    prepareAuth();
+    let calls = 0;
+    global.fetch = async () => {
+        calls++;
+        return sseErrorResponse({ code: "CONTENT_POLICY_VIOLATION", message: "refus", retryable: false });
+    };
+
+    await assert.rejects(requestModel("bonjour"), error => {
+        assert.equal(error.code, "CONTENT_POLICY_VIOLATION");
+        assert.equal(error.retryable, false);
+        return true;
+    });
+    assert.equal(calls, 1);
+});
+
+test("une violation de politique sans champ retryable n'est pas relancée", { concurrency: false }, async () => {
+    prepareAuth();
+    let calls = 0;
+    global.fetch = async () => {
+        calls++;
+        return sseErrorResponse({ error: { code: "CONTENT_POLICY_VIOLATION", message: "refus" } });
+    };
+
+    await assert.rejects(requestModel("bonjour"), /CONTENT_POLICY_VIOLATION/);
+    assert.equal(calls, 1);
+});
+
+test("une erreur SSE retryable:true reste relancée", { concurrency: false }, async () => {
+    prepareAuth();
+    let calls = 0;
+    global.fetch = async () => {
+        calls++;
+        if (calls === 1) return sseErrorResponse({ code: "UPSTREAM_ERROR", retryable: true });
+        return successfulResponse();
+    };
+
+    assert.equal(await requestModel("bonjour"), "ok");
+    assert.equal(calls, 2);
 });

@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs/promises");
+const vm = require("node:vm");
 
 const { CONFIG } = require("../../config");
 const { state } = require("../../state");
@@ -81,16 +82,54 @@ function makeGlobFilter(glob) {
     return rel => re.test(byName ? rel.slice(rel.lastIndexOf("/") + 1) : rel);
 }
 
-function makeMatcher(query, regex) {
+// Délai maximal d'une regex sur un fichier (protection contre le ReDoS).
+const REGEX_TIMEOUT_MS = 1000;
+
+// Exécuté dans un contexte vm : le délai interrompt une regex qui boucle.
+const REGEX_SCRIPT = new vm.Script(
+    "(() => { const out = []; const lines = text.split(\"\\n\");" +
+    " for (let k = 0; k < lines.length && out.length < limit; k++) {" +
+    " if (re.test(lines[k].replace(/\\r$/, \"\"))) out.push(k); }" +
+    " return out; })()"
+);
+
+/** Numéros (à partir de 0) des lignes de text où la regex correspond, limit au maximum, avec délai. */
+function regexLines(context, text, limit, timeoutMs = REGEX_TIMEOUT_MS) {
+    context.text = text;
+    context.limit = limit;
+
+    try {
+        return Array.from(REGEX_SCRIPT.runInContext(context, { timeout: timeoutMs }));
+    } catch (error) {
+        if (error && error.code === "ERR_SCRIPT_EXECUTION_TIMEOUT") {
+            throw new Error(`regex trop lente (plus de ${timeoutMs} ms sur un fichier) : simplifie-la.`);
+        }
+        throw error;
+    } finally {
+        context.text = "";
+    }
+}
+
+function makeMatcher(query, regex, timeoutMs = REGEX_TIMEOUT_MS) {
     if (regex) {
-        const re = compileRegex(query);
-        return { quick: () => true, line: text => re.test(text) };
+        const context = vm.createContext({ re: compileRegex(query), text: "", limit: 0 });
+        return {
+            quick: () => true,
+            find: (text, limit) => regexLines(context, text, limit, timeoutMs)
+        };
     }
 
     const needle = query.toLowerCase();
     return {
         quick: text => text.toLowerCase().includes(needle),
-        line: text => text.toLowerCase().includes(needle)
+        find: (text, limit) => {
+            const out = [];
+            const lines = text.split("\n");
+            for (let k = 0; k < lines.length && out.length < limit; k++) {
+                if (lines[k].toLowerCase().includes(needle)) out.push(k);
+            }
+            return out;
+        }
     };
 }
 
@@ -133,19 +172,18 @@ async function searchFiles(args = {}) {
             if (text === null || !matcher.quick(text)) continue;
 
             const lines = text.split("\n");
+            const found = matcher.find(text, CONFIG.maxSearchResults - matches.length);
 
-            for (let k = 0; k < lines.length; k++) {
+            for (const k of found) {
                 const line = lines[k].replace(/\r$/, "");
 
-                if (matcher.line(line)) {
-                    matches.push({
-                        path: batch[j].rel,
-                        line: k + 1,
-                        text: line.trim().slice(0, 200)
-                    });
+                matches.push({
+                    path: batch[j].rel,
+                    line: k + 1,
+                    text: line.trim().slice(0, 200)
+                });
 
-                    if (matches.length >= CONFIG.maxSearchResults) break;
-                }
+                if (matches.length >= CONFIG.maxSearchResults) break;
             }
         }
     }
@@ -182,5 +220,6 @@ module.exports = {
     check,
     describe,
     searchFiles,
-    globToRegExp
+    globToRegExp,
+    makeMatcher
 };

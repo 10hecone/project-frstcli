@@ -24,6 +24,8 @@ function initialState() {
         prompts: [],
         status: {},
         command: null,
+        todos: [],
+        subagents: [],
         nextId: 1
     };
 }
@@ -139,6 +141,20 @@ function reducer(state, action) {
             if (prompts.length === state.prompts.length) return state;
             return { ...state, prompts, pendingPrompt: prompts[0] || null };
         }
+
+        case "todos":
+            // Liste de tâches (todo_write) : remplacée en entier à chaque mise à jour.
+            return {
+                ...state,
+                todos: Array.isArray(action.todos) ? action.todos.map(todo => ({ ...todo })) : []
+            };
+
+        case "subagents":
+            // Sous-agents (delegate) : liste remplacée en entier, vidée à la fin de delegate.
+            return {
+                ...state,
+                subagents: Array.isArray(action.subagents) ? action.subagents.map(item => ({ ...item })) : []
+            };
 
         case "status":
             return { ...state, status: { ...state.status, ...(action.status || {}) } };

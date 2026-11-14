@@ -4,6 +4,7 @@ const { CONFIG } = require("./config");
 
 const state = {
     chatId: null,
+    // La case "agent" ne sert plus qu'à relire les anciennes données (projects.json, /chat-id).
     chatIds: { chat: null, agent: null },
     conversationSettings: { chat: null, agent: null },
     model: CONFIG.defaultAgentId,
@@ -13,8 +14,10 @@ const state = {
     workspace: null,
     frProject: null,     // projet FranceStudent { id, name } rattaché aux nouvelles conversations
     history: [],
-    mode: "auto",        // auto | agent | chat
-    autoApprove: false   // true = plus de confirmation pour la session
+    mode: "auto",        // auto (outils client) | chat (aucun outil)
+    autoApprove: false,  // true = plus de confirmation pour la session
+    contextUsagePercent: null, // contexte utilisé par la conversation chat (0 à 100), null si inconnu
+    compactSummary: null // résumé de /compact, joint au premier message de la conversation suivante
 };
 
 function activateConversation(mode) {
@@ -35,6 +38,7 @@ function setConversation(mode, id, settings = null) {
     const key = mode === "agent" ? "agent" : "chat";
     state.chatIds[key] = id || null;
     state.conversationSettings[key] = settings ? { ...settings } : null;
+    state.compactSummary = null;
     activateConversation(key);
 }
 
@@ -51,6 +55,7 @@ function resetConversation(mode = null) {
     }
 
     state.history = [];
+    state.compactSummary = null;
 }
 
 function record(role, content) {

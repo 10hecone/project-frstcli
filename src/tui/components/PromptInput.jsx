@@ -32,8 +32,8 @@ const {
 export const SLASH_COMMANDS = [
     "/help", "/project", "/unproject", "/pwd", "/tree", "/read", "/index", "/init", "/plan",
     "/resume", "/undo", "/changes", "/memory", "/remember", "/forget", "/permissions", "/jobs",
-    "/auto", "/mode", "/new", "/chat-id", "/history", "/messages", "/usage", "/model", "/web",
-    "/auth", "/login", "/clear", "/exit", "/quit"
+    "/auto", "/mode", "/new", "/compact", "/context", "/chat-id", "/history", "/messages", "/usage", "/model", "/web",
+        "/auth", "/login", "/profil", "/preprompt", "/clear", "/exit", "/quit"
 ];
 
 const HOME_SEQUENCES = new Set(["\u001b[H", "\u001b[1~", "\u001bOH", "[H", "[1~"]);
@@ -66,9 +66,11 @@ export function PromptInput({
     onSubmit,
     onHistoryAdd,
     onInterrupt,
+    onEscape,
     onExit,
     onClear,
-    clipboard
+    clipboard,
+    color = true
 }) {
     const stateRef = useRef(null);
     if (stateRef.current === null) {
@@ -148,7 +150,11 @@ export function PromptInput({
             if (endsWithContinuation(model)) return setModel(continueLine(model));
             return submit();
         }
-        if (key.escape) return setModel(empty(), { nav: resetNav(nav) });
+        if (key.escape) {
+            // Échap annule d'abord les sous-agents en cours ; sinon il efface la saisie.
+            if (onEscape && onEscape() === true) return setModel(model);
+            return setModel(empty(), { nav: resetNav(nav) });
+        }
         if (key.backspace || key.delete) return setModel(backspace(model));
         if (key.leftArrow) return setModel(left(model));
         if (key.rightArrow) return setModel(right(model));
@@ -212,10 +218,10 @@ export function PromptInput({
             borderBottom
             borderLeft={false}
             borderRight={false}
-            borderDimColor
+            borderDimColor={color}
         >
             {model.lines.map((line, row) => {
-                const prefix = row === 0 ? <Text color="cyan" bold>{label}</Text> : <Text>{pad}</Text>;
+                const prefix = row === 0 ? <Text color={color ? "cyan" : undefined} bold={color}>{label}</Text> : <Text>{pad}</Text>;
                 if (row !== model.row) return <Text key={row}>{prefix}{mask(line)}</Text>;
                 const at = line.slice(model.col, model.col + 1);
                 return (
@@ -227,7 +233,7 @@ export function PromptInput({
                     </Text>
                 );
             })}
-            {hint ? <Text dimColor>{hint}</Text> : null}
+            {hint ? <Text dimColor={color}>{hint}</Text> : null}
         </Box>
         {menu.length ? (
             <Box flexDirection="column" width={width}>
@@ -235,9 +241,9 @@ export function PromptInput({
                     <Text
                         key={command}
                         wrap="truncate-end"
-                        color={index === selected ? "cyan" : undefined}
-                        bold={index === selected}
-                        dimColor={index !== selected}
+                        color={color && index === selected ? "cyan" : undefined}
+                        bold={color && index === selected}
+                        dimColor={color && index !== selected}
                     >
                         {`${index === selected ? "› " : "  "}${command}`}
                     </Text>

@@ -88,6 +88,29 @@ test("policy : autres programmes", () => {
     assert.equal(level("echo", ["bonjour"]), "safe");
 });
 
+test("policy : recherches récursives (fichiers sensibles non nommés) soumises à confirmation", () => {
+    assert.equal(level("grep", ["-rn", "API_KEY", "."]), "ask");
+    assert.equal(level("grep", ["-r", "API_KEY", "."]), "ask");
+    assert.equal(level("grep", ["-nRi", "API_KEY"]), "ask");
+    assert.equal(level("grep", ["--recursive", "API_KEY", "."]), "ask");
+    assert.equal(level("grep", ["--dereference-recursive", "API_KEY"]), "ask");
+    assert.equal(level("grep", ["-d", "recurse", "API_KEY", "."]), "ask");
+    assert.equal(level("grep", ["--directories=recurse", "API_KEY", "."]), "ask");
+    assert.equal(level("egrep", ["-r", "API_KEY", "."]), "ask");
+    assert.equal(level("rg", ["API_KEY"]), "ask");
+    assert.equal(level("rg.exe", ["API_KEY", "src"]), "ask");
+    if (process.platform === "win32") {
+        assert.equal(level("findstr", ["/s", "API_KEY", "*"]), "ask");
+        assert.equal(level("findstr", ["/si", "API_KEY", "*"]), "ask");
+    }
+    // Un fichier sensible nommé explicitement reste refusé.
+    assert.equal(level("grep", ["-r", "API_KEY", ".env"]), "deny");
+    // grep non récursif sur un fichier ordinaire : toujours sans confirmation.
+    assert.equal(level("grep", ["-n", "API_KEY", "src/app.js"]), "safe");
+    // "-r" valeur de -e (motif), pas une option.
+    assert.equal(level("grep", ["-e", "-r", "src/app.js"]), "safe");
+});
+
 test("policy : denialReason d'index.js délègue à judge", () => {
     const { denialReason } = require("../src/tools/command/index");
     assert.match(denialReason("rm", ["x"], workspace), /Programme interdit : rm/);

@@ -4,13 +4,8 @@ const TOOL_LABELS = {
     list_directory: "Lister",
     read_file: "Lire",
     search_files: "Chercher",
-    create_directory: "Créer le dossier",
     write_file: "Écrire",
     edit_file: "Éditer",
-    move_path: "Déplacer",
-    copy_path: "Copier",
-    delete_path: "Supprimer",
-    remember: "Mémoriser",
     run_command: "Commande"
 };
 

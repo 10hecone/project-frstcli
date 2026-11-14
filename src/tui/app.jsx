@@ -2,6 +2,8 @@ import { useSyncExternalStore } from "react";
 import { Box, useStdout } from "ink";
 import { Transcript } from "./components/Transcript.jsx";
 import { LiveMessage, useTerminalRows } from "./components/LiveMessage.jsx";
+import { TodoList, todoRows } from "./components/TodoList.jsx";
+import { SubagentList, subagentRows } from "./components/SubagentList.jsx";
 import { Header } from "./components/Header.jsx";
 import { ConversationView } from "./components/ConversationView.jsx";
 import { CommandOutput } from "./components/ToolCall.jsx";
@@ -16,7 +18,7 @@ function useStore(store) {
 }
 
 /** Dialogue d'un prompt en attente : confirm/command → ConfirmDialog, ask/secret → TextPrompt. */
-function PromptDialog({ prompt, onAnswer }) {
+function PromptDialog({ prompt, onAnswer, color = true }) {
     const answer = (value) => {
         if (onAnswer) onAnswer(prompt.id, value);
     };
@@ -30,6 +32,7 @@ function PromptDialog({ prompt, onAnswer }) {
                 prefix={prompt.prefix ?? ""}
                 isActive={Boolean(onAnswer)}
                 onAnswer={answer}
+                color={color}
             />
         );
     }
@@ -40,6 +43,7 @@ function PromptDialog({ prompt, onAnswer }) {
             secret={Boolean(prompt.secret || prompt.kind === "secret")}
             isActive={Boolean(onAnswer)}
             onAnswer={answer}
+            color={color}
         />
     );
 }
@@ -51,6 +55,7 @@ export function App({
     onSubmit,
     onAnswer,
     onInterrupt,
+    onEscape,
     onExit,
     onClear,
     onHistoryAdd,
@@ -71,14 +76,26 @@ export function App({
     const canType = Boolean(onSubmit && !busy);
 
     const command = current.command ? (
-        <CommandOutput lines={current.command.lines} hidden={current.command.total - current.command.lines.length} />
+        <CommandOutput lines={current.command.lines} hidden={current.command.total - current.command.lines.length} color={color} />
     ) : null;
-    const live = <LiveMessage live={current.live} color={color} />;
+    const todoList = (
+        <Box flexDirection="column">
+            <TodoList todos={current.todos} color={color} />
+            <SubagentList subagents={current.subagents} color={color} />
+        </Box>
+    );
+    const live = (
+        <LiveMessage
+            live={current.live}
+            color={color}
+            extraRows={todoRows(current.todos) + subagentRows(current.subagents)}
+        />
+    );
     const spinner = current.spinner ? (
         <Spinner spinner={current.spinner} now={now} interval={spinnerInterval} color={color} />
     ) : null;
     const input = prompt ? (
-        <PromptDialog key={`prompt-${prompt.id}`} prompt={prompt} onAnswer={onAnswer} />
+        <PromptDialog key={`prompt-${prompt.id}`} prompt={prompt} onAnswer={onAnswer} color={color} />
     ) : canType || onInterrupt ? (
         <PromptInput
             key="main"
@@ -87,9 +104,11 @@ export function App({
             history={history}
             onHistoryAdd={onHistoryAdd}
             onInterrupt={onInterrupt}
+            onEscape={onEscape}
             onExit={onExit}
             onClear={onClear}
             clipboard={clipboard}
+            color={color}
             onSubmit={(value) => {
                 if (onSubmit && !busy) onSubmit(value);
             }}
@@ -103,6 +122,7 @@ export function App({
             autoApprove={Boolean(status.autoApprove)}
             jobs={status.jobs}
             usage={status.usage}
+            context={status.context}
             branch={status.branch}
             color={color}
         />
@@ -120,6 +140,7 @@ export function App({
                     model={(welcome && welcome.model) || status.model}
                     workspace={(welcome && welcome.workspace) || status.workspace}
                     cwd={cwd}
+                    color={color}
                 />
                 <ConversationView
                     key={`conversation-${current.epoch || 0}`}
@@ -134,6 +155,7 @@ export function App({
                     {spinner}
                 </ConversationView>
                 <Box flexDirection="column" flexShrink={0}>
+                    {todoList}
                     {input}
                     {bar}
                 </Box>
@@ -147,6 +169,7 @@ export function App({
             {command}
             {live}
             {spinner}
+            {todoList}
             {input}
             {bar}
         </Box>

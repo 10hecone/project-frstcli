@@ -95,6 +95,65 @@ test("StatusBar : rien à afficher → rendu vide", async () => {
     assert.equal(frame.trim(), "");
 });
 
+// ---- Contexte utilisé ----
+
+test("StatusBar : utilitaires contextPercent et contextColor", async () => {
+    const { bundle } = await load();
+    assert.equal(bundle.contextPercent(null), null);
+    assert.equal(bundle.contextPercent(undefined), null);
+    assert.equal(bundle.contextPercent("42"), null);
+    assert.equal(bundle.contextPercent(Number.NaN), null);
+    assert.equal(bundle.contextPercent(41.6), 42);
+    assert.equal(bundle.contextPercent(130), 100);
+    assert.equal(bundle.contextPercent(-3), 0);
+    assert.equal(bundle.contextColor(null), null);
+    assert.equal(bundle.contextColor(59), null);
+    assert.equal(bundle.contextColor(60), "yellow");
+    assert.equal(bundle.contextColor(80), "yellow");
+    assert.equal(bundle.contextColor(81), "red");
+});
+
+test("StatusBar : affiche ctx N % après les tokens", async () => {
+    const frame = await renderBar({ mode: "agent", usage: { requests: 1, reported: 1, inputTokens: 40, outputTokens: 2 }, context: 42 });
+    assert.match(frame, /agent · 42 tokens · ctx 42 %/);
+});
+
+test("StatusBar : rien pour le contexte si la valeur est null", async () => {
+    const frame = await renderBar({ mode: "agent", context: null });
+    assert.match(frame, /agent/);
+    assert.doesNotMatch(frame, /ctx/);
+});
+
+test("StatusBar : la barre reste sur une ligne même avec beaucoup d'éléments", async () => {
+    const frame = await renderBar({
+        mode: "agent",
+        model: "un-modele-au-nom-tres-long-pour-remplir-la-barre",
+        workspace: "/tmp/un-projet-au-nom-egalement-tres-long",
+        branch: "feature/une-branche-longue",
+        autoApprove: true,
+        jobs: 3,
+        usage: { requests: 1, reported: 1, inputTokens: 123456, outputTokens: 7890 },
+        context: 85
+    });
+    assert.equal(frame.trimEnd().split("\n").length, 1);
+});
+
+test("Adaptateur : refreshStatus transmet le pourcentage de contexte", () => {
+    const saved = state.contextUsagePercent;
+    try {
+        const store = createStore();
+        const backend = createTuiBackend(store, { jobs: { runningCount: () => 0 }, usage: { requests: 0 } });
+        state.contextUsagePercent = 64;
+        backend.refreshStatus();
+        assert.equal(store.getState().status.context, 64);
+        state.contextUsagePercent = null;
+        backend.refreshStatus();
+        assert.equal(store.getState().status.context, null);
+    } finally {
+        state.contextUsagePercent = saved;
+    }
+});
+
 // ---- Spinner ----
 
 test("Spinner : libellé, durée écoulée et rappel Ctrl+C", async () => {

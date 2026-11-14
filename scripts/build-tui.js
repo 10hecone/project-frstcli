@@ -68,7 +68,8 @@ async function buildTui() {
 }
 
 if (require.main === module) {
-    buildTui().catch(() => {
+    buildTui().catch((error) => {
+        console.error(`build:tui a échoué : ${error && error.stack ? error.stack : error}`);
         process.exitCode = 1;
     });
 }

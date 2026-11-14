@@ -2,7 +2,7 @@
 "use strict";
 
 try {
-    require("dotenv").config();
+    require("dotenv").config({ quiet: true });
 } catch {
 }
 

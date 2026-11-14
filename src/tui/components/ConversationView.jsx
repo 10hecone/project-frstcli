@@ -99,7 +99,7 @@ export function ConversationView({ transcript, version, cwd, color = true, rows 
             {win.offset === 0 ? children : null}
             {win.offset > 0 ? (
                 <Box flexShrink={0}>
-                    <Text dimColor wrap="truncate-end">{`↓ ${win.offset} entrée(s) plus récente(s) · molette ou PgDn pour revenir en bas`}</Text>
+                    <Text dimColor={color} wrap="truncate-end">{`↓ ${win.offset} entrée(s) plus récente(s) · molette ou PgDn pour revenir en bas`}</Text>
                 </Box>
             ) : null}
         </Box>

@@ -25,14 +25,12 @@ const CONFIG = {
     firstByteTimeoutMs: envInt("FS_FIRST_BYTE_TIMEOUT_MS", 60_000),
     idleTimeoutMs: envInt("FS_IDLE_TIMEOUT_MS", 90_000),
 
-    // Agent
-    maxAgentTurns: envInt("FS_MAX_AGENT_TURNS", 50),
-    maxProtocolAttempts: 2,
-    maxPreloadFiles: 3,
+    // Boucle d'outils client : confirmation demandée toutes les N rondes.
+    maxAgentTurns: envInt("FS_MAX_AGENT_TURNS", 15),
 
     // Fichiers
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque
-    maxReadChars: 40_000,           // caractères renvoyés au modèle par read_file
+    maxReadChars: 30_000,           // caractères renvoyés au modèle par read_file
     maxWriteBytes: 512 * 1024,
     maxWriteChars: 1_000_000,       // longueur max de content / new_string, vérifiée dès la validation
     maxDirectoryEntries: 300,
@@ -40,19 +38,14 @@ const CONFIG = {
     maxSearchFiles: 3000,
 
     // Prompt
-    maxObservationChars: envInt("FS_MAX_OBSERVATION_CHARS", 15_000), // résultat d'outil renvoyé au modèle
-    maxObservationsInPrompt: 16,
     maxMessageChars: 1_000_000,     // limite de l'API
-    messageBudget: 980_000,         
+    messageBudget: 980_000,
 
-    // Contexte projet (indexation automatique)
+    // Résumé du projet (/index)
     contextBudgetChars: 400_000,    // contenu brut total indexé
     contextFileChars: 30_000,       // par fichier
     contextMaxFiles: 500,
     summaryChunkChars: 120_000,     // taille d'un envoi pour le résumé
-    resumeMaxPromptChars: 60_000,   // résumé injecté dans les prompts
-    promptContextChars: 300_000,    // contexte projet max dans un prompt agent
-    agentContextChars: envInt("FS_AGENT_CONTEXT_CHARS", 30_000), // contexte projet, 1er message d'une conversation agent seulement
     resumeInProject: process.env.FS_RESUME_IN_PROJECT === "1",
     contextIgnoredDirs: ["node_modules", ".git", "dist", "build", "coverage", "debug_src"],
     contextIgnoredFiles: ["package-lock.json"],

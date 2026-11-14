@@ -35,15 +35,14 @@
   "dependencies": {
     "dotenv": "^18.0.7",
     "ink": "^8.0.0",
-    "ink-markdown": "^1.0.4",
-    "ink-select-input": "^6.2.0",
-    "ink-spinner": "^5.0.0",
-    "ink-text-input": "^6.0.0",
     "react": "^19.3.1"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
     "ink-testing-library": "^4.0.0",
     "tsx": "^4.23.15"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }

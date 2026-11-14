@@ -10,7 +10,7 @@ function template({ testCommand } = {}) {
     return [
         "# Instructions du projet pour FranceStudent Code",
         "",
-        "Ce fichier est lu à chaque demande et ajouté aux consignes de l'agent.",
+        "Ce fichier est lu au début de chaque conversation (et après /compact) et transmis au modèle.",
         "Garde-le court : seulement ce qui doit être respecté à chaque fois.",
         "",
         "## Commandes",
@@ -43,6 +43,17 @@ async function loadInstructions(workspace, maxChars = MAX_INSTRUCTIONS_CHARS) {
     return value.length <= maxChars ? value : `${value.slice(0, maxChars)}\n... [tronqué]`;
 }
 
+/**
+ * Bloc FRSTCLI.md à placer dans le premier message d'une conversation,
+ * ou "" si le projet n'a pas de FRSTCLI.md (ou s'il est vide).
+ */
+async function instructionsBlock(workspace) {
+    const text = await loadInstructions(workspace);
+    return text
+        ? `INSTRUCTIONS DU PROJET (${INSTRUCTIONS_NAME}, écrites par l'utilisateur ; à respecter pendant toute la conversation)\n${text}`
+        : "";
+}
+
 /** Crée FRSTCLI.md s'il n'existe pas. Ne remplace jamais un fichier existant. */
 async function initInstructions(workspace, options = {}) {
     if (!workspace) throw new Error("Aucun projet sélectionné.");
@@ -62,6 +73,7 @@ module.exports = {
     INSTRUCTIONS_NAME,
     MAX_INSTRUCTIONS_CHARS,
     loadInstructions,
+    instructionsBlock,
     initInstructions,
     template
 };

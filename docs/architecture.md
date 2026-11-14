@@ -8,7 +8,7 @@ Le CLI est un outil en ligne de commande (Node.js) qui relie un terminal à l'as
 - `cli/commands.js` : commandes slash (`/project`, `/undo`, `/model`, etc.).
 - `agent/agent.js` : boucle agent entre le modèle et les outils, avec garde-fou anti-répétition.
 - `agent/prompt.js` : construction du prompt de l'agent (catalogue d'outils, format JSON, règles de fiabilité).
-- `tools/tools.js` : outils fichiers (lecture, recherche, écriture, édition, déplacement, copie, suppression, notes) et annulation.
+- `tools/tools.js` : façade des outils. Elle réexporte TOOLS, validateToolCall et describeCall, et définit summarizeResult, setProject, unsetProject et undoLast. Les outils eux-mêmes sont dans `tools/fs/` (fichiers, dont glob et multi_edit), `tools/web/` (web_search, web_fetch), `tools/delegate.js` (sous-agent en lecture seule, `agent/subagent.js`) et `tools/todo-write.js` (liste de tâches). Détails : `docs/tools.md`.
 - `api/api.js` : client HTTP pour l'API de chat en flux SSE.
 - `api/auth.js` : session et jetons courts (JWT) obtenus à partir du cookie de session.
 - `project/memory.js` : mémoire persistante par projet (notes, journal, pile d'annulation) et mémoire de session.

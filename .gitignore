@@ -31,6 +31,8 @@ frstud.bat
 Commit.md
 projects.json
 history.json
-package-lock.json
 AMELIORATIONS.md
 FRSTCLI.md
+/.npm-global
+IDEA.md
+PLAN.md

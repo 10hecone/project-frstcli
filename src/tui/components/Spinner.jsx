@@ -40,7 +40,7 @@ export function Spinner({ spinner, now = Date.now, interval = SPINNER_INTERVAL_M
         <Box>
             <Text color={color ? "cyan" : undefined}>{`${SPINNER_FRAMES[frame % SPINNER_FRAMES.length]} `}</Text>
             <Text>{String(spinner.label ?? "")}</Text>
-            <Text dimColor>{` · ${elapsed} · Ctrl+C pour interrompre`}</Text>
+            <Text dimColor={color}>{` · ${elapsed} · Ctrl+C pour interrompre`}</Text>
         </Box>
     );
 }

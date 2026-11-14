@@ -8,7 +8,7 @@ import { Box, Text, useInput } from "ink";
  * - secret : la saisie est affichée en « • », la valeur n'est jamais rendue.
  * onAnswer(value) n'est appelé qu'une fois.
  */
-export function TextPrompt({ question = "", secret = false, isActive = true, onAnswer }) {
+export function TextPrompt({ question = "", secret = false, isActive = true, onAnswer, color = true }) {
     const valueRef = useRef("");
     const doneRef = useRef(false);
     const [, setTick] = useState(0);
@@ -41,11 +41,11 @@ export function TextPrompt({ question = "", secret = false, isActive = true, onA
     return (
         <Box flexDirection="column">
             <Box>
-                <Text bold>{`${question}`}</Text>
+                <Text bold={color}>{`${question}`}</Text>
                 <Text>{shown}</Text>
                 <Text inverse> </Text>
             </Box>
-            <Text dimColor>{secret ? "Saisie masquée · Entrée valider · Échap annuler" : "Entrée valider · Échap annuler"}</Text>
+            <Text dimColor={color}>{secret ? "Saisie masquée · Entrée valider · Échap annuler" : "Entrée valider · Échap annuler"}</Text>
         </Box>
     );
 }

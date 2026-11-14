@@ -30,7 +30,7 @@ async function frameOf(component, props) {
 
 test("composants TUI : UserMessage affiche le préfixe >", async () => {
     const { bundle } = await load();
-    const frame = await frameOf(bundle.UserMessage, { text: "bonjour" });
+    const frame = await frameOf(bundle.UserMessage, { text: "bonjour", color: false });
     assert.match(frame, /> bonjour/);
 });
 
@@ -44,15 +44,15 @@ test("composants TUI : AssistantMessage rend le Markdown léger", async () => {
 
 test("composants TUI : ToolCall et ToolResult", async () => {
     const { bundle } = await load();
-    const call = await frameOf(bundle.ToolCall, { name: "read_file", arg: "src/a.js" });
+    const call = await frameOf(bundle.ToolCall, { name: "read_file", arg: "src/a.js", color: false });
     assert.match(call, /● Lire src\/a\.js/);
-    const result = await frameOf(bundle.ToolResult, { text: "12 lignes" });
+    const result = await frameOf(bundle.ToolResult, { text: "12 lignes", color: false });
     assert.match(result, /⎿ 12 lignes/);
 });
 
 test("composants TUI : CommandOutput indique les lignes masquées", async () => {
     const { bundle } = await load();
-    const frame = await frameOf(bundle.CommandOutput, { lines: ["aaa", "bbb"], hidden: 3 });
+    const frame = await frameOf(bundle.CommandOutput, { lines: ["aaa", "bbb"], hidden: 3, color: false });
     assert.match(frame, /3 ligne\(s\) masquée\(s\)/);
     assert.match(frame, /aaa/);
     assert.match(frame, /bbb/);
@@ -66,7 +66,8 @@ test("composants TUI : Diff affiche ajouts, suppressions et compteurs", async ()
             { type: "+", num: 1, text: "nouveau" }
         ],
         added: 1,
-        removed: 1
+        removed: 1,
+        color: false
     });
     assert.match(frame, /- ancien/);
     assert.match(frame, /\+ nouveau/);
@@ -75,7 +76,7 @@ test("composants TUI : Diff affiche ajouts, suppressions et compteurs", async ()
 
 test("composants TUI : Plan numérote les étapes", async () => {
     const { bundle } = await load();
-    const frame = await frameOf(bundle.Plan, { items: ["Lire", "Modifier"] });
+    const frame = await frameOf(bundle.Plan, { items: ["Lire", "Modifier"], color: false });
     assert.match(frame, /Plan/);
     assert.match(frame, /1\. Lire/);
     assert.match(frame, /2\. Modifier/);

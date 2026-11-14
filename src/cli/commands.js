@@ -25,10 +25,10 @@ function showHelp() {
     ["/pwd", "Afficher le projet sélectionné"],
     ["/tree [dossier]", "Lister un dossier (2 niveaux)"],
     ["/read <fichier>", "Lire localement un fichier"],
-    ["/index", "Régénérer le résumé du projet (RESUME.md)"],
+    ["/index [force]", "Résumer le projet avec l'IA (RESUME.md, pour /resume)"],
     ["/init", "Créer FRSTCLI.md (instructions du projet)"],
     ["/plan <demande>", "Plan en lecture seule, sans modification"],
-    ["/resume", "Afficher le résumé du projet"],
+    ["/resume", "Afficher le résumé du projet (RESUME.md)"],
     ["/undo", "Annuler la dernière modification"],
     ["/changes", "Historique des modifications annulables"],
     ["/memory", "Notes et dernières actions du projet"],
@@ -37,16 +37,20 @@ function showHelp() {
     ["/permissions [remove <n|préfixe>|clear]", "Règles des commandes autorisées (projet)"],
     ["/jobs [stop <id>|stop-all]", "Commandes en arrière-plan (liste / arrêt)"],
     ["/auto on|off", "Autoriser sans confirmation (session)"],
-    ["/mode auto|agent|chat", "Quand utiliser les outils fichiers"],
+    ["/mode auto|chat", "Outils : auto = avec /project, chat = aucun"],
     ["/new", "Nouvelle conversation"],
+    ["/compact [consigne]", "Résumer la session et repartir d'une nouvelle conversation"],
+    ["/context", "Contexte utilisé, conversation et tours"],
     ["/chat-id [n|id]", "Voir le chat ID / reprendre une conversation"],
     ["/history [all]", "Dernières conversations (id + titre)"],
     ["/messages", "Messages de la conversation (session)"],
-    ["/usage", "Consommation : session, conversations, limites du compte"],
+    ["/usage", "Consommation : session, conversation, limites du compte"],
     ["/model [nom]", "Lister les agents de l'API / changer d'agent"],
     ["/web on|off", "Recherche web (chat normal)"],
     ["/auth [refresh]", "État de la connexion / renouvellement"],
     ["/login", "Se connecter avec e-mail et mot de passe"],
+    ["/profil [user|projet] [learn <fait>|forget <n>]", "Profil appris (utilisateur ou projet)"],
+    ["/preprompt [user|projet] <texte>|clear", "Consigne ajoutée à chaque demande"],
     ["/clear", "Effacer le terminal"],
     ["/exit", "Quitter (alias : /quit)"],
   ];
@@ -63,8 +67,8 @@ function showHelp() {
   );
   ui.print(
     c.dim(
-      "Sans /project : chat normal. Avec /project : l'agent peut lire, créer, éditer, " +
-        "déplacer, copier et supprimer (corbeille). Chaque écriture est confirmée.",
+      "Sans /project : chat normal. Avec /project (mode auto) : le modèle lit, cherche, édite, " +
+        "écrit et lance des commandes dans le projet. Les écritures et les commandes non sûres sont confirmées.",
     ),
   );
 }
@@ -128,7 +132,7 @@ async function handleCommand(input) {
 
       if (/^(off|none|aucun)$/i.test(name)) {
         await frProjects.saveSelected(null);
-ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus rattachées à un projet.");
+        ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus rattachées à un projet.");
         break;
       }
 
@@ -136,6 +140,7 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
         const { project, created } = await frProjects.findOrCreateProject(name);
         await frProjects.saveSelected(project);
         resetConversation();
+        state.contextUsagePercent = null;
         ui.info(
           `${created ? "Projet FranceStudent créé" : "Projet FranceStudent existant"} : ${project.name} (${project.id}). ` +
             "Les prochaines conversations y seront rattachées.",
@@ -192,8 +197,10 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
     case "/index": {
       if (!requireProject()) break;
 
+      // Le résumé n'est plus joint aux messages : il sert à /resume.
+      // Seuls les fichiers modifiés depuis le dernier /index sont renvoyés à l'IA.
       const report = await projectContext.load(state.workspace, {
-        force: true,
+        force: value === "force",
       });
       ui.info(
         `${report.status} | ${report.files} fichier(s), ${report.skipped} ignoré(s)`,
@@ -205,11 +212,12 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       if (!requireProject()) break;
 
       const { initInstructions } = require("../project/instructions");
-      const result = await initInstructions(state.workspace, { testCommand: "npm test" });
-      require("../agent/agent").clearAgentContextCache();
+      const { detectPackageInfo } = require("../project/package-info");
+      const { testCommand } = await detectPackageInfo(state.workspace);
+      const result = await initInstructions(state.workspace, { testCommand });
       ui.info(
         result.created
-          ? `FRSTCLI.md créé : ${result.path}. Complète-le, il sera lu à chaque demande de l'agent.`
+          ? `FRSTCLI.md créé : ${result.path}. Complète-le, il sera lu au début de chaque conversation.`
           : `FRSTCLI.md existe déjà : ${result.path}. Je ne l'ai pas modifié.`,
       );
       break;
@@ -219,25 +227,34 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       if (!requireProject()) break;
 
       if (!value) {
-        ui.info("Usage : /plan <demande>. L'agent explore le projet en lecture seule et propose un plan.");
+        ui.info("Usage : /plan <demande>. Explore le projet en lecture seule et propose un plan, sans rien modifier.");
         break;
       }
 
-      const { runAgent } = require("../agent/agent");
-      await runAgent(
-        "MODE PLAN (lecture seule) : explore le projet avec list_directory, read_file et search_files, " +
-          "sans rien modifier ni lancer de commande. Termine avec final : un plan numéroté " +
-          "(fichiers à modifier, changements prévus, tests à ajouter, risques).\n\nDemande : " +
-          value,
-        { readOnly: true },
-      );
+      // Chat avec les seuls outils de lecture (list_directory, read_file, search_files).
+      const chat = require("../core/chat");
+      const spin = ui.spinner("Exploration du projet");
+      try {
+        const { response } = await chat.send(
+          "MODE PLAN (lecture seule) : explore le projet avec list_directory, read_file et search_files, " +
+            "sans rien modifier ni lancer de commande. Termine par un plan numéroté " +
+            "(fichiers à modifier, changements prévus, tests à ajouter, risques).\n\nDemande : " +
+            value,
+          { readOnly: true, onToolCalls: () => spin.stop() },
+        );
+        spin.stop();
+        if (response) ui.assistant(response);
+      } finally {
+        spin.stop();
+      }
       break;
     }
 
     case "/resume": {
       if (!requireProject()) break;
 
-      ui.print(projectContext.resumeText() ?? "Aucun résumé chargé.");
+      const text = projectContext.resumeText() ?? (await projectContext.storedResume());
+      ui.print(text ?? "Aucun résumé : /index analyse le projet avec l'IA et génère RESUME.md.");
       break;
     }
 
@@ -400,8 +417,18 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       break;
 
     case "/mode":
-      if (!["auto", "agent", "chat"].includes(value)) {
-        ui.info(`Mode : ${state.mode} (usage : /mode auto|agent|chat)`);
+      // Ancien mode « agent » : accepté comme alias de « auto ».
+      if (value === "agent") {
+        state.mode = "auto";
+        ui.info(
+          "Le mode agent n'existe plus : en mode auto, le modèle utilise les outils dès qu'un projet est ouvert.",
+        );
+        ui.info("Mode : auto");
+        break;
+      }
+
+      if (!["auto", "chat"].includes(value)) {
+        ui.info(`Mode : ${state.mode} (usage : /mode auto|chat)`);
         break;
       }
 
@@ -410,29 +437,66 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       break;
 
     case "/new":
-      resetConversation(state.mode === "agent" ? "agent" : "chat");
+      resetConversation("chat");
+      state.contextUsagePercent = null;
       ui.info("Nouvelle conversation.");
       break;
 
+    case "/compact": {
+      const { compactSession } = require("../core/compact");
+      if (!state.chatIds.chat) {
+        ui.info("Aucune conversation à résumer (/compact s'utilise après au moins un message).");
+        break;
+      }
+
+      const spin = ui.spinner("Résumé de la session");
+      try {
+        const result = await compactSession({ instruction: unquote(value) });
+        spin.stop();
+        ui.info(
+          `Session compactée : résumé de ${result.chars} caractères. ` +
+            "Il sera joint à ton prochain message, qui ouvre une nouvelle conversation.",
+        );
+        ui.info(`Ancienne conversation : ${result.previousChatId} (/chat-id ${result.previousChatId} pour y revenir).`);
+      } catch (error) {
+        spin.stop();
+        ui.warn(`Compaction impossible : ${error.message}`);
+      }
+      break;
+    }
+
+    case "/context": {
+      const percent = state.contextUsagePercent;
+      const turns = state.history.filter((entry) => entry.role === "user").length;
+      ui.info(
+        `Contexte : ${typeof percent === "number" ? `${Math.round(percent)} %` : "inconnu"}`,
+      );
+      ui.info(`Conversation : ${state.chatIds.chat || "aucune"}`);
+      ui.info(`Tours (session) : ${turns}`);
+      if (state.compactSummary) {
+        ui.info(
+          `Résumé /compact en attente : ${state.compactSummary.length} caractères, joint au prochain message.`,
+        );
+      }
+      ui.info("Pas de compaction automatique : les fournisseurs compactent l'historique ; /compact repart d'une conversation neuve.");
+      break;
+    }
+
     case "/chat-id": {
       if (!value) {
-        const ids = state.chatIds;
-        if (!ids.chat && !ids.agent) {
+        const currentId = state.chatIds.chat;
+        if (!currentId) {
           ui.info(
             "Aucune conversation en cours (l'id est attribué au premier message).",
           );
           break;
         }
 
-        for (const mode of ["chat", "agent"]) {
-          if (!ids[mode]) continue;
-          const current = await conversations.find(ids[mode]);
-          ui.info(
-            `${mode === "agent" ? "Agent" : "Chat"} : ${ids[mode]}` +
-              (current ? ` | "${current.title}"` : ""),
-          );
-          ui.info(`Pour la reprendre plus tard : /chat-id ${ids[mode]}`);
-        }
+        const current = await conversations.find(currentId);
+        ui.info(
+          `Chat : ${currentId}` + (current ? ` | "${current.title}"` : ""),
+        );
+        ui.info(`Pour la reprendre plus tard : /chat-id ${currentId}`);
         break;
       }
 
@@ -445,14 +509,15 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
         break;
       }
 
-      const mode = target?.mode === "agent" ? "agent" :
-        state.mode === "agent" ? "agent" : "chat";
-      resetConversation(mode);
+      // Une seule conversation active : même une ancienne conversation « agent »
+      // est reprise comme conversation chat (avec les outils client).
+      resetConversation("chat");
       setConversation(
-        mode,
+        "chat",
         id,
         target?.settings || (Number.isInteger(target?.model) ? { model: target.model } : null),
       );
+      state.contextUsagePercent = null;
 
       ui.info(
         target
@@ -483,7 +548,7 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
               (details ? c.dim(`  ${details}`) : "") +
               (agent.isDefault ? c.dim("  (par défaut)") : "") +
               (current ? c.dim("  (actuel)") : ""),
-);
+          );
         }
         if (error && source === "local") ui.info(`API indisponible : ${error.message}`);
         ui.info("Usage : /model <nom>   (ex. /model claude opus, /model sol)");
@@ -505,7 +570,8 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       }
 
       state.model = agent.id;
-      resetConversation(state.mode === "agent" ? "agent" : "chat");
+      resetConversation("chat");
+      state.contextUsagePercent = null;
       ui.info(`Agent sélectionné : ${agent.name}`);
       break;
     }
@@ -515,12 +581,11 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       const account = require("../api/account");
       const lines = [...account.describeSession(api.usage)];
 
-      for (const mode of ["chat", "agent"]) {
-        const id = state.chatIds[mode];
-        if (!id) continue;
-        const label = mode === "agent" ? "Conversation agent" : "Conversation chat";
+      const chatId = state.chatIds.chat;
+      if (chatId) {
+        const label = "Conversation chat";
         try {
-          lines.push(...account.describeChatUsage(label, await account.fetchChatUsage(id)));
+          lines.push(...account.describeChatUsage(label, await account.fetchChatUsage(chatId)));
         } catch (error) {
           lines.push(`${label} : ${error.message}`);
         }
@@ -608,7 +673,6 @@ ui.info("Projet FranceStudent retiré : les nouvelles conversations ne sont plus
       break;
 
     case "/clear":
-      require("../agent/agent").clearAgentContextCache();
       ui.clear();
       break;
 

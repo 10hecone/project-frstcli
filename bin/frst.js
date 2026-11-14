@@ -41,7 +41,7 @@ function restoreTerminal({ stdin = process.stdin, stdout = process.stdout } = {}
 
 async function main() {
     try {
-        require("dotenv").config();
+        require("dotenv").config({ quiet: true });
     } catch {
     }
 
@@ -66,7 +66,11 @@ async function main() {
 }
 
 if (require.main === module) {
-    main();
+    main().catch((error) => {
+        restoreTerminal();
+        console.error(error && error.message ? error.message : error);
+        process.exitCode = 1;
+    });
 }
 
 module.exports = { chooseInterface, restoreTerminal, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE };

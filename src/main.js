@@ -1,13 +1,11 @@
 "use strict";
 
 const { ui, askInput, closeInput, createMarkdownStream } = require("./cli/ui");
-const { handleProfileCommand } = require("./cli/profile-commands");
 const chat = require("./core/chat");
 const session = require("./core/session");
-const profile = require("./project/profile");
 
 // Rendu CLI d'un message en mode chat : spinner, Markdown en streaming,
-// puis l'ID de la conversation si elle vient d'être créée.
+// lignes d'outils entre les rondes, puis l'ID de la conversation si elle vient d'être créée.
 async function chatNormally(input) {
   const spin = ui.spinner("Réflexion");
   let started = false;
@@ -24,6 +22,16 @@ async function chatNormally(input) {
           started = true;
         }
         md.write(text);
+      },
+      // Avant une ronde d'outils : arrête le spinner et termine la ligne de texte en cours,
+      // pour que les lignes d'outils ne se mélangent pas au texte du modèle.
+      onToolCalls() {
+        spin.stop();
+        if (started) {
+          md.flush();
+          process.stdout.write("\n");
+          started = false;
+        }
       },
     });
 
@@ -59,19 +67,8 @@ async function main() {
     if (answer === null) break; // Ctrl+D / entrée fermée
 
     try {
-      const input = answer.trim();
-
-      // Commandes de profil (ajoutées par la PR) : gérées côté CLI.
-      if (/^\/(preprompt|profil)\b/i.test(input)) {
-        await handleProfileCommand(input);
-        continue;
-      }
-
-      // Le profil apprend des messages normaux, sans bloquer la saisie.
-      if (input && !input.startsWith("/")) {
-        profile.observe(input).catch(() => {});
-      }
-
+      // /profil, /preprompt et profile.observe() sont gérés par session.handleInput
+      // (communs au CLI et à la TUI).
       const { exit } = await session.handleInput(answer, {
         sendChat: chatNormally,
       });

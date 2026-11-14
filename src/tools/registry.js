@@ -3,6 +3,120 @@
 const { requireString, optionalInt } = require("./core/args");
 const { runCommand } = require("./command/index");
 
+// ---------------------------------------------------------------------------
+// Outils client (catalogue fixe de l'API, voir client-tools.md)
+// ---------------------------------------------------------------------------
+
+// Ordre FIXE : la liste envoyée à l'API doit rester identique d'un tour à l'autre
+// pour garder le cache de prompt. Ne pas trier, ne pas filtrer dynamiquement.
+const CLIENT_TOOLS = Object.freeze([
+    "list_directory",
+    "read_file",
+    "search_files",
+    "edit_file",
+    "write_file",
+    "run_command"
+]);
+
+// Sous-ensemble en lecture seule (mode /plan).
+const READ_TOOLS = Object.freeze(["list_directory", "read_file", "search_files"]);
+
+// Délai maximal accepté pour run_command (en secondes).
+const MAX_TIMEOUT_SECONDS = 600;
+
+// Nombre de résultats de search_files quand le modèle n'en précise pas.
+const DEFAULT_SEARCH_RESULTS = 50;
+
+const REGEX_CHARS = /[\\^$.*+?()[\]{}|]/;
+
+/** Entier depuis un nombre ou une chaîne numérique ("80"), sinon la valeur telle quelle (check() la refusera). */
+function toInt(value) {
+    if (typeof value === "string" && /^\s*-?\d+\s*$/.test(value)) return Number(value);
+    return value;
+}
+
+function toBool(value) {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return value;
+}
+
+/** Le catalogue n'a pas de drapeau regex : la requête est traitée en regex si elle en a l'air et compile. */
+function looksLikeRegex(query) {
+    if (typeof query !== "string" || !REGEX_CHARS.test(query)) return false;
+    try {
+        new RegExp(query);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function secondsToMs(value) {
+    const seconds = Number(toInt(value));
+    if (!Number.isFinite(seconds) || seconds <= 0) return undefined;
+    return Math.round(Math.min(seconds, MAX_TIMEOUT_SECONDS) * 1000);
+}
+
+/** Retire les clés undefined. */
+function compact(obj) {
+    return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+}
+
+/**
+ * Convertit les arguments du catalogue de l'API vers le format des outils locaux.
+ * Seules les clés connues sont gardées : un argument inattendu envoyé par le modèle
+ * (background, recursive...) est ignoré.
+ */
+function normalizeArgs(name, raw) {
+    const a = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+
+    switch (name) {
+        case "list_directory": {
+            const depth = toInt(a.depth);
+            return compact({
+                path: a.path,
+                depth: Number.isInteger(depth) ? Math.min(3, Math.max(1, depth)) : depth
+            });
+        }
+        case "read_file":
+            return compact({
+                path: a.path,
+                start_line: toInt(a.start_line),
+                end_line: toInt(a.end_line)
+            });
+        case "search_files":
+            return compact({
+                query: a.query,
+                path: a.path,
+                glob: a.glob,
+                regex: looksLikeRegex(a.query) ? true : undefined,
+                max_results: toInt(a.max_results) ?? DEFAULT_SEARCH_RESULTS
+            });
+        case "edit_file":
+            return compact({
+                path: a.path,
+                old_string: a.old_text,
+                new_string: a.new_text,
+                replace_all: toBool(a.replace_all)
+            });
+        case "write_file":
+            return compact({ path: a.path, content: a.content });
+        case "run_command":
+            return compact({
+                command: a.command,
+                cwd: a.cwd,
+                timeout_ms: secondsToMs(a.timeout_seconds)
+            });
+        default:
+            throw new Error(`Outil client inconnu : ${name}.`);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Outils locaux
+// ---------------------------------------------------------------------------
+
 const runCommandTool = {
     name: "run_command",
     run: runCommand,
@@ -26,38 +140,13 @@ const runCommandTool = {
     }
 };
 
-const jobOutputTool = {
-    name: "job_output",
-    run: (args) => require("./command/jobs").jobOutput(args),
-    check(args) {
-        requireString(args.id, "id");
-    },
-    describe: (a) => a.id ?? "?"
-};
-
-const jobStopTool = {
-    name: "job_stop",
-    run: (args) => require("./command/jobs").jobStop(args),
-    check(args) {
-        requireString(args.id, "id");
-    },
-    describe: (a) => a.id ?? "?"
-};
-
 const MODULES = [
     require("./fs/list-directory"),
     require("./fs/read-file"),
     require("./fs/search-files"),
-    require("./fs/create-directory"),
     require("./fs/write-file"),
     require("./fs/edit-file"),
-    require("./fs/move-path"),
-    require("./fs/copy-path"),
-    require("./fs/delete-path"),
-    require("./fs/remember"),
-    runCommandTool,
-    jobOutputTool,
-    jobStopTool
+    runCommandTool
 ];
 
 const TOOLS = {};
@@ -95,4 +184,157 @@ function describeCall(action) {
     return a.path ?? ".";
 }
 
-module.exports = { TOOLS, validateToolCall, describeCall };
+// ---------------------------------------------------------------------------
+// Exécution d'un appel client (completed.message.toolCalls[i])
+// ---------------------------------------------------------------------------
+
+/** Description lisible d'un appel client, avec les arguments du catalogue de l'API. */
+function describeClientCall(name, rawArgs) {
+    try {
+        return describeCall({ name, args: normalizeArgs(name, rawArgs) });
+    } catch {
+        return name;
+    }
+}
+
+/**
+ * Normalise, valide puis exécute un appel client. Renvoie le résultat brut de l'outil
+ * (objet) ; les erreurs sont levées et seront converties en { isError: true } par la boucle du chat.
+ * allowed : liste des outils envoyés à l'API pour ce tour (CLIENT_TOOLS ou READ_TOOLS).
+ */
+async function runClientTool(name, rawArgs, allowed = CLIENT_TOOLS) {
+    if (!allowed.includes(name)) {
+        throw new Error(`Outil non disponible : ${name}.`);
+    }
+
+    const args = normalizeArgs(name, rawArgs);
+    validateToolCall({ name, args });
+
+    let result = await TOOLS[name].run(args);
+
+    if (
+        name === "search_files" &&
+        Number.isInteger(args.max_results) &&
+        args.max_results > 0 &&
+        Array.isArray(result?.matches) &&
+        result.matches.length > args.max_results
+    ) {
+        result = { ...result, matches: result.matches.slice(0, args.max_results), truncated: true };
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Résultat renvoyé à l'API : du texte lisible plutôt que du JSON
+// (moins de caractères, pas d'échappement des retours à la ligne).
+// ---------------------------------------------------------------------------
+
+/** read_file : en-tête puis lignes numérotées « N<tab>texte ». */
+function formatReadFile(r) {
+    const content = r.content;
+    const empty = content === "" && !Array.isArray(r.range);
+    const lines = content.split("\n");
+    if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
+
+    const first = Array.isArray(r.range) ? r.range[0] : 1;
+    const last = first + lines.length - 1;
+
+    const out = [
+        empty
+            ? `Fichier : ${r.path} (vide)`
+            : `Fichier : ${r.path} (${r.total_lines} ligne(s) au total, lignes ${first} à ${last} affichées)`
+    ];
+
+    if (!empty) {
+        out.push("Numéros de ligne ajoutés pour la lecture : ne pas les recopier dans edit_file.");
+        lines.forEach((line, i) => out.push(`${first + i}\t${line}`));
+    }
+
+    if (r.truncated) out.push(`[tronqué] ${r.message}`);
+
+    return out.join("\n");
+}
+
+/** search_files : une correspondance par ligne « chemin:ligne: texte ». */
+function formatSearch(r) {
+    const head = r.message || `${r.matches.length} résultat(s).`;
+    const out = [r.truncated ? `${head} Liste incomplète : affine la recherche (path, glob).` : head];
+
+    for (const m of r.matches) out.push(`${m.path}:${m.line}: ${m.text}`);
+
+    return out.join("\n");
+}
+
+/** list_directory : une entrée par ligne, dossiers terminés par « / ». */
+function formatList(r) {
+    const head = `Dossier : ${r.path}${r.entries.length ? "" : " (vide)"}`;
+    const out = [r.truncated ? `${head} (liste tronquée à ${r.entries.length} éléments)` : head];
+
+    for (const e of r.entries) out.push(e.type === "directory" ? `${e.path}/` : e.path);
+
+    return out.join("\n");
+}
+
+/** run_command : commande, dossier, statut, fichiers modifiés, étapes puis sortie. */
+function formatCommandResult(r) {
+    if (r.denied) return `Commande refusée : ${r.command}${r.message ? `\n${r.message}` : ""}`;
+    if (r.background) return `$ ${r.command}\n${r.message ?? ""}`.trimEnd();
+
+    const out = [`$ ${r.command}`];
+    if (r.cwd) out.push(`Dossier : ${r.cwd}`);
+    if (r.message && r.message !== r.output) out.push(r.message);
+
+    if (Array.isArray(r.files_changed) && r.files_changed.length) {
+        out.push(`Fichiers modifiés : ${r.files_changed.join(", ")} (à relire avant de les modifier).`);
+    }
+
+    if (Array.isArray(r.segments) && r.segments.length > 1) {
+        out.push("Étapes :");
+        for (const s of r.segments) {
+            out.push(s.skipped ? `- ${s.command} : non lancée` : `- ${s.command} : code ${s.exit_code ?? "?"}`);
+        }
+    }
+
+    if (r.truncated) out.push("Sortie tronquée : début et fin conservés.");
+
+    const output = typeof r.output === "string" ? r.output.trimEnd() : "";
+    out.push(output ? `Sortie :\n${output}` : "Sortie : (aucune)");
+
+    return out.join("\n");
+}
+
+/**
+ * Texte renvoyé à l'API pour le résultat d'un outil client.
+ * read_file, search_files, list_directory et run_command sont mis en forme ;
+ * les autres résultats (edit_file, write_file...) restent en JSON compact.
+ */
+function formatClientResult(name, result) {
+    if (typeof result === "string") return result;
+    if (result === undefined || result === null) return "OK.";
+
+    try {
+        if (name === "read_file" && typeof result.content === "string") return formatReadFile(result);
+        if (name === "search_files" && Array.isArray(result.matches)) return formatSearch(result);
+        if (name === "list_directory" && Array.isArray(result.entries)) return formatList(result);
+        if (name === "run_command" && typeof result.command === "string") return formatCommandResult(result);
+        if (result.denied && typeof result.message === "string") return `Refusé : ${result.message}`;
+    } catch {
+        // forme inattendue : JSON ci-dessous
+    }
+
+    return JSON.stringify(result);
+}
+
+module.exports = {
+    TOOLS,
+    validateToolCall,
+    describeCall,
+    CLIENT_TOOLS,
+    READ_TOOLS,
+    DEFAULT_SEARCH_RESULTS,
+    normalizeArgs,
+    describeClientCall,
+    runClientTool,
+    formatClientResult
+};

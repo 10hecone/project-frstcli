@@ -1,6 +1,6 @@
 "use strict";
 
-const { ui } = require("./ui");
+const { ui } = require("../ui-bridge");
 const profile = require("../project/profile");
 
 const SCOPES = { user: "user", utilisateur: "user", projet: "project", project: "project" };
