@@ -13,14 +13,15 @@ const DEFAULT_TIMEOUT_MS = 120000;
 const MIN_TIMEOUT_MS = 1000;
 const MAX_TIMEOUT_MS = 600000;
 
-const HEAD_CHARS = 3000;
-const TAIL_CHARS = 5000;
+// Début et fin de la sortie gardés (la fin contient souvent la stack trace ou le résumé des tests).
+const HEAD_CHARS = 8000;
+const TAIL_CHARS = 8000;
 const MAX_OUTPUT_CHARS = HEAD_CHARS + TAIL_CHARS;
 const MAX_LIVE_LINES = 200;
 const MAX_PENDING_LINE = 4000;
 const FORCE_FINISH_MS = 5000;
 
-const LIVE_SUSPENDED = "[affichage direct suspendu, sortie complète renvoyée à l'agent]";
+const LIVE_SUSPENDED = "[affichage direct suspendu, sortie complète renvoyée au modèle]";
 
 /** Garde le début, un tampon glissant de la fin et le total ; affiche les lignes en direct. */
 function createCollector(onLine) {

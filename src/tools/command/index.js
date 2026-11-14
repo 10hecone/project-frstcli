@@ -184,7 +184,7 @@ async function runCommand(toolArgs = {}) {
             status: job.status,
             cwd: job.cwd,
             changed: false,
-            message: `Lancé en arrière-plan : ${job.id}. Lis la sortie avec job_output, arrête avec job_stop.`
+            message: `Lancé en arrière-plan : ${job.id}. Suis-le avec /jobs, arrête-le avec /jobs stop ${job.id}.`
         };
     }
 

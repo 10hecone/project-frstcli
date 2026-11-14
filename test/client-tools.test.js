@@ -68,9 +68,10 @@ test("normalizeArgs : search_files détecte les regex et garde max_results", () 
         normalizeArgs("search_files", { query: "function\\s+run", glob: "*.js", max_results: 5 }),
         { query: "function\\s+run", glob: "*.js", regex: true, max_results: 5 }
     );
-    assert.deepEqual(normalizeArgs("search_files", { query: "TODO" }), { query: "TODO" });
+    // Sans max_results, la valeur par défaut (DEFAULT_SEARCH_RESULTS = 50) est appliquée.
+    assert.deepEqual(normalizeArgs("search_files", { query: "TODO" }), { query: "TODO", max_results: 50 });
     // Regex invalide : recherche littérale.
-    assert.deepEqual(normalizeArgs("search_files", { query: "foo(" }), { query: "foo(" });
+    assert.deepEqual(normalizeArgs("search_files", { query: "foo(" }), { query: "foo(", max_results: 50 });
 });
 
 test("normalizeArgs : outil inconnu", () => {

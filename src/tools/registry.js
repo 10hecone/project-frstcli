@@ -24,6 +24,9 @@ const READ_TOOLS = Object.freeze(["list_directory", "read_file", "search_files"]
 // Délai maximal accepté pour run_command (en secondes).
 const MAX_TIMEOUT_SECONDS = 600;
 
+// Nombre de résultats de search_files quand le modèle n'en précise pas.
+const DEFAULT_SEARCH_RESULTS = 50;
+
 const REGEX_CHARS = /[\\^$.*+?()[\]{}|]/;
 
 /** Entier depuis un nombre ou une chaîne numérique ("80"), sinon la valeur telle quelle (check() la refusera). */
@@ -88,7 +91,7 @@ function normalizeArgs(name, raw) {
                 path: a.path,
                 glob: a.glob,
                 regex: looksLikeRegex(a.query) ? true : undefined,
-                max_results: toInt(a.max_results)
+                max_results: toInt(a.max_results) ?? DEFAULT_SEARCH_RESULTS
             });
         case "edit_file":
             return compact({
@@ -137,46 +140,13 @@ const runCommandTool = {
     }
 };
 
-const jobOutputTool = {
-    name: "job_output",
-    run: (args) => require("./command/jobs").jobOutput(args),
-    check(args) {
-        requireString(args.id, "id");
-    },
-    describe: (a) => a.id ?? "?"
-};
-
-const jobStopTool = {
-    name: "job_stop",
-    run: (args) => require("./command/jobs").jobStop(args),
-    check(args) {
-        requireString(args.id, "id");
-    },
-    describe: (a) => a.id ?? "?"
-};
-
 const MODULES = [
     require("./fs/list-directory"),
     require("./fs/read-file"),
     require("./fs/search-files"),
     require("./fs/write-file"),
     require("./fs/edit-file"),
-    runCommandTool,
-
-    // LEGACY : plus envoyés à l'API depuis la suppression de l'ancien agent (phase 4).
-    // Gardés le temps de vérifier leurs autres usages (tests, TUI) ; à trier en phase 5.
-    require("./fs/glob"),
-    require("./fs/create-directory"),
-    require("./fs/multi-edit"),
-    require("./fs/move-path"),
-    require("./fs/copy-path"),
-    require("./fs/delete-path"),
-    require("./fs/remember"),
-    require("./todo-write"),
-    require("./web/web-fetch"),
-    require("./web/web-search"),
-    jobOutputTool,
-    jobStopTool
+    runCommandTool
 ];
 
 const TOOLS = {};
@@ -255,13 +225,116 @@ async function runClientTool(name, rawArgs, allowed = CLIENT_TOOLS) {
     return result;
 }
 
+// ---------------------------------------------------------------------------
+// Résultat renvoyé à l'API : du texte lisible plutôt que du JSON
+// (moins de caractères, pas d'échappement des retours à la ligne).
+// ---------------------------------------------------------------------------
+
+/** read_file : en-tête puis lignes numérotées « N<tab>texte ». */
+function formatReadFile(r) {
+    const content = r.content;
+    const empty = content === "" && !Array.isArray(r.range);
+    const lines = content.split("\n");
+    if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
+
+    const first = Array.isArray(r.range) ? r.range[0] : 1;
+    const last = first + lines.length - 1;
+
+    const out = [
+        empty
+            ? `Fichier : ${r.path} (vide)`
+            : `Fichier : ${r.path} (${r.total_lines} ligne(s) au total, lignes ${first} à ${last} affichées)`
+    ];
+
+    if (!empty) {
+        out.push("Numéros de ligne ajoutés pour la lecture : ne pas les recopier dans edit_file.");
+        lines.forEach((line, i) => out.push(`${first + i}\t${line}`));
+    }
+
+    if (r.truncated) out.push(`[tronqué] ${r.message}`);
+
+    return out.join("\n");
+}
+
+/** search_files : une correspondance par ligne « chemin:ligne: texte ». */
+function formatSearch(r) {
+    const head = r.message || `${r.matches.length} résultat(s).`;
+    const out = [r.truncated ? `${head} Liste incomplète : affine la recherche (path, glob).` : head];
+
+    for (const m of r.matches) out.push(`${m.path}:${m.line}: ${m.text}`);
+
+    return out.join("\n");
+}
+
+/** list_directory : une entrée par ligne, dossiers terminés par « / ». */
+function formatList(r) {
+    const head = `Dossier : ${r.path}${r.entries.length ? "" : " (vide)"}`;
+    const out = [r.truncated ? `${head} (liste tronquée à ${r.entries.length} éléments)` : head];
+
+    for (const e of r.entries) out.push(e.type === "directory" ? `${e.path}/` : e.path);
+
+    return out.join("\n");
+}
+
+/** run_command : commande, dossier, statut, fichiers modifiés, étapes puis sortie. */
+function formatCommandResult(r) {
+    if (r.denied) return `Commande refusée : ${r.command}${r.message ? `\n${r.message}` : ""}`;
+    if (r.background) return `$ ${r.command}\n${r.message ?? ""}`.trimEnd();
+
+    const out = [`$ ${r.command}`];
+    if (r.cwd) out.push(`Dossier : ${r.cwd}`);
+    if (r.message && r.message !== r.output) out.push(r.message);
+
+    if (Array.isArray(r.files_changed) && r.files_changed.length) {
+        out.push(`Fichiers modifiés : ${r.files_changed.join(", ")} (à relire avant de les modifier).`);
+    }
+
+    if (Array.isArray(r.segments) && r.segments.length > 1) {
+        out.push("Étapes :");
+        for (const s of r.segments) {
+            out.push(s.skipped ? `- ${s.command} : non lancée` : `- ${s.command} : code ${s.exit_code ?? "?"}`);
+        }
+    }
+
+    if (r.truncated) out.push("Sortie tronquée : début et fin conservés.");
+
+    const output = typeof r.output === "string" ? r.output.trimEnd() : "";
+    out.push(output ? `Sortie :\n${output}` : "Sortie : (aucune)");
+
+    return out.join("\n");
+}
+
+/**
+ * Texte renvoyé à l'API pour le résultat d'un outil client.
+ * read_file, search_files, list_directory et run_command sont mis en forme ;
+ * les autres résultats (edit_file, write_file...) restent en JSON compact.
+ */
+function formatClientResult(name, result) {
+    if (typeof result === "string") return result;
+    if (result === undefined || result === null) return "OK.";
+
+    try {
+        if (name === "read_file" && typeof result.content === "string") return formatReadFile(result);
+        if (name === "search_files" && Array.isArray(result.matches)) return formatSearch(result);
+        if (name === "list_directory" && Array.isArray(result.entries)) return formatList(result);
+        if (name === "run_command" && typeof result.command === "string") return formatCommandResult(result);
+        if (result.denied && typeof result.message === "string") return `Refusé : ${result.message}`;
+    } catch {
+        // forme inattendue : JSON ci-dessous
+    }
+
+    return JSON.stringify(result);
+}
+
 module.exports = {
     TOOLS,
     validateToolCall,
     describeCall,
     CLIENT_TOOLS,
     READ_TOOLS,
+    DEFAULT_SEARCH_RESULTS,
     normalizeArgs,
     describeClientCall,
-    runClientTool
+    runClientTool,
+    formatClientResult
 };

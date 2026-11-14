@@ -4,18 +4,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { toolLabel, TOOL_LABELS } = require("../src/tool-labels");
+const { CLIENT_TOOLS } = require("../src/tools/registry");
 
-test("libellés courts des outils", () => {
-    assert.equal(toolLabel("glob"), "Trouver");
-    assert.equal(toolLabel("multi_edit"), "Éditer (multiple)");
-    assert.equal(toolLabel("web_search"), "Chercher sur le web");
-    assert.equal(toolLabel("web_fetch"), "Lire le web");
-    assert.equal(toolLabel("todo_write"), "Tâches");
-    assert.equal(toolLabel("inconnu"), "inconnu");
-    assert.equal(toolLabel(undefined), "");
+test("un libellé court par outil client, et seulement eux", () => {
+    assert.deepEqual(Object.keys(TOOL_LABELS).sort(), [...CLIENT_TOOLS].sort());
+    assert.equal(toolLabel("run_command"), "Commande");
 });
 
-test("delegate n'existe plus : pas de libellé dédié", () => {
-    assert.ok(!Object.prototype.hasOwnProperty.call(TOOL_LABELS, "delegate"));
-    assert.equal(toolLabel("delegate"), "delegate");
+test("outil inconnu : le nom brut est affiché", () => {
+    assert.equal(toolLabel("glob"), "glob");
+    assert.equal(toolLabel(undefined), "");
 });

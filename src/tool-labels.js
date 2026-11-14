@@ -4,19 +4,9 @@ const TOOL_LABELS = {
     list_directory: "Lister",
     read_file: "Lire",
     search_files: "Chercher",
-    create_directory: "Créer le dossier",
     write_file: "Écrire",
     edit_file: "Éditer",
-    multi_edit: "Éditer (multiple)",
-    move_path: "Déplacer",
-    copy_path: "Copier",
-    delete_path: "Supprimer",
-    remember: "Mémoriser",
-    run_command: "Commande",
-    glob: "Trouver",
-    todo_write: "Tâches",
-    web_fetch: "Lire le web",
-    web_search: "Chercher sur le web"
+    run_command: "Commande"
 };
 
 function toolLabel(name) {

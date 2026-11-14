@@ -64,7 +64,7 @@ function createJobManager({ maxJobs = MAX_JOBS, maxBufferChars = MAX_BUFFER_CHAR
         if (typeof launch !== "function") throw new Error("launch doit être une fonction.");
         const active = runningCount();
         if (active >= maxJobs) {
-            throw new Error(`Déjà ${active} job(s) en cours (maximum ${maxJobs}). Arrête-en un avec job_stop.`);
+            throw new Error(`Déjà ${active} job(s) en cours (maximum ${maxJobs}). Arrête-en un avec /jobs stop <id>.`);
         }
 
         const job = {

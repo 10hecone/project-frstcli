@@ -4,14 +4,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 /*
- * Nettoyage de la sortie d'une commande avant de la renvoyer à l'agent :
+ * Nettoyage de la sortie d'une commande avant de la renvoyer au modèle :
  * séquences ANSI retirées, barres de progression et spinners supprimés,
  * lignes identiques consécutives repliées en [xN], lignes d'erreur placées en tête
  * quand la sortie doit être coupée. Aussi : détection des fichiers modifiés
  * (git status --porcelain avant / après) et champ description.
  */
 
-const MAX_CLEAN_CHARS = 8000;
+// Sortie gardée : moitié début, moitié fin (8 000 caractères chacun ; la fin contient les stack traces).
+const MAX_CLEAN_CHARS = 16000;
 const MAX_ERROR_LINES = 20;
 const MAX_DESCRIPTION_CHARS = 120;
 
@@ -93,7 +94,7 @@ function cleanOutput(text, { maxChars = MAX_CLEAN_CHARS, maxErrorLines = MAX_ERR
 
     const header = errors.length ? `[lignes d'erreur]\n${errors.join("\n")}\n[sortie]\n` : "";
     const budget = Math.max(200, maxChars - header.length);
-    const headSize = Math.floor(budget * 0.3);
+    const headSize = Math.floor(budget / 2);
     const tailSize = budget - headSize;
     const omitted = cleaned.length - headSize - tailSize;
 

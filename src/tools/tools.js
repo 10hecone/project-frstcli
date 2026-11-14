@@ -58,20 +58,21 @@ async function setProject(directory, { newConv = false } = {}) {
 
     state.workspace = real;
     resetConversation();
+    // Le résumé /index du projet précédent ne doit pas s'afficher pour celui-ci.
+    projectContext.clear();
     await memory.open(real);
 
     const { project, created } = await projects.open(real, { newConv });
 
-    for (const mode of ["chat", "agent"]) {
-        const saved = project.conversations[mode];
-        if (saved && saved.id) setConversation(mode, saved.id, saved.settings);
-    }
+    // Seule la conversation chat est reprise : l'ancienne conversation agent écraserait ses réglages.
+    const saved = project.conversations.chat;
+    if (saved && saved.id) setConversation("chat", saved.id, saved.settings);
 
     ui.info(`Projet : ${real}`);
 
     if (created) ui.info("Nouveau projet enregistré dans projects.json.");
-    else if (newConv) ui.info("Projet existant : nouvelles conversations chat et agent.");
-    else ui.info("Projet existant : reprise de ses conversations (le contexte n'est pas renvoyé).");
+    else if (newConv) ui.info("Projet existant : nouvelle conversation.");
+    else ui.info("Projet existant : reprise de sa conversation (le contexte n'est pas renvoyé).");
 
     const notes = memory.listNotes().length;
     const undo = memory.listUndo().length;
@@ -80,17 +81,13 @@ async function setProject(directory, { newConv = false } = {}) {
         ui.info(`Mémoire : ${notes} note(s), ${undo} modification(s) annulable(s).`);
     }
 
-    ui.warn("Le contenu du projet (fichiers, RESUME.md) est envoyé à ton fournisseur API.");
-
-    try {
-        const report = await projectContext.load(real);
-        ui.info(
-            `${report.status} | ${report.files} fichier(s) indexé(s)` +
-            (report.skipped ? `, ${report.skipped} ignoré(s)` : "")
-        );
-    } catch (error) {
-        ui.warn(`Indexation impossible : ${error.message}`);
-    }
+    // Plus d'indexation automatique : le premier message ne joint qu'un contexte court
+    // (environnement, premier niveau du projet, FRSTCLI.md) et le modèle lit les fichiers
+    // avec les outils. /index génère RESUME.md à la demande.
+    ui.warn(
+        "FRSTCLI.md, la liste du premier niveau du projet et ce que lit le modèle " +
+        "(fichiers, sorties de commandes) sont envoyés à ton fournisseur API."
+    );
 }
 
 function unsetProject() {
