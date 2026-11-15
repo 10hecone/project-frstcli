@@ -116,6 +116,19 @@ async function open(workspace) {
     return { project, created };
 }
 
+/** Dossiers connus, le plus récemment ouvert en premier. */
+async function list() {
+    await load();
+    return Object.values(projects).sort((a, b) => String(b.lastOpenedAt || "").localeCompare(String(a.lastOpenedAt || "")));
+}
+
+/** Enregistre la confiance accordée à un dossier sans l'ouvrir (dialogue de confiance de la GUI). */
+async function trust(workspace) {
+    await load();
+    entryFor(workspace, new Date().toISOString()).trusted = true;
+    await save();
+}
+
 /**
  * Mémorise une session du dossier et la place en tête. Un titre déjà connu est gardé :
  * celui de l'API s'il a été enregistré, sinon le début du premier message.
@@ -139,4 +152,4 @@ async function saveSession(workspace, { id, title = null, settings = null }) {
     await save();
 }
 
-module.exports = { open, get, saveSession, migrateProject, readStore, FILE, LEGACY_FILE, REPO_ROOT };
+module.exports = { open, get, list, trust, saveSession, migrateProject, readStore, FILE, LEGACY_FILE, REPO_ROOT };
