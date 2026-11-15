@@ -18,17 +18,56 @@ export function Transcript({ transcript, live, command, spinner, expandAll = fal
     const chars = useMemo(() => (spinner ? streamedChars(transcript, live) : 0), [spinner, transcript, live]);
     const ref = useRef(null);
     const stickRef = useRef(true);
+    const lastTopRef = useRef(0);
 
+    const toBottom = () => {
+        const el = ref.current;
+        if (el && stickRef.current) el.scrollTop = el.scrollHeight;
+    };
+
+    // Seul un défilement vers le haut (geste de l'utilisateur) décroche le suivi.
+    // La croissance du contenu ne change pas scrollTop : elle ne décroche plus.
     const onScroll = () => {
         const el = ref.current;
         if (!el) return;
-        stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
+        const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
+        if (nearBottom) stickRef.current = true;
+        else if (el.scrollTop < lastTopRef.current - 1) stickRef.current = false;
+        lastTopRef.current = el.scrollTop;
     };
 
+    // Un nouveau message de l'utilisateur ramène toujours en bas.
+    const lastType = transcript.length ? transcript[transcript.length - 1]?.type : null;
+    useEffect(() => {
+        if (lastType === "user") stickRef.current = true;
+    }, [transcript.length, lastType]);
+
+    useEffect(toBottom, [items, command, spinner]);
+
+    // Le contenu grandit aussi après le rendu (markdown, blocs dépliés, images,
+    // zone de saisie qui change de hauteur) : on suit ces changements de taille.
     useEffect(() => {
         const el = ref.current;
-        if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-    }, [items, command, spinner]);
+        if (!el) return undefined;
+
+        const resize = new ResizeObserver(() => toBottom());
+        const watch = () => {
+            resize.disconnect();
+            resize.observe(el);
+            for (const child of el.children) resize.observe(child);
+        };
+        const mutation = new MutationObserver(() => {
+            watch();
+            toBottom();
+        });
+
+        watch();
+        mutation.observe(el, { childList: true, subtree: true, characterData: true });
+        return () => {
+            mutation.disconnect();
+            resize.disconnect();
+        };
+    }, []);
 
     return (
         <main className="transcript" ref={ref} onScroll={onScroll}>
