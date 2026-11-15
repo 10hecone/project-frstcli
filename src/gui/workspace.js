@@ -84,6 +84,7 @@ function createWorkspace({
     stateModule = null,
     detectEnvironment = null,
     sessionUsage = null,
+    permissions = null,
     workspaceCore = workspace
 } = {}) {
     const api = () => rest || require("../api/rest");
@@ -283,6 +284,14 @@ function createWorkspace({
         return { ok: true, changed: true, name: agent.name };
     }
 
+    /** Mode de permission de la session (default, acceptEdits, plan) : même effet que Shift+Tab. */
+    function setPermissionMode(mode) {
+        const applied = (permissions || require("../core/permissions-mode")).set(mode);
+        if (!applied) throw new Error("Mode de permission inconnu.");
+        refresh();
+        return { ok: true, mode: applied };
+    }
+
     /** Envoie des fichiers locaux (Files v2). Un échec n'empêche pas les autres. */
     async function uploadFiles(paths = []) {
         const files = [];
@@ -310,6 +319,7 @@ function createWorkspace({
         listSkills,
         toggleSkill,
         setModel,
+        setPermissionMode,
         uploadFiles
     };
 }

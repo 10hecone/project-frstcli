@@ -302,9 +302,24 @@ test("workspace : uploadFiles continue après un échec", async () => {
 });
 
 test("canaux IPC : canaux de l'espace de travail présents", () => {
-    for (const name of ["INFO", "CHATS", "OPEN_CHAT", "NEW_THREAD", "PROJECTS", "SELECT_PROJECT", "USAGE", "SKILLS", "TOGGLE_SKILL", "SET_MODEL", "PICK_FILES"]) {
+    for (const name of ["INFO", "CHATS", "OPEN_CHAT", "NEW_THREAD", "PROJECTS", "SELECT_PROJECT", "USAGE", "SKILLS", "TOGGLE_SKILL", "SET_MODEL", "PICK_FILES", "PICK_FOLDER", "OPEN_FOLDER", "CLOSE_FOLDER", "RECENT_FOLDERS", "TRUST_FOLDER", "FOLDER_SESSIONS", "SET_PERMISSION_MODE"]) {
         assert.match(CHANNELS[name] || "", /^frst:/, name);
     }
+});
+
+test("workspace : setPermissionMode applique le mode, rafraîchit et refuse un mode inconnu", () => {
+    const seen = [];
+    let refreshed = 0;
+    const workspace = createWorkspace({
+        backend: {},
+        refresh: () => (refreshed += 1),
+        permissions: { set: (mode) => (mode === "plan" ? (seen.push(mode), "plan") : null) }
+    });
+    assert.deepEqual(workspace.setPermissionMode("plan"), { ok: true, mode: "plan" });
+    assert.equal(refreshed, 1);
+    assert.throws(() => workspace.setPermissionMode("nimporte"), /inconnu/);
+    assert.equal(refreshed, 1);
+    assert.deepEqual(seen, ["plan"]);
 });
 
 /** Hôte avec un état simulé (stateModule) pour suivre state.pendingFiles. */
@@ -401,6 +416,9 @@ test("client : méthodes d'espace de travail complétées hors ligne", async () 
     assert.deepEqual(await full.listChats(), { chats: [], hasMore: false });
     assert.equal((await full.pickFiles()).cancelled, true);
     assert.equal((await full.info()).branch, null);
+    assert.deepEqual(await full.recentFolders(), []);
+    assert.equal((await full.pickFolder()).cancelled, true);
+    assert.equal((await full.openFolder("x")).ok, false);
 
     const complete = { ...minimal, ...Object.fromEntries(client.WORKSPACE_METHODS.map((name) => [name, () => name])) };
     assert.equal(client.withWorkspace(complete), complete);

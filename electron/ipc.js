@@ -12,6 +12,7 @@ const { dialog, ipcMain, shell } = require("electron");
 const { CHANNELS } = require("../src/gui/channels");
 const { createGuiHost } = require("../src/gui/host");
 const { createWorkspace } = require("../src/gui/workspace");
+const { createFolders } = require("../src/gui/folders");
 const { createChanges } = require("../src/gui/changes");
 const { openWorkspacePath } = require("../src/gui/paths");
 const { nextZoom, zoomActionForInput } = require("../src/gui/window-state");
@@ -37,6 +38,11 @@ function registerIpc(win, { onExit = null } = {}) {
         summarizeChanges: (count) => (changes ? changes.summarize(count) : null)
     });
     workspace = createWorkspace({
+        backend: host.backend,
+        refresh: () => host.syncStatus(),
+        isRunning: () => host.isRunning()
+    });
+    const folders = createFolders({
         backend: host.backend,
         refresh: () => host.syncStatus(),
         isRunning: () => host.isRunning()
@@ -71,6 +77,17 @@ function registerIpc(win, { onExit = null } = {}) {
             uploaded.errors.push(`${MAX_PICKED_FILES} fichiers au maximum par envoi.`);
         }
         return { ...uploaded, cancelled: false };
+    }
+
+    /** Sélecteur de dossier natif puis ouverture : { ok, path } ou { needsTrust, path, message } ou { cancelled }. */
+    async function pickFolder() {
+        const result = await dialog.showOpenDialog(win, {
+            title: "Ouvrir un dossier",
+            buttonLabel: "Ouvrir",
+            properties: ["openDirectory"]
+        });
+        if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
+        return folders.open(result.filePaths[0]);
     }
 
     /** Ouvre un chemin du projet (jamais hors du projet ; les exécutables sont seulement montrés). */
@@ -128,6 +145,14 @@ function registerIpc(win, { onExit = null } = {}) {
         [CHANNELS.SET_MODEL]: (id) => workspace.setModel(id),
         [CHANNELS.PICK_FILES]: () => pickFiles(),
 
+        [CHANNELS.PICK_FOLDER]: () => pickFolder(),
+        [CHANNELS.OPEN_FOLDER]: (dir) => folders.open(dir),
+        [CHANNELS.CLOSE_FOLDER]: () => folders.close(),
+        [CHANNELS.RECENT_FOLDERS]: () => folders.recent(),
+        [CHANNELS.TRUST_FOLDER]: (dir) => folders.trust(dir),
+        [CHANNELS.FOLDER_SESSIONS]: (dir) => folders.sessions(dir),
+        [CHANNELS.SET_PERMISSION_MODE]: (mode) => workspace.setPermissionMode(mode),
+
         [CHANNELS.CHANGES]: () => changes.list(),
         [CHANNELS.UNDO_CHANGE]: (id) => changes.undoFile(id),
         [CHANNELS.UNDO_TURN]: (turn) => changes.undoTurn(turn || {}),
@@ -144,6 +169,7 @@ function registerIpc(win, { onExit = null } = {}) {
     return {
         host,
         workspace,
+        folders,
         changes,
         dispose() {
             for (const channel of Object.keys(handlers)) ipcMain.removeHandler(channel);

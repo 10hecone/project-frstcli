@@ -13,6 +13,11 @@
  * info, listChats, openChat, newThread, listProjects, selectProject, usage,
  * listSkills, toggleSkill, setModel, pickFiles.
  *
+ * Dossiers et permissions (mêmes règles) :
+ * - pickFolder()        → { ok, path } | { needsTrust, path, message } | { cancelled }
+ * - openFolder(path)    → { ok, path } | { needsTrust, path, message } ; trustFolder(path) puis openFolder
+ * - closeFolder(), recentFolders(), folderSessions(path), setPermissionMode(mode).
+ *
  * Pour rebrancher l'interface sur un autre transport (WebSocket, serveur local,
  * tests), il suffit de fournir un objet qui respecte ce contrat.
  */
@@ -33,7 +38,14 @@ export const WORKSPACE_FALLBACKS = {
     listSkills: async () => ({ skills: [] }),
     toggleSkill: async () => ({ ok: false, reason: OFFLINE }),
     setModel: async () => ({ ok: false, reason: OFFLINE }),
-    pickFiles: async () => ({ files: [], errors: ["Hors ligne"], cancelled: true })
+    pickFiles: async () => ({ files: [], errors: ["Hors ligne"], cancelled: true }),
+    pickFolder: async () => ({ ok: false, cancelled: true }),
+    openFolder: async () => ({ ok: false, reason: OFFLINE }),
+    closeFolder: async () => ({ ok: false, reason: OFFLINE }),
+    recentFolders: async () => [],
+    trustFolder: async () => ({ ok: false, reason: OFFLINE }),
+    folderSessions: async () => [],
+    setPermissionMode: async () => ({ ok: false, reason: OFFLINE })
 };
 
 export const WORKSPACE_METHODS = Object.keys(WORKSPACE_FALLBACKS);

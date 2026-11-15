@@ -25,6 +25,15 @@ const CHANNELS = Object.freeze({
     SET_MODEL: "frst:set-model",
     PICK_FILES: "frst:pick-files",
 
+    // Fenêtre → processus principal : dossiers et mode de permission
+    PICK_FOLDER: "frst:pick-folder",
+    OPEN_FOLDER: "frst:open-folder",
+    CLOSE_FOLDER: "frst:close-folder",
+    RECENT_FOLDERS: "frst:recent-folders",
+    TRUST_FOLDER: "frst:trust-folder",
+    FOLDER_SESSIONS: "frst:folder-sessions",
+    SET_PERMISSION_MODE: "frst:set-permission-mode",
+
     // Fenêtre → processus principal : modifications de fichiers et chemins
     CHANGES: "frst:changes",
     UNDO_CHANGE: "frst:undo-change",

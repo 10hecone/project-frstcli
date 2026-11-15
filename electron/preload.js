@@ -41,6 +41,15 @@ contextBridge.exposeInMainWorld("frst", {
     setModel: (id) => invoke(CHANNELS.SET_MODEL, Number(id)),
     pickFiles: () => invoke(CHANNELS.PICK_FILES),
 
+    // ---- Dossiers et mode de permission ----
+    pickFolder: () => invoke(CHANNELS.PICK_FOLDER),
+    openFolder: (path) => invoke(CHANNELS.OPEN_FOLDER, String(path ?? "")),
+    closeFolder: () => invoke(CHANNELS.CLOSE_FOLDER),
+    recentFolders: () => invoke(CHANNELS.RECENT_FOLDERS),
+    trustFolder: (path) => invoke(CHANNELS.TRUST_FOLDER, String(path ?? "")),
+    folderSessions: (path) => invoke(CHANNELS.FOLDER_SESSIONS, String(path ?? "")),
+    setPermissionMode: (mode) => invoke(CHANNELS.SET_PERMISSION_MODE, String(mode ?? "")),
+
     // ---- Résultat des actions, intégration à la fenêtre ----
     platform: process.platform,
     listChanges: () => invoke(CHANNELS.CHANGES),
