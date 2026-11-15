@@ -1,4 +1,4 @@
-name: CLI Windows - Installer EXE
+name: Windows - Installateurs CLI et application
 
 on:
   workflow_dispatch:
@@ -202,9 +202,49 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  build-gui:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          architecture: x64
+          cache: npm
+      - name: Verifier la version du tag
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version stable X.Y.Z requise.' }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Le tag doit correspondre a package.json : v$version" }
+      - name: Installer les dependances
+        run: npm ci
+      - name: Construire l installateur graphique
+        run: npm run dist:win
+      - name: Calculer l empreinte
+        shell: pwsh
+        run: |
+          $setup = @(Get-ChildItem release/frst-atelier-*-windows-x64-setup.exe)
+          if ($setup.Count -ne 1) { throw 'Installateur graphique introuvable ou non unique.' }
+          $hash = (Get-FileHash $setup[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($setup[0].Name)" | Set-Content release/SHA256SUMS-GUI.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frst-gui-windows-x64
+          path: |
+            release/frst-atelier-*-windows-x64-setup.exe
+            release/SHA256SUMS-GUI.txt
+          if-no-files-found: error
+          retention-days: 14
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, build-gui]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -213,6 +253,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frst-cli-windows-x64
+          path: output
+
+      - name: Recuperer l installateur graphique
+        uses: actions/download-artifact@v4
+        with:
+          name: frst-gui-windows-x64
           path: output
 
       - name: Preparer une release en brouillon
@@ -224,8 +270,8 @@ jobs:
         run: |
           set -euo pipefail
           # Ne remplace pas silencieusement une release existante.
-          gh release create "$TAG" output/*-setup.exe output/SHA256SUMS.txt \
+          gh release create "$TAG" output/*-setup.exe output/SHA256SUMS.txt output/SHA256SUMS-GUI.txt \
             --verify-tag \
             --draft \
-            --title "FranceStudent CLI $TAG - Windows x64" \
-            --notes "Installateur Windows x64 du CLI, avec Node.js embarque. Non signe. Avant publication : verifier les raccourcis, la TUI, la connexion et la desinstallation sur un PC Windows. Les donnees utilisateur ne sont pas supprimees par la desinstallation."
+            --title "FranceStudent $TAG - Windows x64" \
+            --notes "Installateurs Windows x64 du CLI (Node.js embarque) et de l application graphique. Non signes. Avant publication : verifier les raccourcis, la TUI, la connexion et la desinstallation sur un PC Windows. Les donnees utilisateur du CLI ne sont pas supprimees par la desinstallation."

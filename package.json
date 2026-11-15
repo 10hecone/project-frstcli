@@ -23,6 +23,7 @@
     "build:gui": "node scripts/build-gui.js",
     "app": "npm run build:gui && electron electron/main.js",
     "dist:app": "node scripts/build-gui.js --prod && electron-builder",
+    "dist:win": "node scripts/build-gui.js --prod && electron-builder --win nsis --x64 --publish never",
     "prepare": "npm run build:tui",
     "pretest": "npm run build:tui",
     "test": "node --test test/*.test.js",
@@ -69,6 +70,7 @@
     "icon": "assets/logo.png",
     "win": {
       "target": "nsis",
+      "artifactName": "frst-atelier-${version}-windows-${arch}-setup.${ext}",
       "icon": "assets/logo.png"
     },
     "nsis": {
