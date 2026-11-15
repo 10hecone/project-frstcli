@@ -15,7 +15,7 @@ try {
 }
 
 const { app, BrowserWindow, dialog } = require("electron");
-const { createMainWindow, guiBuilt, GUI_DIR } = require("./window");
+const { createMainWindow, guiBuilt, GUI_DIR, ICON_PATH } = require("./window");
 const { registerIpc } = require("./ipc");
 const { folderFromArgv } = require("../src/gui/folders");
 
@@ -24,6 +24,10 @@ const requestedFolder = (argv, cwd) => folderFromArgv(argv, { defaultApp: proces
 
 let mainWindow = null;
 let ipc = null;
+
+// Windows : identifiant d'application (le même que build.appId), pour que la barre des tâches
+// regroupe les fenêtres et affiche le bon logo, y compris en mode développement.
+if (process.platform === "win32") app.setAppUserModelId("org.francestudent.code");
 
 function boot() {
     if (!guiBuilt()) {
@@ -34,6 +38,9 @@ function boot() {
         app.quit();
         return;
     }
+
+    // macOS : logo du Dock en mode développement (l'application empaquetée utilise l'icône du bundle).
+    if (process.platform === "darwin" && app.dock) app.dock.setIcon(ICON_PATH);
 
     mainWindow = createMainWindow();
     ipc = registerIpc(mainWindow, {

@@ -21,6 +21,9 @@ const GUI_DIR = path.join(__dirname, "..", "dist", "gui");
 const INDEX_HTML = path.join(GUI_DIR, "index.html");
 const PRELOAD = path.join(GUI_DIR, "preload.js");
 
+// Logo de l'application : barre des tâches, Alt+Tab, fenêtre (Windows et Linux).
+const ICON_PATH = path.join(__dirname, "..", "assets", "logo.png");
+
 const DEFAULT_SIZE = { width: 1240, height: 800 };
 const SAVE_DELAY_MS = 400;
 
@@ -90,6 +93,7 @@ function createMainWindow() {
         minWidth: 720,
         minHeight: 480,
         title: "FranceStudent Code",
+        ...(fs.existsSync(ICON_PATH) ? { icon: ICON_PATH } : {}),
         // Windows 11 : matériau acrylique sous la page (thème verre) ; ailleurs, fond plein.
         backgroundColor: look.backgroundColor,
         ...(process.platform === "win32" ? { backgroundMaterial: look.backgroundMaterial } : {}),
@@ -150,4 +154,4 @@ function createMainWindow() {
         return win;
     }
 
-    module.exports = { createMainWindow, guiBuilt, applyAppearance, patchState, getSavedZoom, GUI_DIR };
+    module.exports = { createMainWindow, guiBuilt, applyAppearance, patchState, getSavedZoom, GUI_DIR, ICON_PATH };

@@ -60,13 +60,16 @@
     "files": [
       "package.json",
       "electron/**/*",
+      "assets/logo.png",
       "src/**/*",
       "!src/gui/renderer/**/*",
       "dist/gui/**/*",
       "!dist/gui/**/*.map"
     ],
+    "icon": "assets/logo.png",
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/logo.png"
     },
     "nsis": {
       "oneClick": false,
