@@ -72,7 +72,7 @@ function createChanges({
 } = {}) {
     const mem = () => memory || require("../project/memory");
     const doRevert = (entry) => (revert || require("../tools/core/journal").revert)(entry);
-    const root = () => (workspace ? workspace() : require("../state").state.workspace);
+    const root = () => (workspace ? workspace() : require("../core/workspace").workspace.root);
 
     async function absolute(rel) {
         const resolver = resolve || require("../tools/security").resolveInWorkspace;

@@ -8,6 +8,7 @@ const { state } = require("../../state");
 const { normalizeRelative, resolveInWorkspace } = require("../security");
 const memory = require("../../project/memory");
 const { optionalString, optionalBool, optionalInt } = require("../core/args");
+const { workspace } = require("../../core/workspace");
 
 async function walkDirectory(absDir, relDir, depth, maxDepth, out) {
     const dirents = await fs.readdir(absDir, { withFileTypes: true });
@@ -51,7 +52,7 @@ function maxDepthOf(args) {
 }
 
 async function listDirectory(args = {}) {
-    const { rel, target } = await resolveInWorkspace(state.workspace, args.path ?? ".");
+    const { rel, target } = await resolveInWorkspace(workspace.root, args.path ?? ".");
     const info = await fs.stat(target);
 
     if (!info.isDirectory()) throw new Error("Ce chemin n'est pas un dossier.");

@@ -75,7 +75,7 @@ function registerIpc(win, { onExit = null } = {}) {
 
     /** Ouvre un chemin du projet (jamais hors du projet ; les exécutables sont seulement montrés). */
     function openPath(input) {
-        const root = require("../src/state").state.workspace;
+        const root = require("../src/core/workspace").workspace.root;
         return openWorkspacePath(root, input, shell);
     }
 

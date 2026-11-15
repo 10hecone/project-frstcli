@@ -10,6 +10,7 @@ const chat = require("./chat");
 const router = require("../cli/router");
 const profile = require("../project/profile");
 const { handleProfileCommand } = require("../cli/profile-commands");
+const { workspace } = require("./workspace");
 
 // Commandes de profil, communes au CLI et à la TUI.
 const PROFILE_COMMAND_RE = /^\/(preprompt|profil)(\s|$)/i;
@@ -77,11 +78,11 @@ async function handleInput(rawInput, { onChatDelta, sendChat } = {}) {
         .catch(error => ui.debug(`Profil non mis à jour : ${error.message}`));
 
     if (router.isWorkspaceQuestion(input)) {
-        ui.assistant(`Projet actuel : ${state.workspace || "aucun projet sélectionné."}`);
+        ui.assistant(`Projet actuel : ${workspace.root || "aucun projet sélectionné."}`);
         return { exit: false };
     }
 
-    if (!state.workspace && state.mode !== "chat" && router.seemsToRequestLocalFiles(input)) {
+    if (!workspace.root && state.mode !== "chat" && router.seemsToRequestLocalFiles(input)) {
         ui.info(
             "Pour lire ou modifier des fichiers locaux, sélectionne d'abord " +
                 "un dossier avec /project <dossier>."

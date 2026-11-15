@@ -6,6 +6,7 @@ const { resolveInWorkspace } = require("../security");
 const memory = require("../../project/memory");
 const { requireString, optionalInt } = require("../core/args");
 const { readTextFile } = require("../core/freshness");
+const { workspace } = require("../../core/workspace");
 
 function countLines(text) {
     let count = 1;
@@ -26,7 +27,7 @@ function countLines(text) {
 async function readFile(args = {}) {
     requireString(args.path, "path");
 
-    const { rel, target } = await resolveInWorkspace(state.workspace, args.path);
+    const { rel, target } = await resolveInWorkspace(workspace.root, args.path);
     const text = await readTextFile(target);
     const total = countLines(text);
 

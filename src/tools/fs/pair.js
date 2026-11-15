@@ -6,6 +6,7 @@ const { state } = require("../../state");
 const { resolveInWorkspace } = require("../security");
 const { requireString } = require("../core/args");
 const { statOrNull } = require("../core/fs-utils");
+const { workspace } = require("../../core/workspace");
 
 /**
  * Vrai si child est à l'intérieur du dossier parent.
@@ -22,8 +23,8 @@ async function resolvePair(args) {
     requireString(args.from, "from");
     requireString(args.to, "to");
 
-    const src = await resolveInWorkspace(state.workspace, args.from);
-    const dst = await resolveInWorkspace(state.workspace, args.to);
+    const src = await resolveInWorkspace(workspace.root, args.from);
+    const dst = await resolveInWorkspace(workspace.root, args.to);
 
     if (src.rel === "." || dst.rel === ".") throw new Error("Chemin invalide.");
 

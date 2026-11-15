@@ -4,9 +4,9 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const { state, resetConversation, setConversation } = require("../state");
-const { ui } = require("../ui-bridge");
-const memory = require("../project/memory");
-const projectContext = require("../project/project-context");
+
+// ui-bridge, memory et project-context sont chargés dans open() et close() : les outils et la
+// sécurité lisent `workspace.root`, et ce chargement différé évite tout import circulaire.
 
 /*
  * Cœur commun CLI / TUI / GUI : le dossier ouvert.
@@ -51,6 +51,9 @@ function onChange(listener) {
 
 async function open(directory, { newConv = false } = {}) {
     const projects = require("../project/projects");
+    const { ui } = require("../ui-bridge");
+    const memory = require("../project/memory");
+    const projectContext = require("../project/project-context");
     const real = await fs.realpath(path.resolve(directory));
     const info = await fs.stat(real);
 
@@ -93,6 +96,9 @@ async function open(directory, { newConv = false } = {}) {
 }
 
 function close() {
+    const memory = require("../project/memory");
+    const projectContext = require("../project/project-context");
+
     state.workspace = null;
     resetConversation();
     memory.close();

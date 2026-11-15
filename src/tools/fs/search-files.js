@@ -9,6 +9,7 @@ const { resolveInWorkspace } = require("../security");
 const { requireString, optionalString, optionalBool } = require("../core/args");
 const { readTextFile } = require("../core/freshness");
 const { walkFiles } = require("../core/walk");
+const { workspace } = require("../../core/workspace");
 
 // Nombre de fichiers lus en même temps.
 const READ_CONCURRENCY = 8;
@@ -141,7 +142,7 @@ async function searchFiles(args = {}) {
     const matcher = makeMatcher(query, regex);
     const accept = glob ? makeGlobFilter(glob) : () => true;
 
-    const { rel, target } = await resolveInWorkspace(state.workspace, args.path ?? ".");
+    const { rel, target } = await resolveInWorkspace(workspace.root, args.path ?? ".");
     const info = await fs.stat(target);
 
     if (!info.isDirectory() && !info.isFile()) {

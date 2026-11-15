@@ -26,7 +26,7 @@ function showHelp() {
   }
 
   ui.print(
-    `\n${c.dim("Projet :")} ${state.workspace || "aucun"}  ` +
+    `\n${c.dim("Projet :")} ${workspace.root || "aucun"}  ` +
       `${c.dim("Agent :")} ${require("../api/agents").agentName(state.model)}  ${c.dim("Mode :")} ${state.mode}`,
   );
   ui.print(
@@ -43,7 +43,7 @@ const unquote = (value) =>
     : value;
 
 function requireProject() {
-  if (!state.workspace) {
+  if (!workspace.root) {
     ui.info("Aucun projet sélectionné. Utilise /project <dossier>.");
     return false;
   }
@@ -64,7 +64,7 @@ async function handleCommand(input) {
 
     case "/project":
       if (!value) {
-        ui.info(`Projet : ${state.workspace || "aucun"}`);
+        ui.info(`Projet : ${workspace.root || "aucun"}`);
         break;
       }
 
@@ -116,7 +116,7 @@ async function handleCommand(input) {
     }
 
     case "/pwd":
-      ui.info(`Projet : ${state.workspace || "aucun projet sélectionné"}`);
+      ui.info(`Projet : ${workspace.root || "aucun projet sélectionné"}`);
       break;
 
     case "/tree": {
@@ -163,7 +163,7 @@ async function handleCommand(input) {
 
       // Le résumé n'est plus joint aux messages : il sert à /resume.
       // Seuls les fichiers modifiés depuis le dernier /index sont renvoyés à l'IA.
-      const report = await projectContext.load(state.workspace, {
+      const report = await projectContext.load(workspace.root, {
         force: value === "force",
       });
       ui.info(
@@ -177,8 +177,8 @@ async function handleCommand(input) {
 
       const { initInstructions } = require("../project/instructions");
       const { detectPackageInfo } = require("../project/package-info");
-      const { testCommand } = await detectPackageInfo(state.workspace);
-      const result = await initInstructions(state.workspace, { testCommand });
+      const { testCommand } = await detectPackageInfo(workspace.root);
+      const result = await initInstructions(workspace.root, { testCommand });
       ui.info(
         result.created
           ? `FRSTCLI.md créé : ${result.path}. Complète-le, il sera lu au début de chaque conversation.`

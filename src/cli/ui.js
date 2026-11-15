@@ -4,6 +4,7 @@ const readline = require("node:readline");
 const path = require("node:path");
 const { CONFIG } = require("../config");
 const { state } = require("../state");
+const { workspace } = require("../core/workspace");
 
 const COLOR = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
 
@@ -362,8 +363,8 @@ const ui = {
     },
 
     prompt() {
-        const where = state.workspace
-            ? c.dim(path.basename(state.workspace)) + " "
+        const where = workspace.root
+            ? c.dim(path.basename(workspace.root)) + " "
             : "";
         const auto = state.autoApprove ? c.yellow("auto ") : "";
         return `\n${where}${auto}> `;

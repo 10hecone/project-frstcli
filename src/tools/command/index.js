@@ -18,6 +18,7 @@ const {
     suggestPrefix,
     formatPrefix
 } = require("./permissions");
+const { workspace } = require("../../core/workspace");
 
 let cachedStore = null;
 
@@ -43,8 +44,8 @@ const LEGACY_COMMANDS = new Map([
 const GIT_STATUS_TIMEOUT_MS = 10000;
 
 // Renvoie le motif de refus de judge(), ou null si la commande n'est pas interdite.
-function denialReason(file, args = [], cwd = state.workspace) {
-    const verdict = judge({ file, args, cwd, workspace: state.workspace || cwd });
+function denialReason(file, args = [], cwd = workspace.root) {
+    const verdict = judge({ file, args, cwd, workspace: workspace.root || cwd });
     return verdict.level === "deny" ? verdict.reason : null;
 }
 
@@ -80,7 +81,7 @@ function buildMessage(result) {
 }
 
 function relativeCwd(cwd) {
-    const rel = path.relative(state.workspace, cwd);
+    const rel = path.relative(workspace.root, cwd);
     return rel === "" ? "." : rel.split(path.sep).join("/");
 }
 
@@ -89,7 +90,7 @@ function runGitStatus(args) {
     return runProcess({
         file: "git",
         args,
-        cwd: state.workspace,
+        cwd: workspace.root,
         timeoutMs: GIT_STATUS_TIMEOUT_MS,
         captureStdout: true
     });
@@ -104,7 +105,7 @@ async function confirmSegments(segments, cwd) {
 
     for (const segment of segments) {
         if (isCd(segment)) continue;
-        const verdict = judge({ file: segment.file, args: segment.args, cwd, workspace: state.workspace });
+        const verdict = judge({ file: segment.file, args: segment.args, cwd, workspace: workspace.root });
         const decision = decide({ verdict, rules, file: segment.file, args: segment.args });
         if (decision === "deny") {
             const reason = verdict?.reason || "Commande interdite.";
@@ -135,7 +136,7 @@ async function confirmSegments(segments, cwd) {
 }
 
 async function runCommand(toolArgs = {}) {
-    if (!state.workspace) {
+    if (!workspace.root) {
         throw new Error("Aucun projet sélectionné.");
     }
 
@@ -144,7 +145,7 @@ async function runCommand(toolArgs = {}) {
 
     // Les CommandParseError remontent telles quelles (message destiné à l'agent).
     const segments = splitPipeline(line);
-    const startCwd = resolveStartDir(toolArgs.cwd, state.cwd, state.workspace);
+    const startCwd = resolveStartDir(toolArgs.cwd, state.cwd, workspace.root);
     const display = segments.length === 1 ? segments[0].display : line.trim();
 
     const permission = await confirmSegments(segments, startCwd);
@@ -160,7 +161,7 @@ async function runCommand(toolArgs = {}) {
             cwd: relativeCwd(startCwd),
             launch: ({ onLine, signalHandle }) => executePipeline(segments, {
                 cwd: startCwd,
-                workspace: state.workspace,
+                workspace: workspace.root,
                 run: (segment, { cwd, input, pipeStdout }) => runProcess({
                     file: segment.file,
                     args: segment.args,
@@ -188,7 +189,7 @@ async function runCommand(toolArgs = {}) {
         };
     }
 
-    const before = await snapshotChanges(runGitStatus, state.workspace);
+    const before = await snapshotChanges(runGitStatus, workspace.root);
 
     // runProcess remplace signalHandle.kill par la fonction d'arrêt réelle de chaque segment.
     const signalHandle = { kill() {} };
@@ -198,7 +199,7 @@ async function runCommand(toolArgs = {}) {
     try {
         run = await executePipeline(segments, {
             cwd: startCwd,
-            workspace: state.workspace,
+            workspace: workspace.root,
             run: (segment, { cwd, input, pipeStdout }) => runProcess({
                 file: segment.file,
                 args: segment.args,
@@ -221,7 +222,7 @@ async function runCommand(toolArgs = {}) {
     state.cwd = run.cwd;
 
     // Fichiers modifiés par la commande : leurs lectures ne sont plus valables (relecture obligatoire).
-    const after = before ? await snapshotChanges(runGitStatus, state.workspace) : null;
+    const after = before ? await snapshotChanges(runGitStatus, workspace.root) : null;
     const filesChanged = diffSnapshots(before, after);
     if (filesChanged) {
         for (const rel of filesChanged) memory.dropPath(rel);

@@ -11,6 +11,7 @@ const { statOrNull, denied } = require("../core/fs-utils");
 const { readTextFile, assertFreshRead } = require("../core/freshness");
 const { finishMutation } = require("../core/journal");
 const { writeAtomic } = require("../core/atomic");
+const { workspace } = require("../../core/workspace");
 
 async function editFile(args = {}) {
     requireString(args.path, "path");
@@ -27,7 +28,7 @@ async function editFile(args = {}) {
         throw new Error("old_string et new_string sont identiques.");
     }
 
-    const { rel, target } = await resolveInWorkspace(state.workspace, args.path);
+    const { rel, target } = await resolveInWorkspace(workspace.root, args.path);
 
     if (!(await statOrNull(target))) {
         throw new Error(`Fichier introuvable : ${rel}. Utilise write_file pour le créer.`);
@@ -74,7 +75,7 @@ async function editFile(args = {}) {
 
     if (!(await ui.confirm("Autoriser cette modification ?"))) return denied(rel);
 
-    await resolveInWorkspace(state.workspace, rel);
+    await resolveInWorkspace(workspace.root, rel);
 
     const now = await readTextFile(target);
 
@@ -84,7 +85,7 @@ async function editFile(args = {}) {
 
     const id = newId();
     const backup = await memory.backupFile(id, previous);
-    await assertRealInside(state.workspace, target);
+    await assertRealInside(workspace.root, target);
 
     // Écriture atomique : fichier temporaire, contrôle du contenu attendu, puis rename.
     await writeAtomic(target, updated, { expected: previous, read: readTextFile });

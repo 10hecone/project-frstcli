@@ -14,6 +14,7 @@ const { statOrNull, toRel, denied, firstMissingAncestor, ensureParent } = requir
 const { readTextFile, assertFreshRead } = require("../core/freshness");
 const { finishMutation } = require("../core/journal");
 const { writeAtomic } = require("../core/atomic");
+const { workspace } = require("../../core/workspace");
 
 async function writeFile(args = {}) {
     requireString(args.path, "path");
@@ -24,7 +25,7 @@ async function writeFile(args = {}) {
 
     if (args.content.includes("\0")) throw new Error("Contenu binaire interdit.");
 
-    const { rel, target } = await resolveInWorkspace(state.workspace, args.path);
+    const { rel, target } = await resolveInWorkspace(workspace.root, args.path);
 
     if (rel === ".") throw new Error("Chemin invalide.");
 
@@ -65,7 +66,7 @@ async function writeFile(args = {}) {
     if (!(await ui.confirm("Autoriser cette écriture ?"))) return denied(rel);
 
     // Revalidation après confirmation.
-    await resolveInWorkspace(state.workspace, rel);
+    await resolveInWorkspace(workspace.root, rel);
 
     if (existing) {
         const now = await readTextFile(target);
@@ -78,7 +79,7 @@ async function writeFile(args = {}) {
     const id = newId();
     const backup = existing ? await memory.backupFile(id, previous) : null;
     const createdRoot = await ensureParent(target);
-    await assertRealInside(state.workspace, target);
+    await assertRealInside(workspace.root, target);
 
     try {
         // Nouveau fichier : création exclusive (wx, 0o600), donc jamais d'écrasement d'un fichier apparu entre-temps.

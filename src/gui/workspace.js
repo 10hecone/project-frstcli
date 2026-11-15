@@ -10,6 +10,7 @@
  */
 
 const path = require("node:path");
+const { workspace } = require("../core/workspace");
 
 const CHAT_PAGE = 40;
 
@@ -82,7 +83,8 @@ function createWorkspace({
     projects = null,
     stateModule = null,
     detectEnvironment = null,
-    sessionUsage = null
+    sessionUsage = null,
+    workspaceCore = workspace
 } = {}) {
     const api = () => rest || require("../api/rest");
     const agentsApi = () => agents || require("../api/agents");
@@ -97,9 +99,9 @@ function createWorkspace({
 
     async function branch() {
         const { state } = st();
-        if (!state.workspace) return null;
+        if (!workspaceCore.root) return null;
         try {
-            const env = await detect()(state.workspace);
+            const env = await detect()(workspaceCore.root);
             return env?.git?.branch || null;
         } catch {
             return null;
@@ -117,8 +119,8 @@ function createWorkspace({
         }
         return {
             branch: await branch(),
-            workspace: state.workspace || null,
-            workspaceName: state.workspace ? path.basename(state.workspace) : null,
+            workspace: workspaceCore.root || null,
+            workspaceName: workspaceCore.root ? path.basename(workspaceCore.root) : null,
             modelId: state.model,
             chatId: state.chatIds?.chat || null,
             project: state.frProject || null,

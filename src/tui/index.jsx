@@ -177,6 +177,7 @@ export async function start() {
     const { createStore } = requireCjs("../src/tui/store.js");
     const { createTuiBackend } = requireCjs("../src/tui/adapter.js");
     const { state } = requireCjs("../src/state.js");
+    const { workspace: workspaceCore } = requireCjs("../src/core/workspace.js");
     const session = requireCjs("../src/core/session.js");
 
     let version = "";
@@ -311,7 +312,7 @@ export async function start() {
         shutdown();
     } else {
         const agentsApi = requireCjs("../src/api/agents.js");
-        const branch = gitBranch(state.workspace || process.cwd());
+        const branch = gitBranch(workspaceCore.root || process.cwd());
         backend.info(`Modèle : ${agentsApi.agentName(state.model)}.`);
         backend.refreshStatus({ branch });
         // Charge la liste réelle des agents (GET /chats/agents) en arrière-plan, puis rafraîchit le nom affiché.

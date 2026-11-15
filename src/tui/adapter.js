@@ -10,6 +10,7 @@
 
 const { state } = require("../state");
 const { CONFIG } = require("../config");
+const { workspace: workspaceCore } = require("../core/workspace");
 
 const STREAM_INTERVAL_MS = 40;
 
@@ -54,7 +55,7 @@ function createTuiBackend(store, {
             append({
                 type: "welcome",
                 model: require("../api/agents").agentName(state.model),
-                workspace: state.workspace,
+                workspace: workspaceCore.root,
                 mode: state.mode,
                 webSearch: state.webSearch
             });
@@ -271,7 +272,7 @@ function createTuiBackend(store, {
                 status: {
                     mode: state.mode,
                     model: require("../api/agents").agentName(state.model),
-                    workspace: state.workspace,
+                    workspace: workspaceCore.root,
                     autoApprove: Boolean(state.autoApprove),
                     jobs,
                     usage,

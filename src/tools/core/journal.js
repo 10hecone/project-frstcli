@@ -13,6 +13,7 @@ const {
     cleanCreatedDirs,
     isCaseOnlyRename
 } = require("./fs-utils");
+const { workspace } = require("../../core/workspace");
 
 async function finishMutation(entry, journal) {
     memory.noteAction(journal);
@@ -21,7 +22,7 @@ async function finishMutation(entry, journal) {
 }
 
 async function revert(entry) {
-    const at = rel => resolveInWorkspace(state.workspace, rel);
+    const at = rel => resolveInWorkspace(workspace.root, rel);
 
     switch (entry.kind) {
         case "create": {
@@ -119,7 +120,7 @@ async function revert(entry) {
 
 /** Annule la dernière modification enregistrée. Renvoie un message. */
 async function undoLast() {
-    if (!state.workspace) throw new Error("Aucun projet sélectionné.");
+    if (!workspace.root) throw new Error("Aucun projet sélectionné.");
 
     const entry = memory.popUndo();
 

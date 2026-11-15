@@ -7,6 +7,7 @@ const { state } = require("../../state");
 const { resolveInWorkspace } = require("../security");
 const memory = require("../../project/memory");
 const { newId } = require("./args");
+const { workspace } = require("../../core/workspace");
 
 async function statOrNull(target) {
     try {
@@ -17,7 +18,7 @@ async function statOrNull(target) {
     }
 }
 
-const toRel = abs => path.relative(state.workspace, abs).split(path.sep).join("/");
+const toRel = abs => path.relative(workspace.root, abs).split(path.sep).join("/");
 
 async function bigStatOrNull(target) {
     try {
@@ -142,7 +143,7 @@ async function moveToTrash(abs) {
 
 async function cleanCreatedDirs(entry) {
     for (const rel of entry.createdDirs || []) {
-        const { target } = await resolveInWorkspace(state.workspace, rel);
+        const { target } = await resolveInWorkspace(workspace.root, rel);
         await removeEmptyTree(target);
     }
 }

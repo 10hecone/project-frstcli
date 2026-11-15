@@ -11,6 +11,7 @@ const { instructionsBlock } = require("../project/instructions");
 const registry = require("../tools/registry");
 const { summarizeResult } = require("../tools/tools");
 const compact = require("./compact");
+const { workspace } = require("./workspace");
 
 // Limites de l'API pour les résultats d'outils (client-tools.md).
 const MAX_RESULT_CHARS = 40_000;
@@ -27,7 +28,7 @@ const fmt = n => Number(n).toLocaleString("fr-FR");
  * - Mode chat (/mode chat) : aucun outil.
  */
 function toolsFor({ readOnly = false } = {}) {
-    if (!state.workspace) return [];
+    if (!workspace.root) return [];
     if (readOnly) return registry.READ_TOOLS;
     if (state.mode === "chat") return [];
     return registry.CLIENT_TOOLS;
@@ -43,8 +44,8 @@ function toolsFor({ readOnly = false } = {}) {
 async function buildMessage(input) {
     if (state.chatId) return input;
 
-    const context = state.workspace ? await shortContext.buildShortContext(state.workspace) : "";
-    const instructions = state.workspace ? await instructionsBlock(state.workspace) : "";
+    const context = workspace.root ? await shortContext.buildShortContext(workspace.root) : "";
+    const instructions = workspace.root ? await instructionsBlock(workspace.root) : "";
 
     let preprompt = "";
     try {
@@ -231,7 +232,7 @@ async function saveConversation(input, hadChat) {
             id: state.chatId,
             firstMessage: input,
             model: state.model,
-            workspace: state.workspace,
+            workspace: workspace.root,
             mode: "chat",
             settings
         });

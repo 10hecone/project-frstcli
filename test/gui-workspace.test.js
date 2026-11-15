@@ -71,7 +71,8 @@ function setup({ routes = () => ({}), running = false, uploads = null } = {}) {
         projects,
         stateModule,
         detectEnvironment: async () => ({ git: { branch: "main" } }),
-        sessionUsage: { requests: 2, inputTokens: 100 }
+        sessionUsage: { requests: 2, inputTokens: 100 },
+        workspaceCore: { root: state.workspace }
     });
     return { workspace, calls, state };
 }
