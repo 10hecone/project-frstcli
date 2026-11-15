@@ -147,8 +147,8 @@ jobs:
           Source: "stage\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
           [Icons]
-          Name: "{group}\FranceStudent CLI"; Filename: "{cmd}"; Parameters: "/K """"{app}\frst.cmd"""""; WorkingDir: "{userprofile}"
-          Name: "{autodesktop}\FranceStudent CLI"; Filename: "{cmd}"; Parameters: "/K """"{app}\frst.cmd"""""; WorkingDir: "{userprofile}"; Tasks: desktopicon
+          Name: "{group}\FranceStudent CLI"; Filename: "{cmd}"; Parameters: "/K """"{app}\frst.cmd"""""; WorkingDir: "{userdocs}"
+          Name: "{autodesktop}\FranceStudent CLI"; Filename: "{cmd}"; Parameters: "/K """"{app}\frst.cmd"""""; WorkingDir: "{userdocs}"; Tasks: desktopicon
           Name: "{group}\Desinstaller FranceStudent CLI"; Filename: "{uninstallexe}"
 
           [Tasks]
