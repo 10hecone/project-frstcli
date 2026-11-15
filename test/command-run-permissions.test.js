@@ -18,8 +18,7 @@ const memory = require("../src/project/memory");
 const { runCommand, getPermissionStore } = require("../src/tools/command/index");
 
 const saved = {
-    workspace: state.workspace,
-    autoApprove: state.autoApprove
+    workspace: state.workspace
 };
 
 let answers = [];
@@ -28,7 +27,6 @@ let questions = 0;
 test.before(async () => {
     fs.writeFileSync(path.join(workspace, "script.js"), "console.log('ok');\n");
     state.workspace = workspace;
-    state.autoApprove = false;
     await memory.open(workspace);
     const cli = getUiBackend();
     setUiBackend({
@@ -47,7 +45,6 @@ test.before(async () => {
 test.after(() => {
     setUiBackend(null);
     state.workspace = saved.workspace;
-    state.autoApprove = saved.autoApprove;
     if (previousDataDir === undefined) delete process.env.FS_DATA_DIR;
     else process.env.FS_DATA_DIR = previousDataDir;
     fs.rmSync(workspace, { recursive: true, force: true });

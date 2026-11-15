@@ -310,7 +310,6 @@ test("StatusBar : reste sur une seule ligne quand la fenêtre est étroite", asy
         model: "un-modele-avec-un-nom-assez-long",
         workspace: "C:\\Users\\x\\Documents\\project-frstcli",
         branch: "dev",
-        autoApprove: true,
         jobs: 2,
         color: false
     }));

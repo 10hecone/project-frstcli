@@ -12,6 +12,7 @@ const { readTextFile, assertFreshRead } = require("../core/freshness");
 const { finishMutation } = require("../core/journal");
 const { writeAtomic } = require("../core/atomic");
 const { workspace } = require("../../core/workspace");
+const permissionsMode = require("../../core/permissions-mode");
 
 async function editFile(args = {}) {
     requireString(args.path, "path");
@@ -73,7 +74,7 @@ async function editFile(args = {}) {
     const { added, removed } = ui.diff(buildDiff(previous, updated));
     ui.result(`+${added} -${removed} (${replaceAll ? count : 1} remplacement(s))`);
 
-    if (!(await ui.confirm("Autoriser cette modification ?"))) return denied(rel);
+    if (!permissionsMode.acceptsEdits() && !(await ui.confirm("Autoriser cette modification ?"))) return denied(rel);
 
     await resolveInWorkspace(workspace.root, rel);
 

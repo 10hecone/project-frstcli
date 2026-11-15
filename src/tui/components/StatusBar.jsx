@@ -43,14 +43,13 @@ export function contextColor(percent) {
 }
 
 /**
- * Barre d'état : mode, modèle, projet, auto-approbation, jobs actifs,
+ * Barre d'état : mode de permission, modèle, projet, jobs actifs,
  * tokens de la session, contexte utilisé et branche git (si connue). Composant pur.
  */
 export function StatusBar({
     mode = null,
     model = null,
     workspace = null,
-    autoApprove = false,
     jobs = 0,
     usage = null,
     context = null,
@@ -67,7 +66,6 @@ export function StatusBar({
     const project = projectName(workspace);
     if (project) parts.push({ key: "project", text: project });
     if (branch) parts.push({ key: "branch", text: `⎇ ${branch}` });
-    if (autoApprove) parts.push({ key: "auto", text: "auto-approbation", color: "yellow" });
     const activeJobs = Math.max(0, Number(jobs) || 0);
     if (activeJobs > 0) parts.push({ key: "jobs", text: `${activeJobs} job${activeJobs > 1 ? "s" : ""}`, color: "magenta" });
     const tokens = sessionTokens(usage);

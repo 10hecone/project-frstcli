@@ -8,6 +8,7 @@ const { setUiBackend, UI_METHODS } = require("../src/ui-bridge");
 const conversations = require("../src/project/conversations");
 const compact = require("../src/core/compact");
 const commands = require("../src/cli/commands");
+const permissionsMode = require("../src/core/permissions-mode");
 
 function captureUi() {
     const lines = [];
@@ -29,7 +30,6 @@ function saveState() {
         chatIds: { ...state.chatIds },
         conversationSettings: { ...state.conversationSettings },
         history: state.history,
-        mode: state.mode,
         model: state.model,
         contextUsagePercent: state.contextUsagePercent,
         compactSummary: state.compactSummary,
@@ -43,7 +43,6 @@ function restore(saved) {
     state.chatIds = saved.chatIds;
     state.conversationSettings = saved.conversationSettings;
     state.history = saved.history;
-    state.mode = saved.mode;
     state.model = saved.model;
     state.contextUsagePercent = saved.contextUsagePercent;
     state.compactSummary = saved.compactSummary;
@@ -101,24 +100,24 @@ test("/context sans valeur ni conversation, avec un résumé /compact en attente
     }
 });
 
-test("/mode : auto et chat acceptés, agent devient un alias d'auto", { concurrency: false }, async () => {
+test("/mode : default, acceptEdits et plan ; usage si le mode est inconnu", { concurrency: false }, async () => {
     const saved = saveState();
     try {
         const lines = captureUi();
 
-        await commands.handleCommand("/mode chat");
-        assert.equal(state.mode, "chat");
+        await commands.handleCommand("/mode acceptedits");
+        assert.equal(permissionsMode.get(), "acceptEdits");
+        assert.match(lines.join("\n"), /SANS confirmation/);
 
-        await commands.handleCommand("/mode agent");
-        assert.equal(state.mode, "auto");
-        assert.match(lines.join("\n"), /Le mode agent n'existe plus/);
+        await commands.handleCommand("/mode plan");
+        assert.equal(permissionsMode.get(), "plan");
 
-        state.mode = "chat";
         lines.length = 0;
-        await commands.handleCommand("/mode inconnu");
-        assert.equal(state.mode, "chat");
-        assert.match(lines.join("\n"), /usage : \/mode auto\|chat/);
+        await commands.handleCommand("/mode chat");
+        assert.equal(permissionsMode.get(), "plan");
+        assert.match(lines.join("\n"), /usage : \/mode default\|acceptEdits\|plan/);
     } finally {
+        permissionsMode.set("default");
         restore(saved);
     }
 });
@@ -127,7 +126,6 @@ test("/new vide la conversation chat et le pourcentage de contexte", { concurren
     const saved = saveState();
     try {
         captureUi();
-        state.mode = "auto";
         state.chatIds = { chat: "chat-1" };
         state.chatId = "chat-1";
         state.contextUsagePercent = 55;
@@ -223,7 +221,6 @@ test("/chat-id <n> reprend une ancienne conversation agent comme conversation ch
         const lines = captureUi();
         conversations.find = async (ref) =>
             ref === "2" ? { id: "agent-9", title: "Ancienne demande", mode: "agent", model: 5 } : null;
-        state.mode = "auto";
         state.chatIds = { chat: "chat-1" };
         state.chatId = "chat-1";
         state.contextUsagePercent = 70;

@@ -2,17 +2,15 @@ import { useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 
 /**
- * Options d'une confirmation : o = oui une fois, n = non, t = toujours.
- * Avec force (ex. prolongation des tours), pas d'option « toujours ».
+ * Options d'une confirmation : o = oui une fois, n = non.
  * Pour une commande, « toujours » enregistre le préfixe (réponse "t" → "always").
  */
-export function confirmOptions({ kind = "confirm", force = false, prefix = "" } = {}) {
+export function confirmOptions({ kind = "confirm", prefix = "" } = {}) {
     const options = [
         { value: "o", label: "Oui (une fois)" },
         { value: "n", label: "Non" }
     ];
     if (kind === "command") options.push({ value: "t", label: `Toujours « ${prefix} »` });
-    else if (!force) options.push({ value: "t", label: "Toujours (tout autoriser pour la session)" });
     return options;
 }
 
@@ -22,8 +20,8 @@ export function confirmOptions({ kind = "confirm", force = false, prefix = "" } 
  * - Échap et Ctrl+C répondent « n ». Par défaut, la sélection est sur « Non ».
  * onAnswer(value) n'est appelé qu'une fois.
  */
-export function ConfirmDialog({ question = "", kind = "confirm", force = false, prefix = "", isActive = true, onAnswer, color = true }) {
-    const options = confirmOptions({ kind, force, prefix });
+export function ConfirmDialog({ question = "", kind = "confirm", prefix = "", isActive = true, onAnswer, color = true }) {
+    const options = confirmOptions({ kind, prefix });
     const selectedRef = useRef(Math.max(0, options.findIndex((option) => option.value === "n")));
     const doneRef = useRef(false);
     const [, setTick] = useState(0);

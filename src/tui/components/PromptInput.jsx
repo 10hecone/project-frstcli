@@ -32,7 +32,7 @@ const {
 export const SLASH_COMMANDS = [
     "/help", "/project", "/unproject", "/pwd", "/tree", "/read", "/index", "/init", "/plan",
     "/resume", "/undo", "/changes", "/memory", "/remember", "/forget", "/permissions", "/jobs",
-    "/auto", "/mode", "/new", "/compact", "/context", "/chat-id", "/history", "/messages", "/usage", "/model", "/web",
+    "/mode", "/new", "/compact", "/context", "/chat-id", "/history", "/messages", "/usage", "/model", "/web",
         "/auth", "/login", "/profil", "/preprompt", "/clear", "/exit", "/quit"
 ];
 

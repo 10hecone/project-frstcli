@@ -83,7 +83,7 @@ async function open(directory) {
     if (!info.isDirectory()) throw new Error("Le projet doit être un dossier.");
 
     const known = await projects.get(real);
-    if (!(known && known.trusted) && !(await ui.confirm(trustMessage(real), { force: true }))) return false;
+    if (!(known && known.trusted) && !(await ui.confirm(trustMessage(real)))) return false;
 
     state.workspace = real;
     resetConversation();

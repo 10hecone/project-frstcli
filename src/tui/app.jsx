@@ -28,7 +28,6 @@ function PromptDialog({ prompt, onAnswer, color = true }) {
                 key={`prompt-${prompt.id}`}
                 question={prompt.question}
                 kind={prompt.kind}
-                force={Boolean(prompt.force)}
                 prefix={prompt.prefix ?? ""}
                 isActive={Boolean(onAnswer)}
                 onAnswer={answer}
@@ -119,7 +118,6 @@ export function App({
             mode={status.mode}
             model={status.model}
             workspace={status.workspace}
-            autoApprove={Boolean(status.autoApprove)}
             jobs={status.jobs}
             usage={status.usage}
             context={status.context}

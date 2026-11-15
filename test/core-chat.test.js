@@ -11,6 +11,7 @@ const chat = require("../src/core/chat");
 const compact = require("../src/core/compact");
 const profile = require("../src/project/profile");
 const registry = require("../src/tools/registry");
+const permissionsMode = require("../src/core/permissions-mode");
 const { setUiBackend, UI_METHODS } = require("../src/ui-bridge");
 
 /** Interface muette : les tests n'écrivent rien dans le terminal. */
@@ -22,7 +23,7 @@ function silentUi(log = []) {
     return impl;
 }
 
-function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", deltas = [] } = {}) {
+function setup({ workspace = null, mode = "default", chatIdToCreate = "chat-123", deltas = [] } = {}) {
     const original = {
         requestTurn: api.requestTurn,
         buildShortContext: shortContext.buildShortContext,
@@ -30,7 +31,6 @@ function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", d
         buildPreprompt: profile.buildPreprompt,
         refreshContextUsage: compact.refreshContextUsage,
         workspace: state.workspace,
-        mode: state.mode,
     };
 
     // shortContext : dossiers pour lesquels le contexte court a été construit.
@@ -70,7 +70,7 @@ function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", d
 
     resetConversation();
     state.workspace = workspace;
-    state.mode = mode;
+    permissionsMode.set(mode);
 
     function restore() {
         api.requestTurn = original.requestTurn;
@@ -79,7 +79,7 @@ function setup({ workspace = null, mode = "auto", chatIdToCreate = "chat-123", d
         profile.buildPreprompt = original.buildPreprompt;
         compact.refreshContextUsage = original.refreshContextUsage;
         state.workspace = original.workspace;
-        state.mode = original.mode;
+        permissionsMode.set("default");
         setUiBackend(null);
         resetConversation();
     }
@@ -136,17 +136,17 @@ test("chat.send sans projet envoie le message brut, sans outil", async () => {
     }
 });
 
-test("toolsFor : mode chat sans outil, /plan en lecture seule, sinon le catalogue complet", () => {
+test("toolsFor : mode plan ou /plan en lecture seule, sinon le catalogue complet", () => {
     const { restore } = setup({ workspace: "C:/projet" });
     try {
-        state.mode = "auto";
         assert.deepEqual(chat.toolsFor(), registry.CLIENT_TOOLS);
         assert.deepEqual(chat.toolsFor({ readOnly: true }), registry.READ_TOOLS);
 
-        state.mode = "chat";
-        assert.deepEqual(chat.toolsFor(), []);
-        // /plan garde ses outils de lecture, même en mode chat.
-        assert.deepEqual(chat.toolsFor({ readOnly: true }), registry.READ_TOOLS);
+        permissionsMode.set("acceptEdits");
+        assert.deepEqual(chat.toolsFor(), registry.CLIENT_TOOLS);
+
+        permissionsMode.set("plan");
+        assert.deepEqual(chat.toolsFor(), registry.READ_TOOLS);
 
         state.workspace = null;
         assert.deepEqual(chat.toolsFor(), []);
@@ -156,12 +156,12 @@ test("toolsFor : mode chat sans outil, /plan en lecture seule, sinon le catalogu
     }
 });
 
-test("chat.send en mode chat avec un projet : contexte projet, mais aucun outil", async () => {
-    const { calls, restore } = setup({ workspace: "C:/projet", mode: "chat" });
+test("chat.send en mode plan : contexte projet, outils de lecture seulement", async () => {
+    const { calls, restore } = setup({ workspace: "C:/projet", mode: "plan" });
     try {
         await chat.send("question");
         assert.equal(calls.requestTurn[0], "CONTEXTE PROJET\n\nQUESTION : question");
-        assert.deepEqual(calls.options[0].clientTools, []);
+        assert.deepEqual(calls.options[0].clientTools, registry.READ_TOOLS);
     } finally {
         restore();
     }

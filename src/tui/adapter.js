@@ -56,7 +56,7 @@ function createTuiBackend(store, {
                 type: "welcome",
                 model: require("../api/agents").agentName(state.model),
                 workspace: workspaceCore.root,
-                mode: state.mode,
+                mode: require("../core/permissions-mode").get(),
                 webSearch: state.webSearch
             });
         },
@@ -146,22 +146,10 @@ function createTuiBackend(store, {
             };
         },
 
-        /**
-         * Même sémantique que le CLI : o/oui = oui, t = tout autoriser pour la
-         * session (sauf avec force), toute autre réponse refuse.
-         */
-        async confirm(question, { force = false } = {}) {
-            if (!force && state.autoApprove) return true;
-
-            const raw = await openPrompt("confirm", question, { force: Boolean(force) });
+        /** Même sémantique que le CLI : o/oui = oui, toute autre réponse refuse. */
+        async confirm(question) {
+            const raw = await openPrompt("confirm", question);
             const answer = String(raw ?? "").trim().toLowerCase();
-
-            if (!force && ["t", "tout", "a", "all"].includes(answer)) {
-                state.autoApprove = true;
-                backend.warn("Auto-approbation activée pour cette session (/auto off pour la couper).");
-                return true;
-            }
-
             return ["o", "oui", "y", "yes"].includes(answer);
         },
 
@@ -250,7 +238,7 @@ function createTuiBackend(store, {
 
         /**
          * Barre d'état : copie dans store.status le mode, le modèle, le workspace,
-         * l'auto-approbation, les jobs actifs et l'usage de la session.
+         * les jobs actifs et l'usage de la session.
          * extra permet d'ajouter des champs connus ailleurs (ex. branch).
          */
         refreshStatus(extra = {}) {
@@ -270,10 +258,9 @@ function createTuiBackend(store, {
             store.dispatch({
                 type: "status",
                 status: {
-                    mode: state.mode,
+                    mode: require("../core/permissions-mode").get(),
                     model: require("../api/agents").agentName(state.model),
                     workspace: workspaceCore.root,
-                    autoApprove: Boolean(state.autoApprove),
                     jobs,
                     usage,
                     context: typeof state.contextUsagePercent === "number" ? state.contextUsagePercent : null,

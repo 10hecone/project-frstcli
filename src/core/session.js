@@ -82,7 +82,7 @@ async function handleInput(rawInput, { onChatDelta, sendChat } = {}) {
         return { exit: false };
     }
 
-    if (!workspace.root && state.mode !== "chat" && router.seemsToRequestLocalFiles(input)) {
+    if (!workspace.root && router.seemsToRequestLocalFiles(input)) {
         ui.info(
             "Pour lire ou modifier des fichiers locaux, sélectionne d'abord " +
                 "un dossier avec /project <dossier>."

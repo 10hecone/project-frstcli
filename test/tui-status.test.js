@@ -71,17 +71,16 @@ test("StatusBar : état minimal (mode, modèle, projet)", async () => {
     assert.doesNotMatch(frame, /⎇/);
 });
 
-test("StatusBar : branche, auto-approbation, jobs et tokens réels", async () => {
+test("StatusBar : branche, jobs et tokens réels", async () => {
     const frame = await renderBar({
         mode: "agent",
         model: "m",
         workspace: "/tmp/demo",
         branch: "dev",
-        autoApprove: true,
         jobs: 2,
         usage: { requests: 3, reported: 3, inputTokens: 1000, outputTokens: 234, chars: 0 }
     });
-    assert.match(frame, /agent · m · demo · ⎇ dev · auto-approbation · 2 jobs · 1,2 k tokens/);
+    assert.match(frame, /agent · m · demo · ⎇ dev · 2 jobs · 1,2 k tokens/);
 });
 
 test("StatusBar : tokens estimés et un seul job", async () => {
@@ -130,7 +129,6 @@ test("StatusBar : la barre reste sur une ligne même avec beaucoup d'éléments"
         model: "un-modele-au-nom-tres-long-pour-remplir-la-barre",
         workspace: "/tmp/un-projet-au-nom-egalement-tres-long",
         branch: "feature/une-branche-longue",
-        autoApprove: true,
         jobs: 3,
         usage: { requests: 1, reported: 1, inputTokens: 123456, outputTokens: 7890 },
         context: 85
@@ -228,19 +226,19 @@ test("App : le spinner suit update() puis disparaît après stop()", async () =>
 });
 
 test("Adaptateur : refreshStatus alimente la barre d'état de l'App", async () => {
-    const saved = { mode: state.mode, model: state.model, workspace: state.workspace, autoApprove: state.autoApprove };
+    const permissionsMode = require("../src/core/permissions-mode");
+    const saved = { model: state.model, workspace: state.workspace };
     try {
-        state.mode = "agent";
+        permissionsMode.set("plan");
         state.model = "modele-test";
         state.workspace = path.join(os.tmpdir(), "projet-barre");
-        state.autoApprove = true;
         const usage = { requests: 1, reported: 1, inputTokens: 40, outputTokens: 2, chars: 0 };
         const store = createStore();
         const backend = createTuiBackend(store, { jobs: { runningCount: () => 3 }, usage });
         backend.refreshStatus({ branch: "dev" });
 
         const status = store.getState().status;
-        assert.equal(status.mode, "agent");
+        assert.equal(status.mode, "plan");
         assert.equal(status.jobs, 3);
         assert.equal(status.branch, "dev");
         assert.notEqual(status.usage, usage, "usage doit être copié");
@@ -250,9 +248,10 @@ test("Adaptateur : refreshStatus alimente la barre d'état de l'App", async () =
         await tick();
         const frame = strip(view.lastFrame());
         view.unmount();
-        assert.match(frame, /agent · modele-test · projet-barre · ⎇ dev · auto-approbation · 3 jobs · 42 tokens/);
+        assert.match(frame, /plan · modele-test · projet-barre · ⎇ dev · 3 jobs · 42 tokens/);
     } finally {
         Object.assign(state, saved);
+        permissionsMode.set("default");
     }
 });
 

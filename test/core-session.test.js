@@ -15,7 +15,6 @@ const session = require("../src/core/session");
 
 function setup({
     workspace = null,
-    mode = "auto",
     keepGoing = true,
     workspaceQuestion = false,
     localFiles = false,
@@ -29,7 +28,6 @@ function setup({
         promptAndLogin: login.promptAndLogin,
         findForWorkspace: conversations.findForWorkspace,
         workspace: state.workspace,
-        mode: state.mode,
     };
 
     const calls = { command: [], chat: [], ui: [], login: 0 };
@@ -56,7 +54,6 @@ function setup({
 
     resetConversation();
     state.workspace = workspace;
-    state.mode = mode;
 
     function restore() {
         Object.assign(commands, { handleCommand: original.handleCommand });
@@ -67,7 +64,6 @@ function setup({
         login.promptAndLogin = original.promptAndLogin;
         conversations.findForWorkspace = original.findForWorkspace;
         state.workspace = original.workspace;
-        state.mode = original.mode;
         resetConversation();
         setUiBackend(null);
     }
@@ -140,16 +136,6 @@ test("handleInput : fichiers locaux demandés sans projet → message d'aide", a
         assert.ok(info);
         assert.match(info.args[0], /\/project <dossier>/);
         assert.equal(calls.chat.length, 0);
-    } finally {
-        restore();
-    }
-});
-
-test("handleInput : en mode chat, pas de message d'aide pour les fichiers locaux", async () => {
-    const { calls, restore } = setup({ mode: "chat", localFiles: true });
-    try {
-        await session.handleInput("lis le fichier index.js");
-        assert.equal(calls.chat.length, 1);
     } finally {
         restore();
     }

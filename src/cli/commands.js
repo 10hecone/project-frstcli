@@ -27,7 +27,7 @@ function showHelp() {
 
   ui.print(
     `\n${c.dim("Projet :")} ${workspace.root || "aucun"}  ` +
-      `${c.dim("Agent :")} ${require("../api/agents").agentName(state.model)}  ${c.dim("Mode :")} ${state.mode}`,
+      `${c.dim("Agent :")} ${require("../api/agents").agentName(state.model)}  ${c.dim("Mode :")} ${require("../core/permissions-mode").get()}`,
   );
   ui.print(
     c.dim(
@@ -358,44 +358,22 @@ async function handleCommand(input) {
       break;
     }
 
-    case "/auto":
-      if (!["on", "off"].includes(value)) {
+    case "/mode": {
+      const permissionsMode = require("../core/permissions-mode");
+      const mode = permissionsMode.set(value);
+      if (!mode) {
         ui.info(
-          `Auto-approbation : ${state.autoApprove ? "on" : "off"} (usage : /auto on|off)`,
+          `Mode : ${permissionsMode.get()} (usage : /mode default|acceptEdits|plan)`,
         );
         break;
       }
 
-      state.autoApprove = value === "on";
-
-      if (state.autoApprove) {
-        ui.warn(
-          "Les écritures seront appliquées SANS confirmation. /undo reste disponible.",
-        );
-      } else {
-        ui.info("Confirmation de chaque écriture rétablie.");
+      ui.info(`Mode : ${mode}`);
+      if (mode === "acceptEdits") {
+        ui.warn("Les écritures seront appliquées SANS confirmation. /undo reste disponible.");
       }
       break;
-
-    case "/mode":
-      // Ancien mode « agent » : accepté comme alias de « auto ».
-      if (value === "agent") {
-        state.mode = "auto";
-        ui.info(
-          "Le mode agent n'existe plus : en mode auto, le modèle utilise les outils dès qu'un projet est ouvert.",
-        );
-        ui.info("Mode : auto");
-        break;
-      }
-
-      if (!["auto", "chat"].includes(value)) {
-        ui.info(`Mode : ${state.mode} (usage : /mode auto|chat)`);
-        break;
-      }
-
-      state.mode = value;
-      ui.info(`Mode : ${value}`);
-      break;
+    }
 
     case "/new":
       resetConversation();

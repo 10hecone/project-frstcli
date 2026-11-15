@@ -80,10 +80,6 @@ test("displayText et baseName", () => {
 test("confirmOptions : mêmes réponses que la TUI", () => {
     assert.deepEqual(
         prompts.confirmOptions().map((o) => o.value),
-        ["o", "n", "t"]
-    );
-    assert.deepEqual(
-        prompts.confirmOptions({ force: true }).map((o) => o.value),
         ["o", "n"]
     );
     assert.match(prompts.confirmOptions({ kind: "command", prefix: "npm test" })[2].label, /npm test/);

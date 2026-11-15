@@ -345,7 +345,7 @@ const ui = {
         const plain = [
             "✻ FranceStudent CLI",
             "/help pour l'aide | /project <dossier> pour coder",
-            `agent ${require("../api/agents").agentName(state.model)} | web ${state.webSearch ? "on" : "off"} | mode ${state.mode}`
+            `agent ${require("../api/agents").agentName(state.model)} | web ${state.webSearch ? "on" : "off"} | mode ${require("../core/permissions-mode").get()}`
         ];
         const styled = [
             `${c.cyan("✻")} ${c.bold("FranceStudent CLI")}`,
@@ -366,8 +366,9 @@ const ui = {
         const where = workspace.root
             ? c.dim(path.basename(workspace.root)) + " "
             : "";
-        const auto = state.autoApprove ? c.yellow("auto ") : "";
-        return `\n${where}${auto}> `;
+        const mode = require("../core/permissions-mode").get();
+        const shown = mode === "default" ? "" : c.yellow(`${mode} `);
+        return `\n${where}${shown}> `;
     },
 
     tool(name, arg) {
@@ -485,25 +486,12 @@ const ui = {
     },
 
     /**
-     * Demande une confirmation. Réponses : o/oui, t = tout autoriser
-     * pour le reste de la session. Toute autre réponse refuse.
-     * Avec { force: true } : ignore l'auto-approbation et ne propose pas "t".
+     * Demande une confirmation : o/oui accepte, toute autre réponse refuse.
+     * Pour ne plus confirmer les écritures : /mode acceptEdits.
      */
-    async confirm(question, { force = false } = {}) {
-        if (!force && state.autoApprove) return true;
-
-        const hint = force ? "[o/N]" : "[o/N | t = tout autoriser]";
-        const raw = await ask(
-            `\n${c.bold(question)} ${c.dim(hint)} `
-        );
+    async confirm(question) {
+        const raw = await ask(`\n${c.bold(question)} ${c.dim("[o/N]")} `);
         const answer = String(raw ?? "").trim().toLowerCase();
-
-        if (!force && ["t", "tout", "a", "all"].includes(answer)) {
-            state.autoApprove = true;
-            ui.warn("Auto-approbation activée pour cette session (/auto off pour la couper).");
-            return true;
-        }
-
         return ["o", "oui", "y", "yes"].includes(answer);
     },
 

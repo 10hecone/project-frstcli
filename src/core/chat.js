@@ -12,6 +12,7 @@ const registry = require("../tools/registry");
 const { summarizeResult } = require("../tools/tools");
 const compact = require("./compact");
 const { workspace } = require("./workspace");
+const permissionsMode = require("./permissions-mode");
 
 // Limites de l'API pour les résultats d'outils (client-tools.md).
 const MAX_RESULT_CHARS = 40_000;
@@ -24,13 +25,11 @@ const fmt = n => Number(n).toLocaleString("fr-FR");
  * Outils client proposés au modèle. La liste est figée (ordre du catalogue) : elle doit
  * rester identique d'un message à l'autre pour garder le cache de prompt.
  * - Sans projet sélectionné : aucun outil, le modèle répond comme un chat simple.
- * - /plan (readOnly) : seulement les outils de lecture, quel que soit le mode.
- * - Mode chat (/mode chat) : aucun outil.
+ * - /plan (readOnly) ou mode de permission plan : seulement les outils de lecture.
  */
 function toolsFor({ readOnly = false } = {}) {
     if (!workspace.root) return [];
-    if (readOnly) return registry.READ_TOOLS;
-    if (state.mode === "chat") return [];
+    if (readOnly || permissionsMode.readOnly()) return registry.READ_TOOLS;
     return registry.CLIENT_TOOLS;
 }
 
@@ -222,8 +221,7 @@ async function saveConversation(input, hadChat) {
         model: state.model,
         webSearch: state.webSearch,
         private: state.private,
-        incognito: state.incognito,
-        autoApprove: state.autoApprove
+        incognito: state.incognito
     };
     state.conversationSettings.chat = settings;
 
@@ -320,8 +318,7 @@ async function send(input, { onDelta, onToolCalls, readOnly = false } = {}) {
         for (let round = 1; turn.toolCalls?.length; round++) {
             if (round > maxRounds) {
                 const more = await ui.confirm(
-                    `${maxRounds} rondes d'outils effectuées. Continuer ${step} rondes de plus ?`,
-                    { force: true }
+                    `${maxRounds} rondes d'outils effectuées. Continuer ${step} rondes de plus ?`
                 );
                 if (!more) {
                     // Les appels restent en attente côté API : au prochain message,

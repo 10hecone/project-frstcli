@@ -44,7 +44,6 @@ function setup({ workspace = "C:/projet", turns = [], runTool, confirm = async (
         touch: conversations.touch,
         refreshContextUsage: compact.refreshContextUsage,
         workspace: state.workspace,
-        mode: state.mode,
         maxAgentTurns: CONFIG.maxAgentTurns,
     };
 
@@ -100,7 +99,6 @@ function setup({ workspace = "C:/projet", turns = [], runTool, confirm = async (
     resetConversation();
     state.workspace = workspace;
     // Mode auto : outils proposés dès qu'un projet est ouvert.
-    state.mode = "auto";
 
     function restore() {
         api.requestTurn = original.requestTurn;
@@ -111,7 +109,6 @@ function setup({ workspace = "C:/projet", turns = [], runTool, confirm = async (
         conversations.touch = original.touch;
         compact.refreshContextUsage = original.refreshContextUsage;
         state.workspace = original.workspace;
-        state.mode = original.mode;
         CONFIG.maxAgentTurns = original.maxAgentTurns;
         setUiBackend(null);
         resetConversation();
@@ -353,7 +350,7 @@ test("plus de 32 appels : seuls les 32 premiers sont exécutés et envoyés", as
     }
 });
 
-test("limite de rondes : confirmation forcée, arrêt si l'utilisateur refuse", async () => {
+test("limite de rondes : confirmation, arrêt si l'utilisateur refuse", async () => {
     const env = setup({
         turns: [
             turn("1", [call("a", "read_file", { path: "a" })]),
@@ -366,7 +363,6 @@ test("limite de rondes : confirmation forcée, arrêt si l'utilisateur refuse", 
         const { response } = await chat.send("go");
         assert.equal(env.log.confirm.length, 1);
         assert.match(env.log.confirm[0][0], /^1 rondes d'outils effectuées\. Continuer 1 rondes de plus \?$/);
-        assert.deepEqual(env.log.confirm[0][1], { force: true });
         assert.equal(env.log.sendToolResults.length, 1);
         assert.equal(env.log.runClientTool.length, 1);
         assert.ok(env.log.ui.some(([method]) => method === "warn"));

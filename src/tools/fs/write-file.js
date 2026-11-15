@@ -15,6 +15,7 @@ const { readTextFile, assertFreshRead } = require("../core/freshness");
 const { finishMutation } = require("../core/journal");
 const { writeAtomic } = require("../core/atomic");
 const { workspace } = require("../../core/workspace");
+const permissionsMode = require("../../core/permissions-mode");
 
 async function writeFile(args = {}) {
     requireString(args.path, "path");
@@ -63,7 +64,7 @@ async function writeFile(args = {}) {
     const { added, removed } = ui.diff(buildDiff(previous, content));
     ui.result(`+${added} -${removed}`);
 
-    if (!(await ui.confirm("Autoriser cette écriture ?"))) return denied(rel);
+    if (!permissionsMode.acceptsEdits() && !(await ui.confirm("Autoriser cette écriture ?"))) return denied(rel);
 
     // Revalidation après confirmation.
     await resolveInWorkspace(workspace.root, rel);

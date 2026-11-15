@@ -13,8 +13,6 @@ const state = {
     workspace: null,
     frProject: null,     // projet FranceStudent { id, name } rattaché aux nouvelles conversations
     history: [],
-    mode: "auto", // auto (outils client) | chat (aucun outil)
-    autoApprove: false,  // true = plus de confirmation pour la session
     contextUsagePercent: null, // contexte utilisé par la conversation chat (0 à 100), null si inconnu
     contextDetails: null, // détails de GET /chats/{id}/context (account.normalizeContext), null si inconnus
     compactSummary: null, // résumé de /compact, joint au premier message de la conversation suivante

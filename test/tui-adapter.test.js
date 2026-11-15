@@ -35,9 +35,7 @@ function setup() {
     const store = createStore();
     const clock = fakeClock();
     const backend = createTuiBackend(store, clock);
-    const previousAuto = state.autoApprove;
-    state.autoApprove = false;
-    return { store, clock, backend, restore: () => { state.autoApprove = previousAuto; } };
+    return { store, clock, backend, restore: () => {} };
 }
 
 test("adaptateur : implémente toutes les méthodes du port", () => {
@@ -103,47 +101,25 @@ test("adaptateur : confirm crée un pendingPrompt résolu par resolvePrompt", as
         const refused = backend.confirm("Encore ?");
         backend.resolvePrompt(store.getState().pendingPrompt.id, "n");
         assert.equal(await refused, false);
-        assert.equal(state.autoApprove, false);
     } finally {
         restore();
     }
 });
 
-test("adaptateur : t active autoApprove, puis confirm répond oui sans prompt", async () => {
+test("adaptateur : t ne vaut pas oui pour une confirmation", async () => {
     const { store, backend, restore } = setup();
     try {
         const answer = backend.confirm("Autoriser ?");
         backend.resolvePrompt(store.getState().pendingPrompt.id, "t");
-        assert.equal(await answer, true);
-        assert.equal(state.autoApprove, true);
-        assert.ok(store.getState().transcript.some((entry) => entry.type === "warn"));
-
-        assert.equal(await backend.confirm("Sans prompt ?"), true);
-        assert.equal(store.getState().pendingPrompt, null);
-    } finally {
-        restore();
-    }
-});
-
-test("adaptateur : confirm avec force ignore autoApprove et refuse t", async () => {
-    const { store, backend, restore } = setup();
-    try {
-        state.autoApprove = true;
-        const answer = backend.confirm("Vraiment ?", { force: true });
-        const pending = store.getState().pendingPrompt;
-        assert.ok(pending);
-        assert.equal(pending.force, true);
-        backend.resolvePrompt(pending.id, "t");
         assert.equal(await answer, false);
     } finally {
         restore();
     }
 });
 
-test("adaptateur : askCommand n'est jamais auto-approuvé et renvoie la réponse brute", async () => {
+test("adaptateur : askCommand renvoie la réponse brute", async () => {
     const { store, backend, restore } = setup();
     try {
-        state.autoApprove = true;
         const answer = backend.askCommand("Lancer npm test ?", "npm test");
         const pending = store.getState().pendingPrompt;
         assert.equal(pending.kind, "command");

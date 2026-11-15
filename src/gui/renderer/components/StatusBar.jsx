@@ -13,7 +13,6 @@ export function StatusBar({ status = {}, phase = "ready" }) {
             {status.mode ? <span>mode {status.mode}</span> : null}
             {status.workspace ? <span title={status.workspace}>{baseName(status.workspace)}</span> : null}
             {status.branch ? <span title="Branche git">⎇ {status.branch}</span> : null}
-            {status.autoApprove ? <span className="warn">auto-approbation</span> : null}
             {status.jobs > 0 ? <span>{status.jobs} job(s)</span> : null}
         </div>
     );

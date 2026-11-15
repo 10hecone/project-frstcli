@@ -45,9 +45,7 @@ async function mount(component, props = {}) {
 function setupBackend() {
     const store = createStore();
     const backend = createTuiBackend(store);
-    const previousAuto = state.autoApprove;
-    state.autoApprove = false;
-    return { store, backend, restore: () => { state.autoApprove = previousAuto; } };
+    return { store, backend, restore: () => {} };
 }
 
 async function mountApp(store, backend) {
@@ -70,21 +68,21 @@ async function mountApp(store, backend) {
     return { view, press, frame: () => strip(view.lastFrame()) };
 }
 
-test("ConfirmDialog : affiche la question et les options o/n/t", async () => {
+test("ConfirmDialog : affiche la question et les options o/n", async () => {
     const { view, frame } = await mount("ConfirmDialog", { question: "Autoriser cette écriture ?" });
     try {
         const out = frame();
         assert.match(out, /Autoriser cette écriture \?/);
         assert.match(out, /o — Oui \(une fois\)/);
         assert.match(out, /n — Non/);
-        assert.match(out, /t — Toujours/);
+        assert.doesNotMatch(out, /Toujours/);
     } finally {
         view.unmount();
     }
 });
 
-test("ConfirmDialog : touches directes o, n et t", async () => {
-    for (const [key, expected] of [["o", "o"], ["n", "n"], ["t", "t"], ["O", "o"]]) {
+test("ConfirmDialog : touches directes o et n", async () => {
+    for (const [key, expected] of [["o", "o"], ["n", "n"], ["O", "o"]]) {
         const { view, answers, press } = await mount("ConfirmDialog", { question: "Q ?" });
         try {
             await press(key);
@@ -113,15 +111,6 @@ test("ConfirmDialog : flèches puis Entrée", async () => {
     } finally {
         first.view.unmount();
     }
-    const second = await mount("ConfirmDialog", { question: "Q ?" });
-    try {
-        await second.press(DOWN);
-        assert.match(second.frame(), /❯ t — Toujours/);
-        await second.press(ENTER);
-        assert.deepEqual(second.answers, ["t"]);
-    } finally {
-        second.view.unmount();
-    }
 });
 
 test("ConfirmDialog : Échap et Ctrl+C répondent non, une seule fois", async () => {
@@ -141,8 +130,8 @@ test("ConfirmDialog : Échap et Ctrl+C répondent non, une seule fois", async ()
     }
 });
 
-test("ConfirmDialog : avec force, pas d'option t", async () => {
-    const { view, answers, press, frame } = await mount("ConfirmDialog", { question: "Continuer ?", force: true });
+test("ConfirmDialog : pas d'option t pour une écriture", async () => {
+    const { view, answers, press, frame } = await mount("ConfirmDialog", { question: "Continuer ?" });
     try {
         assert.doesNotMatch(frame(), /Toujours/);
         await press("t");
@@ -218,7 +207,7 @@ test("App : un confirm affiche le dialogue à la place de la saisie et résout l
         const answer = backend.confirm("Autoriser cette écriture ?");
         await tick();
         assert.match(app.frame(), /Autoriser cette écriture \?/);
-        assert.match(app.frame(), /t — Toujours/);
+        assert.doesNotMatch(app.frame(), /Toujours/);
         await app.press("o");
         assert.equal(await answer, true);
         assert.equal(store.getState().pendingPrompt, null);
@@ -229,7 +218,7 @@ test("App : un confirm affiche le dialogue à la place de la saisie et résout l
     }
 });
 
-test("App : Échap refuse, t active l'auto-approbation", async () => {
+test("App : Échap refuse, t est ignoré", async () => {
     const { store, backend, restore } = setupBackend();
     const app = await mountApp(store, backend);
     try {
@@ -238,23 +227,21 @@ test("App : Échap refuse, t active l'auto-approbation", async () => {
         await app.press(ESC);
         assert.equal(await refused, false);
 
-        const always = backend.confirm("Supprimer b.txt ?");
+        const second = backend.confirm("Supprimer b.txt ?");
         await tick();
-        await app.press("t");
-        assert.equal(await always, true);
-        assert.equal(state.autoApprove, true);
+        await app.press("t", "o");
+        assert.equal(await second, true);
     } finally {
         app.view.unmount();
         restore();
     }
 });
 
-test("App : la prolongation des tours (force) n'offre pas t et ignore autoApprove", async () => {
+test("App : la prolongation des tours n'offre pas t", async () => {
     const { store, backend, restore } = setupBackend();
     const app = await mountApp(store, backend);
     try {
-        state.autoApprove = true;
-        const more = backend.confirm("Limite de 30 tours atteinte. Continuer 20 tours de plus ?", { force: true });
+        const more = backend.confirm("Limite de 30 tours atteinte. Continuer 20 tours de plus ?");
         await tick();
         assert.match(app.frame(), /Limite de 30 tours atteinte/);
         assert.doesNotMatch(app.frame(), /Toujours/);
@@ -266,11 +253,10 @@ test("App : la prolongation des tours (force) n'offre pas t et ignore autoApprov
     }
 });
 
-test("App : askCommand ignore autoApprove et renvoie t pour « toujours »", async () => {
+test("App : askCommand renvoie t pour « toujours »", async () => {
     const { store, backend, restore } = setupBackend();
     const app = await mountApp(store, backend);
     try {
-        state.autoApprove = true;
         const answer = backend.askCommand("Lancer \"npm test\" dans le projet ?", "npm test");
         await tick();
         assert.match(app.frame(), /Toujours « npm test »/);
