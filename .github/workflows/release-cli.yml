@@ -62,14 +62,13 @@ jobs:
       - name: Preparer les fichiers distribues
         run: |
           $ErrorActionPreference = 'Stop'
-          npm prune --omit=dev --ignore-scripts
-          if ($LASTEXITCODE -ne 0) { throw 'npm prune a echoue.' }
-
           New-Item -ItemType Directory -Force stage/app, stage/runtime, output | Out-Null
           # npm pack suit la liste files du package et n'embarque pas de .env local.
           $packed = npm pack --ignore-scripts --json
           if ($LASTEXITCODE -ne 0) { throw 'npm pack a echoue.' }
           $archive = ($packed | ConvertFrom-Json)[0].filename
+          npm prune --omit=dev --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'npm prune a echoue.' }
           tar -xzf $archive -C stage/app --strip-components=1
           if ($LASTEXITCODE -ne 0) { throw 'Extraction du package impossible.' }
           Copy-Item node_modules stage/app/node_modules -Recurse
