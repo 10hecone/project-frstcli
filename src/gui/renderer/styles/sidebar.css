@@ -1,0 +1,648 @@
+/*
+ * Barre d'activité et barre latérale : tout leur style est ici.
+ * Les jetons ci-dessous ne servent qu'à ces deux barres ; hors des blocs de jetons,
+ * aucune couleur n'est écrite en dur.
+ *
+ * Matériaux : --glass-rail (le plus sombre) > --glass-thick (barre latérale) ;
+ * --glass-popover pour le toast et les menus. Jamais un verre clair sur un autre.
+ * Hiérarchie : l'accent plein ne sert qu'à l'indicateur de vue, au focus et à « Rattaché » ;
+ * --selection marque l'élément choisi ; tout le reste est neutre.
+ */
+:root {
+    --fill: rgba(255, 255, 255, 0.09);
+    --fill-hover: rgba(255, 255, 255, 0.13);
+    --fill-pressed: rgba(255, 255, 255, 0.19);
+    --field: rgba(0, 0, 0, 0.25);
+    --selection: rgba(91, 140, 255, 0.26);
+    --selection-text: #ffffff;
+    --segment: rgba(255, 255, 255, 0.2);
+    --control-edge: rgba(255, 255, 255, 0.42);
+    --switch-off: rgba(255, 255, 255, 0.16);
+    --switch-on: var(--ok);
+    --knob: #ffffff;
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --brand-start: #6f9bff;
+    --brand-end: #8a5cff;
+}
+
+/*
+ * Thème clair : mêmes noms de jetons, valeurs redéfinies pour les deux barres seulement.
+ * shortcut: appliqué par [data-theme="light"] seul, pas par prefers-color-scheme ; la zone de
+ * discussion n'a pas de thème clair, l'activer d'office donnerait des barres claires à côté d'un chat sombre.
+ */
+[data-theme="light"] :is(.sidebar, .activity-bar) {
+    --text: #1c1e24;
+    --text-secondary: rgba(28, 30, 36, 0.78);
+    --muted: rgba(28, 30, 36, 0.7);
+    --glass-thick: rgba(247, 248, 251, 0.78);
+    --glass-rail: rgba(230, 232, 238, 0.82);
+    --glass-popover: rgba(255, 255, 255, 0.95);
+    --edge: rgba(0, 0, 0, 0.1);
+    --edge-strong: rgba(0, 0, 0, 0.2);
+    --highlight: rgba(255, 255, 255, 0.8);
+    --shadow: 0 12px 40px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.1);
+    --fill: rgba(0, 0, 0, 0.05);
+    --fill-hover: rgba(0, 0, 0, 0.08);
+    --fill-pressed: rgba(0, 0, 0, 0.13);
+    --field: rgba(60, 60, 67, 0.12);
+    --selection: rgba(47, 107, 255, 0.14);
+    --selection-text: #123a9c;
+    --segment: #ffffff;
+    --control-edge: rgba(0, 0, 0, 0.45);
+    --switch-off: rgba(120, 120, 128, 0.32);
+    --switch-on: var(--ok);
+    --knob: #ffffff;
+    --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.18);
+    --brand-start: #5b8cff;
+    --brand-end: #7a4cff;
+}
+
+/* ---- Barre latérale (matériau épais) ---- */
+
+.sidebar {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--glass-thick);
+    backdrop-filter: var(--glass-blur-thick);
+    box-shadow: inset -1px 0 0 var(--edge);
+}
+
+.sidebar-top {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 12px 10px;
+}
+
+.new-thread {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 12px;
+    background: var(--fill);
+    color: var(--text);
+    box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--edge);
+}
+
+.new-thread:hover:not(:disabled) {
+    background: var(--fill-hover);
+}
+
+/* Sélecteur du dossier actif (au-dessus des onglets, son menu recouvre la liste). */
+.folder-switcher {
+    position: relative;
+    z-index: 3;
+}
+
+.folder-trigger,
+.folder-menu button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    font-size: 13px;
+}
+
+.folder-trigger {
+    background: var(--fill);
+    box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--edge);
+}
+
+.folder-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-branch {
+    max-width: 45%;
+    color: var(--muted);
+    font: 12px var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-chevron {
+    color: var(--muted);
+    transition: transform 200ms var(--ease-out);
+}
+
+.folder-trigger[aria-expanded="true"] .folder-chevron {
+    transform: rotate(90deg);
+}
+
+/* Menu : rayon extérieur 10 − marge 4 = rayon intérieur 6. */
+.folder-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: var(--radius);
+    background: var(--glass-popover);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--highlight), inset 0 0 0 1px var(--edge);
+    transform-origin: top center;
+    animation: materialize 180ms var(--ease-out);
+}
+
+.folder-menu button {
+    border-radius: 6px;
+}
+
+.folder-menu button:active:not(:disabled) {
+    background: var(--fill-pressed);
+}
+
+.folder-separator {
+    width: 100%;
+    height: 1px;
+    margin: 2px 0;
+    border: 0;
+    background: var(--edge);
+}
+
+@media (hover: hover) {
+    .folder-menu button:hover:not(:disabled) {
+        background: var(--fill-hover);
+    }
+}
+
+/* Contrôle segmenté des onglets : rayon 10 − marge 3 = segment de 7. */
+.segmented {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    padding: 3px;
+    border-radius: var(--radius);
+    background: var(--field);
+}
+
+.segmented button {
+    padding: 5px 4px;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.segmented button.selected {
+    background: var(--segment);
+    color: var(--text);
+    box-shadow: var(--shadow-soft);
+}
+
+/* Zone défilante : fondus de bord seulement quand du contenu est caché. */
+.scroll-area {
+    overflow-y: auto;
+    min-height: 0;
+    --fade: 24px;
+    mask-image: linear-gradient(to bottom, #000, #000);
+}
+
+.scroll-area[data-edge-top] {
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--fade));
+}
+
+.scroll-area[data-edge-bottom] {
+    mask-image: linear-gradient(to top, transparent, #000 var(--fade));
+}
+
+.scroll-area[data-edge-top][data-edge-bottom] {
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 8px 16px;
+}
+
+.search {
+    margin: 0 4px 8px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--field);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+}
+
+.search::placeholder {
+    color: var(--muted);
+}
+
+.group-title {
+    margin: 10px 8px 4px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+/* Une erreur ne se signale pas par la couleur seule : une icône « ! » la précède. */
+.sidebar .panel-error::before {
+    content: "!" / "";
+    display: inline-grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+    font: 700 10px/1 var(--font);
+    vertical-align: -2px;
+}
+
+.chat-list,
+.project-list,
+.skill-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.chat-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    text-align: left;
+}
+
+.chat-item:hover:not(:disabled) {
+    background: var(--fill-hover);
+    color: var(--text);
+}
+
+.chat-item.active {
+    background: var(--selection);
+    color: var(--selection-text);
+}
+
+.chat-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-time {
+    flex: none;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.more {
+    align-self: center;
+    margin-top: 6px;
+    font-size: 12px;
+}
+
+.project-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.disclosure {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    text-align: left;
+}
+
+.disclosure:hover {
+    background: var(--fill-hover);
+    color: var(--text);
+}
+
+.chevron {
+    display: inline-block;
+    width: 10px;
+    transition: transform 200ms var(--ease-out);
+}
+
+.disclosure[aria-expanded="true"] .chevron {
+    transform: rotate(90deg);
+}
+
+.project-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project.selected .project-name {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.project-chats {
+    margin-left: 14px;
+    padding-left: 6px;
+    box-shadow: inset 1px 0 0 var(--edge);
+}
+
+.pill {
+    flex: none;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    box-shadow: inset 0 0 0 1px var(--control-edge);
+}
+
+.pill.on {
+    background: var(--accent);
+    color: var(--accent-text);
+    box-shadow: none;
+}
+
+.skill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: var(--radius);
+}
+
+.skill:hover {
+    background: var(--fill-hover);
+}
+
+.skill-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.skill-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+}
+
+.skill-description {
+    color: var(--muted);
+    font-size: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Interrupteur aux proportions d'iOS (51×31), à l'échelle de la barre : 43×26. */
+.switch {
+    position: relative;
+    flex: none;
+    width: 43px;
+    height: 26px;
+    padding: 0;
+    border-radius: var(--radius-pill);
+    background: var(--switch-off);
+}
+
+.switch[aria-checked="true"] {
+    background: var(--switch-on);
+}
+
+.switch .knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--knob);
+    box-shadow: var(--shadow-soft);
+    transition: transform 220ms var(--ease-out);
+}
+
+.switch[aria-checked="true"] .knob {
+    transform: translateX(17px);
+}
+
+/* Message court en bas de la barre latérale : entre et sort par le même chemin. */
+.toast {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    padding: 9px 12px;
+    border-radius: var(--radius);
+    background: var(--glass-popover);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--highlight);
+    font-size: 12px;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition:
+        opacity 180ms ease-out,
+        transform 180ms var(--ease-out);
+}
+
+.toast.visible {
+    opacity: 1;
+    transform: none;
+}
+
+/* Largeur fixe : le contenu ne se recompose pas pendant que la colonne se replie. */
+.sidebar-inner {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: var(--sidebar-width);
+    height: 100%;
+    transition: opacity 200ms ease-out;
+}
+
+.app.sidebar-closed {
+    --sidebar-current: 0px;
+}
+
+.app.sidebar-closed .sidebar-inner {
+    opacity: 0;
+}
+
+.sidebar-title {
+    margin: 0 4px;
+    font: 600 13px/1.3 var(--font-display);
+    letter-spacing: -0.005em;
+}
+
+.sidebar-top .panel-hint {
+    margin: 0 4px;
+    line-height: 1.6;
+}
+
+/* ---- Barre d'activité (matériau le plus sombre) ---- */
+
+.activity-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    min-height: 0;
+    padding: 14px 0;
+    background: var(--glass-rail);
+    backdrop-filter: var(--glass-blur-thick);
+    box-shadow: inset -1px 0 0 var(--edge);
+}
+
+.logo {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--brand-start), var(--brand-end));
+    color: var(--accent-text);
+    font-size: 12px;
+    box-shadow: inset 0 1px 0 var(--highlight);
+}
+
+.activity-items {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.activity-item {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--muted);
+}
+
+.activity-item:hover {
+    background: var(--fill-hover);
+    color: var(--text);
+}
+
+.activity-item[aria-selected="true"] {
+    background: var(--selection);
+    color: var(--selection-text);
+}
+
+/* Un seul indicateur, qui glisse vers la vue active. */
+.activity-indicator {
+    position: absolute;
+    top: 10px;
+    left: -8px;
+    width: 3px;
+    height: 20px;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    pointer-events: none;
+    transition:
+        transform 320ms var(--ease-out),
+        opacity 180ms ease-out;
+}
+
+/* ---- Fenêtre étroite ---- */
+
+@media (max-width: 900px) {
+    .chat-time {
+        display: none;
+    }
+}
+
+/* ---- Préférences d'accessibilité ---- */
+
+@media (prefers-reduced-motion: reduce) {
+    .toast {
+        transform: none;
+    }
+
+    .switch .knob,
+    .chevron,
+    .activity-indicator,
+    .sidebar-inner {
+        transition: none;
+    }
+}
+
+/* Transparence réduite : champs et sélection pleins, matériaux déjà pleins dans app.css. */
+@media (prefers-reduced-transparency: reduce) {
+    :root {
+        --field: #0a0b0f;
+        --selection: #253356;
+        --segment: #3a3d46;
+    }
+
+    [data-theme="light"] :is(.sidebar, .activity-bar) {
+        --glass-thick: #f5f6f9;
+        --glass-rail: #e6e8ee;
+        --glass-popover: #ffffff;
+        --field: #e3e5eb;
+        --selection: #dbe5fb;
+        --segment: #ffffff;
+    }
+
+    .activity-bar,
+    .sidebar {
+        backdrop-filter: none;
+    }
+}
+
+/* Contraste renforcé : remplissages plus marqués, bords nets, sélection cerclée. */
+@media (prefers-contrast: more) {
+    :root {
+        --fill: rgba(255, 255, 255, 0.16);
+        --fill-hover: rgba(255, 255, 255, 0.24);
+        --fill-pressed: rgba(255, 255, 255, 0.32);
+        --field: rgba(0, 0, 0, 0.5);
+        --selection: rgba(91, 140, 255, 0.45);
+        --segment: rgba(255, 255, 255, 0.3);
+        --control-edge: rgba(255, 255, 255, 0.8);
+    }
+
+    [data-theme="light"] :is(.sidebar, .activity-bar) {
+        --fill: rgba(0, 0, 0, 0.1);
+        --fill-hover: rgba(0, 0, 0, 0.16);
+        --fill-pressed: rgba(0, 0, 0, 0.24);
+        --field: rgba(60, 60, 67, 0.2);
+        --selection: rgba(47, 107, 255, 0.25);
+        --control-edge: rgba(0, 0, 0, 0.75);
+    }
+
+    .chat-item.active,
+    .segmented button.selected,
+    .activity-item[aria-selected="true"] {
+        box-shadow: inset 0 0 0 1px var(--edge-strong);
+    }
+}

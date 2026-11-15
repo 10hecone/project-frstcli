@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.jsx";
 import { getClient, withWorkspace } from "./api/client.js";
 import "./styles/app.css";
+import "./styles/sidebar.css";
 import "./styles/titlebar.css";
 import "./styles/activity.css";
 import "./styles/chat.css";
