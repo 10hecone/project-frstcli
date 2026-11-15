@@ -9,6 +9,8 @@ const TABS = [
 
 const VIEW_TITLES = { threads: "Conversations", skills: "Skills" };
 
+const BUSY_REASON = "Indisponible pendant une réponse";
+
 const errorText = (err) => (err && err.message ? err.message : String(err));
 
 /**
@@ -41,7 +43,7 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
         return result;
     };
 
-    const busyReason = busy ? "Indisponible pendant une réponse" : undefined;
+    const busyReason = busy ? BUSY_REASON : undefined;
     const title = VIEW_TITLES[view] || VIEW_TITLES.threads;
 
     return (
@@ -55,6 +57,18 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
                         </p>
                     ) : (
                         <>
+                            <button
+                                type="button"
+                                className="new-thread secondary"
+                                disabled={busy}
+                                title={busyReason || "Nouveau thread (Ctrl+N)"}
+                                onClick={() => act(workspace.newThread)}
+                            >
+                                <span className="plus" aria-hidden="true">
+                                    ＋
+                                </span>
+                                Nouveau thread
+                            </button>
                             {folders ? (
                                 <FolderSwitcher
                                     folders={folders}
@@ -65,16 +79,12 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
                                     onClose={() => act(workspace.closeFolder)}
                                 />
                             ) : null}
-                            <button
-                                type="button"
-                                className="new-thread"
-                                disabled={busy}
-                                title={busyReason || "Nouveau thread (Ctrl+N)"}
-                                onClick={() => act(workspace.newThread)}
+                            <div
+                                className="segmented"
+                                role="tablist"
+                                aria-label="Sections"
+                                style={{ "--index": TABS.findIndex((item) => item.id === tab), "--count": TABS.length }}
                             >
-                                <span aria-hidden="true">＋</span> Nouveau thread
-                            </button>
-                            <div className="segmented" role="tablist" aria-label="Sections">
                                 {TABS.map((item) => (
                                     <button
                                         key={item.id}
@@ -254,10 +264,10 @@ function ChatList({ title, items, activeId, disabled, onOpen }) {
                         <li key={chat.id}>
                             <button
                                 type="button"
-                                className={`chat-item${active ? " active" : ""}`}
+                                className="chat-item row"
                                 aria-current={active ? "true" : undefined}
                                 disabled={disabled && !active}
-                                title={chat.title}
+                                title={disabled && !active ? BUSY_REASON : chat.title}
                                 onClick={() => (active ? null : onOpen(chat.id))}
                             >
                                 <span className="chat-title">{chat.title}</span>
@@ -311,7 +321,7 @@ function ProjectsPanel({ projects, activeId, disabled, fetchChats, onOpen, onSel
                             <div className="project-row">
                                 <button
                                     type="button"
-                                    className="disclosure"
+                                    className="disclosure ghost"
                                     aria-expanded={expanded}
                                     onClick={() => toggle(project.id)}
                                 >

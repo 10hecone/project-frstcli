@@ -44,7 +44,7 @@ export function FolderSwitcher({ folders, disabled = false, disabledReason, onPi
             <button
                 type="button"
                 ref={triggerRef}
-                className="folder-trigger"
+                className="folder-trigger secondary"
                 aria-haspopup="menu"
                 aria-expanded={open}
                 title={active ? active.path : "Aucun dossier ouvert"}
@@ -63,6 +63,7 @@ export function FolderSwitcher({ folders, disabled = false, disabledReason, onPi
                             key={folder.path}
                             type="button"
                             role="menuitem"
+                            className="row"
                             disabled={disabled}
                             title={disabled ? disabledReason : folder.path}
                             onClick={() => choose(() => onOpen(folder.path))}
@@ -72,11 +73,11 @@ export function FolderSwitcher({ folders, disabled = false, disabledReason, onPi
                         </button>
                     ))}
                     {others.length > 0 ? <hr className="folder-separator" /> : null}
-                    <button type="button" role="menuitem" disabled={disabled} title={disabledReason} onClick={() => choose(onPick)}>
+                    <button type="button" role="menuitem" className="row" disabled={disabled} title={disabledReason} onClick={() => choose(onPick)}>
                         Ouvrir un dossier…
                     </button>
                     {active ? (
-                        <button type="button" role="menuitem" disabled={disabled} title={disabledReason} onClick={() => choose(onClose)}>
+                        <button type="button" role="menuitem" className="row" disabled={disabled} title={disabledReason} onClick={() => choose(onClose)}>
                             Fermer le dossier
                         </button>
                     ) : null}

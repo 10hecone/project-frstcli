@@ -57,6 +57,121 @@
     --brand-end: #7a4cff;
 }
 
+/*
+ * ---- Boutons : une famille par rôle ----
+ * secondary : action principale de la barre (fond discret + anneau)
+ * ghost     : action légère, sans fond au repos
+ * row       : ligne de liste ; aria-current="true" = ligne choisie
+ * pill      : bascule courte ; .on = état actif, seul usage de l'accent plein
+ * icon      : bouton carré de la barre d'activité ; aria-selected="true" = vue active
+ * Les règles sont scopées aux deux barres : les boutons du reste de l'application ne changent pas.
+ * Aucun transform sur :active ici, le retour d'appui (scale) reste défini dans app.css.
+ * Un bouton désactivé garde ses couleurs : seul le curseur change, l'infobulle donne la raison.
+ */
+.sidebar :is(.secondary, .ghost, .row),
+.sidebar .pill,
+.activity-bar .icon {
+    transition:
+        transform var(--press) ease-out,
+        background-color 150ms ease-out,
+        color 150ms ease-out,
+        opacity 150ms ease-out;
+}
+
+.sidebar :is(.secondary, .ghost, .row) {
+    min-height: 32px;
+}
+
+.sidebar .pill {
+    min-height: 28px;
+}
+
+.sidebar .secondary {
+    background: var(--fill);
+    color: var(--text);
+    box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--edge);
+}
+
+.sidebar .ghost {
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.sidebar .row {
+    align-items: center;
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.sidebar .row[aria-current="true"] {
+    background: var(--selection);
+    color: var(--selection-text);
+}
+
+.sidebar .row:disabled {
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+.sidebar .pill {
+    background: transparent;
+    color: var(--muted);
+    box-shadow: inset 0 0 0 1px var(--control-edge);
+}
+
+.sidebar .pill.on {
+    background: var(--accent);
+    color: var(--accent-text);
+    box-shadow: none;
+}
+
+.activity-bar .icon {
+    background: transparent;
+    color: var(--muted);
+}
+
+.activity-bar .icon[aria-selected="true"] {
+    background: var(--selection);
+    color: var(--selection-text);
+}
+
+/* Survol : seulement avec un vrai pointeur, jamais sur l'élément choisi ni sur un bouton désactivé. */
+@media (hover: hover) {
+    .sidebar .secondary:hover:not(:disabled) {
+        background: var(--fill-hover);
+    }
+
+    .sidebar .ghost:hover:not(:disabled),
+    .sidebar .row:hover:not(:disabled):not([aria-current="true"]),
+    .sidebar .pill:hover:not(:disabled):not(.on) {
+        background: var(--fill-hover);
+        color: var(--text);
+    }
+
+    .activity-bar .icon:hover:not(:disabled):not([aria-selected="true"]) {
+        background: var(--fill-hover);
+        color: var(--text);
+    }
+
+    .segmented button:hover:not(.selected) {
+        color: var(--text);
+    }
+
+    .skill:hover {
+        background: var(--fill-hover);
+    }
+}
+
+/* Appui : le fond s'assombrit tout de suite (placé après le survol, à spécificité égale). */
+.sidebar :is(.secondary, .ghost, .row, .pill):active:not(:disabled):not(.on):not([aria-current="true"]),
+.activity-bar .icon:active:not(:disabled):not([aria-selected="true"]) {
+    background: var(--fill-pressed);
+}
+
+.sidebar .pill.on:active:not(:disabled) {
+    filter: brightness(0.92);
+}
+
 /* ---- Barre latérale (matériau épais) ---- */
 
 .sidebar {
@@ -82,13 +197,13 @@
     justify-content: center;
     gap: 6px;
     padding: 9px 12px;
-    background: var(--fill);
-    color: var(--text);
-    box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--edge);
 }
 
-.new-thread:hover:not(:disabled) {
-    background: var(--fill-hover);
+/* Le plus doit se lire d'un coup d'œil : un peu plus grand que le libellé. */
+.new-thread .plus {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1;
 }
 
 /* Sélecteur du dossier actif (au-dessus des onglets, son menu recouvre la liste). */
@@ -98,21 +213,14 @@
 }
 
 .folder-trigger,
-.folder-menu button {
+.folder-menu .row {
     width: 100%;
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 7px 10px;
-    background: transparent;
-    color: var(--text);
     text-align: left;
     font-size: 13px;
-}
-
-.folder-trigger {
-    background: var(--fill);
-    box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--edge);
 }
 
 .folder-name {
@@ -160,12 +268,9 @@
     animation: materialize 180ms var(--ease-out);
 }
 
-.folder-menu button {
+.folder-menu .row {
     border-radius: 6px;
-}
-
-.folder-menu button:active:not(:disabled) {
-    background: var(--fill-pressed);
+    color: var(--text);
 }
 
 .folder-separator {
@@ -176,22 +281,36 @@
     background: var(--edge);
 }
 
-@media (hover: hover) {
-    .folder-menu button:hover:not(:disabled) {
-        background: var(--fill-hover);
-    }
-}
-
-/* Contrôle segmenté des onglets : rayon 10 − marge 3 = segment de 7. */
+/*
+ * Contrôle segmenté des onglets : rayon 10 − marge 3 = segment de 7.
+ * Une seule pastille (::before) glisse vers l'onglet choisi ; --index et --count viennent du JSX.
+ */
 .segmented {
+    position: relative;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--count, 2), minmax(0, 1fr));
     padding: 3px;
     border-radius: var(--radius);
     background: var(--field);
 }
 
+.segmented::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc((100% - 6px) / var(--count, 2));
+    border-radius: 7px;
+    background: var(--segment);
+    box-shadow: var(--shadow-soft);
+    transform: translateX(calc(var(--index, 0) * 100%));
+    transition: transform 280ms var(--ease-out);
+}
+
 .segmented button {
+    position: relative;
+    min-height: 28px;
     padding: 5px 4px;
     border-radius: 7px;
     background: transparent;
@@ -200,9 +319,7 @@
 }
 
 .segmented button.selected {
-    background: var(--segment);
     color: var(--text);
-    box-shadow: var(--shadow-soft);
 }
 
 /* Zone défilante : fondus de bord seulement quand du contenu est caché. */
@@ -280,23 +397,10 @@
 
 .chat-item {
     display: flex;
-    align-items: baseline;
     gap: 8px;
     width: 100%;
     padding: 7px 10px;
-    background: transparent;
-    color: var(--text-secondary);
     text-align: left;
-}
-
-.chat-item:hover:not(:disabled) {
-    background: var(--fill-hover);
-    color: var(--text);
-}
-
-.chat-item.active {
-    background: var(--selection);
-    color: var(--selection-text);
 }
 
 .chat-title {
@@ -332,14 +436,7 @@
     align-items: center;
     gap: 6px;
     padding: 7px 8px;
-    background: transparent;
-    color: var(--text-secondary);
     text-align: left;
-}
-
-.disclosure:hover {
-    background: var(--fill-hover);
-    color: var(--text);
 }
 
 .chevron {
@@ -373,16 +470,7 @@
     flex: none;
     padding: 3px 9px;
     border-radius: var(--radius-pill);
-    background: transparent;
-    color: var(--muted);
     font-size: 11px;
-    box-shadow: inset 0 0 0 1px var(--control-edge);
-}
-
-.pill.on {
-    background: var(--accent);
-    color: var(--accent-text);
-    box-shadow: none;
 }
 
 .skill {
@@ -391,10 +479,6 @@
     gap: 10px;
     padding: 8px;
     border-radius: var(--radius);
-}
-
-.skill:hover {
-    background: var(--fill-hover);
 }
 
 .skill-text {
@@ -544,18 +628,6 @@
     height: 40px;
     padding: 0;
     border-radius: 12px;
-    background: transparent;
-    color: var(--muted);
-}
-
-.activity-item:hover {
-    background: var(--fill-hover);
-    color: var(--text);
-}
-
-.activity-item[aria-selected="true"] {
-    background: var(--selection);
-    color: var(--selection-text);
 }
 
 /* Un seul indicateur, qui glisse vers la vue active. */
@@ -591,6 +663,7 @@
     .switch .knob,
     .chevron,
     .activity-indicator,
+    .segmented::before,
     .sidebar-inner {
         transition: none;
     }
@@ -640,9 +713,12 @@
         --control-edge: rgba(0, 0, 0, 0.75);
     }
 
-    .chat-item.active,
-    .segmented button.selected,
-    .activity-item[aria-selected="true"] {
+    .sidebar .row[aria-current="true"],
+    .activity-bar .icon[aria-selected="true"] {
         box-shadow: inset 0 0 0 1px var(--edge-strong);
+    }
+
+    .segmented::before {
+        box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--edge-strong);
     }
 }
