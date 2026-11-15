@@ -39,6 +39,7 @@ export function Composer({
     onSubmit,
     onInterrupt,
     onPickFiles,
+    onPickFolder,
     onSetModel,
     onRefreshUsage
 }) {
@@ -369,10 +370,16 @@ export function Composer({
                             onRefresh={onRefreshUsage}
                         />
                         {info && info.workspaceName ? (
-                            <span className="chip" title={info.workspace}>
+                            <button
+                                type="button"
+                                className="chip chip-action"
+                                disabled={busy || !onPickFolder}
+                                title={busy ? "Indisponible pendant une réponse" : `${info.workspace}\nChanger de dossier`}
+                                onClick={onPickFolder}
+                            >
                                 <FolderIcon />
                                 {info.workspaceName}
-                            </span>
+                            </button>
                         ) : null}
                         {branch ? (
                             <span className="chip branch" title={`Branche git : ${branch}`}>

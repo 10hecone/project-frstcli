@@ -38,6 +38,11 @@
     white-space: nowrap;
 }
 
+.titlebar-folder {
+    color: var(--text);
+    font-weight: 600;
+}
+
 .titlebar-app {
     color: var(--text-secondary);
     font-weight: 600;

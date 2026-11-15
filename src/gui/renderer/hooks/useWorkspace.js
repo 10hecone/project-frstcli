@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { activeFolder, trustRequest } from "../lib/folders.js";
 
 const errorText = (err) => (err && err.message ? err.message : String(err));
 
@@ -15,6 +16,11 @@ export function useWorkspace(client, status = {}) {
     const [projects, setProjects] = useState({ selectedId: null, items: [], loading: false, error: null });
     const [usage, setUsage] = useState({ data: null, loading: false, error: null });
     const [skills, setSkills] = useState({ items: [], loading: false, error: null });
+    const [recent, setRecent] = useState([]);
+    const [sessions, setSessions] = useState({ path: null, items: [], loading: false, error: null });
+    const [trust, setTrust] = useState(null);
+    const [skipped, setSkipped] = useState(false);
+    const [folderError, setFolderError] = useState(null);
     const query = useRef("");
 
     const refreshInfo = useCallback(async () => {
@@ -146,8 +152,90 @@ export function useWorkspace(client, status = {}) {
         }
         }, [client]);
 
+    const loadFolders = useCallback(async () => {
+        try {
+            const list = await client.recentFolders();
+            setRecent(Array.isArray(list) ? list : []);
+        } catch {
+            // Liste indisponible : l'accueil garde la précédente.
+        }
+    }, [client]);
+
+    // Dossiers récents : relus à chaque changement de dossier.
+    useEffect(() => {
+        loadFolders();
+    }, [loadFolders, status.workspace]);
+
+    // Sessions du dossier actif : relues quand le chat ou l'état occupé change (nouveau titre, nouveau chat).
+    useEffect(() => {
+        const dir = status.workspace || null;
+        if (!dir) {
+            setSessions({ path: null, items: [], loading: false, error: null });
+            return undefined;
+        }
+        let stale = false;
+        // « Chargement » seulement sans liste déjà affichée pour ce dossier : pas de clignotement.
+        setSessions((prev) =>
+            prev.path === dir
+                ? { ...prev, error: null, loading: prev.items.length === 0 }
+                : { path: dir, items: [], loading: true, error: null }
+        );
+        client.folderSessions(dir).then(
+            (list) => {
+                if (!stale) setSessions({ path: dir, items: Array.isArray(list) ? list : [], loading: false, error: null });
+            },
+            (err) => {
+                if (!stale) setSessions((prev) => ({ ...prev, loading: false, error: errorText(err) }));
+            }
+        );
+        return () => {
+            stale = true;
+        };
+    }, [client, status.workspace, status.chatId, status.busy]);
+
+    /** Suite d'une ouverture : confiance demandée → dialogue ; échec → message pour l'accueil. */
+    const settleOpen = useCallback((result) => {
+        const request = trustRequest(result);
+        if (request) setTrust(request);
+        if (request || (result && result.ok)) setFolderError(null);
+        else if (result && result.ok === false) setFolderError(result.reason || "Dossier non ouvert.");
+        return result;
+    }, []);
+
+    const openFolder = useCallback(async (dir) => settleOpen(await run(() => client.openFolder(dir))), [client, run, settleOpen]);
+    const pickFolder = useCallback(async () => settleOpen(await run(() => client.pickFolder())), [client, run, settleOpen]);
+    const closeFolder = useCallback(async () => {
+        const result = await run(() => client.closeFolder());
+        if (result.ok) setSkipped(false);
+        return result;
+    }, [client, run]);
+    const acceptTrust = useCallback(
+        async (dir) => {
+            setTrust(null);
+            const trusted = await run(() => client.trustFolder(dir));
+            return trusted.ok ? openFolder(dir) : settleOpen(trusted);
+        },
+        [client, run, openFolder, settleOpen]
+    );
+    const declineTrust = useCallback(() => setTrust(null), []);
+    const continueWithoutFolder = useCallback(() => setSkipped(true), []);
+    const setPermissionMode = useCallback((mode) => run(() => client.setPermissionMode(mode)), [client, run]);
+
+    // Dossier demandé hors de la fenêtre (ligne de commande, seconde instance).
+    useEffect(() => client.onFolderRequested((dir) => openFolder(dir)), [client, openFolder]);
+
+    const folders = {
+        active: activeFolder(status.workspace, status.branch, recent),
+        recent,
+        sessions,
+        trust,
+        skipped,
+        error: folderError
+    };
+
     return {
         info,
+        folders,
         chats,
         projects,
         usage,
@@ -163,6 +251,14 @@ export function useWorkspace(client, status = {}) {
         setModel,
         selectProject,
         toggleSkill,
-        pickFiles
+        pickFiles,
+        loadFolders,
+        openFolder,
+        pickFolder,
+        closeFolder,
+        acceptTrust,
+        declineTrust,
+        continueWithoutFolder,
+        setPermissionMode
     };
 }

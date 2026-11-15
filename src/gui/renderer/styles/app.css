@@ -1513,6 +1513,71 @@ kbd {
     color: var(--error);
 }
 
+/* Mode de permission : bouton discret (clic ou Maj+Tab dans la barre de chat). */
+.statusbar-mode {
+    margin: 0 -6px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, transform 0.12s ease;
+}
+
+.statusbar-mode:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+.statusbar-mode:disabled {
+    cursor: default;
+}
+
+@media (hover: hover) {
+    .statusbar-mode:hover:not(:disabled) {
+        background: var(--glass-hover);
+        color: var(--text);
+    }
+}
+
+/* Puce du dossier dans la barre de chat : ouvre le sélecteur de dossier. */
+.chip-action {
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    transition: color 0.15s ease, background-color 0.15s ease, transform 0.12s ease;
+}
+
+.chip-action:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.chip-action:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+@media (hover: hover) {
+    .chip-action:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--glass-hover), var(--text) 10%);
+        color: var(--text);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .statusbar-mode,
+    .chip-action {
+        transition: none;
+    }
+
+    .statusbar-mode:active:not(:disabled),
+    .chip-action:active:not(:disabled) {
+        transform: none;
+    }
+}
+
 .statusbar .warn {
     color: var(--warn);
 }

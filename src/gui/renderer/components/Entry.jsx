@@ -16,8 +16,8 @@ export function Entry({ entry }) {
                     <dl>
                         <dt>Modèle</dt>
                         <dd>{entry.model || "—"}</dd>
-                        <dt>Projet</dt>
-                        <dd>{entry.workspace || "aucun (utilise /project <dossier>)"}</dd>
+                        <dt>Dossier</dt>
+                        <dd>{entry.workspace || "aucun dossier ouvert"}</dd>
                         <dt>Mode</dt>
                         <dd>{entry.mode || "—"}</dd>
                     </dl>
