@@ -26,7 +26,9 @@ function createGuiHost({
     memory = null,
     stateModule = null,
     statusExtra = null,
-    refreshContext = undefined
+    refreshContext = undefined,
+    // (nombre de modifications) => entrée « turnSummary » ou null : bilan de fin de tour.
+    summarizeChanges = null
 } = {}) {
     const core = session || require("../core/session");
     const port = bridge || require("../ui-bridge");
@@ -77,6 +79,25 @@ function createGuiHost({
             }
         }
         if (!disposed) refresh();
+    }
+
+    /** Nombre de modifications de fichiers enregistrées depuis l'ouverture du projet. */
+    function countChanges() {
+        const mem = memory || require("../project/memory");
+        return mem && typeof mem.sessionChanges === "function" ? mem.sessionChanges() : 0;
+    }
+
+    /** Ajoute au fil le bilan des fichiers modifiés pendant le tour qui vient de finir. */
+    async function reportChanges(before) {
+        if (typeof summarizeChanges !== "function") return;
+        try {
+            const changed = countChanges() - before;
+            if (changed <= 0) return;
+            const summary = await summarizeChanges(changed);
+            if (summary && !disposed) store.dispatch({ type: "append", entry: summary });
+        } catch {
+            // Bilan facultatif : la réponse reste valable sans lui.
+        }
     }
 
     /** Ids Files v2 valides (chaînes non vides, sans doublon, 20 au plus). */
@@ -146,6 +167,7 @@ function createGuiHost({
             stream.write(delta);
         };
 
+        const changesBefore = countChanges();
         let result = null;
         try {
             result = await core.handleInput(text, { onChatDelta });
@@ -154,6 +176,7 @@ function createGuiHost({
         } finally {
             if (stream) stream.end();
             store.dispatch({ type: "commandEnd" });
+            await reportChanges(changesBefore);
             store.dispatch({ type: "status", status: { busy: false } });
             // Jamais renvoyées avec un message suivant, même après une erreur.
             state.pendingFiles = [];

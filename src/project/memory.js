@@ -213,6 +213,17 @@ async function pushUndo(entry) {
 
 const popUndo = () => persistent.undo.pop() || null;
 const unpopUndo = entry => { persistent.undo.push(entry); };
+
+/** Retire une entrée précise (comparée par identité) de la pile. Renvoie true si trouvée. */
+function removeUndo(entry) {
+    const index = persistent.undo.indexOf(entry);
+
+    if (index === -1) return false;
+
+    persistent.undo.splice(index, 1);
+    return true;
+}
+
 const listUndo = () => [...persistent.undo];
 const sessionChanges = () => changes;
 
@@ -288,6 +299,7 @@ module.exports = {
     pushUndo,
     popUndo,
     unpopUndo,
+    removeUndo,
     listUndo,
     sessionChanges,
     backupFile,

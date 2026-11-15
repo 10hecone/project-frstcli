@@ -12,7 +12,9 @@
 
 const ENTRY_TYPES = [
     "welcome", "user", "assistant", "tool", "result", "plan",
-    "diff", "info", "warn", "error", "print"
+    "diff", "info", "warn", "error", "print",
+    // Bilan de fin de tour (interface graphique uniquement : la TUI l'ignore).
+    "turnSummary"
 ];
 
 function initialState() {
@@ -33,19 +35,28 @@ function initialState() {
 // Sortie de run_command : seules les dernières lignes sont gardées (affichage replié).
 const COMMAND_FOLD_LINES = 5;
 
+// Fin de sortie conservée en plus pour l'interface graphique (détail d'une action, bilan des tests).
+const COMMAND_FULL_LINES = 300;
+
 // Clôture de bloc de code Markdown (même règle que renderMarkdownLine).
 const FENCE_RE = /^\s*(```|~~~)/;
 
 /** Termine la sortie de commande en cours : une entrée print repliée passe dans le transcript. */
 function flushCommand(state) {
     if (!state.command) return state;
-    const { lines, total } = state.command;
+    const { lines, total, full } = state.command;
+    const entry = { type: "print", lines: [...lines], command: true, hidden: total - lines.length, id: state.nextId };
+    // Fin de sortie plus longue que l'aperçu replié : réservée au détail de l'interface graphique.
+    if (full && full.length > lines.length) {
+        entry.full = [...full];
+        entry.fullHidden = total - full.length;
+    }
     return {
         ...state,
         command: null,
         transcript: [
             ...state.transcript,
-            { type: "print", lines: [...lines], command: true, hidden: total - lines.length, id: state.nextId }
+            entry
         ],
         nextId: state.nextId + 1
     };
@@ -69,8 +80,12 @@ function reducer(state, action) {
         case "commandLine": {
             const text = String(action.text ?? "");
             const previous = state.command || { lines: [], total: 0 };
+            const full = [...(previous.full || previous.lines), text].slice(-COMMAND_FULL_LINES);
             const lines = [...previous.lines, text].slice(-COMMAND_FOLD_LINES);
-            return { ...state, command: { lines, total: previous.total + 1 } };
+            const command = { lines, total: previous.total + 1 };
+            // `full` n'existe que si la sortie dépasse l'aperçu replié (sinon il serait identique à `lines`).
+            if (full.length > lines.length) command.full = full;
+            return { ...state, command };
         }
 
         case "commandEnd":
