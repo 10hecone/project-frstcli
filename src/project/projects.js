@@ -9,7 +9,7 @@ const { ui } = require("../ui-bridge");
 /*
  * Projets connus du CLI, enregistrés dans CONFIG.dataDir/projects.json
  * (~/.francestudent-cli par défaut, jamais dans le projet ouvert). Un projet = une conversation chat + une conversation agent.
- * Forme : { "<clé>": { path, createdAt, lastOpenedAt, conversations: { chat, agent } } }
+ * Forme : { "<clé>": { path, trusted, createdAt, lastOpenedAt, conversations: { chat, agent } } }
  * avec chat / agent = { id, settings, updatedAt } ou null.
  */
 
@@ -94,6 +94,8 @@ async function open(workspace, { newConv = false } = {}) {
 
     project.path = workspace;
     project.lastOpenedAt = now;
+    // open() n'est appelé qu'une fois la confiance accordée (workspace.open).
+    project.trusted = true;
     if (!project.conversations || newConv) project.conversations = emptyConversations();
 
     projects[key] = project;

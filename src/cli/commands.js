@@ -71,7 +71,8 @@ async function handleCommand(input) {
       {
         const newConv = /\s+newconv$/i.test(value);
         const target = newConv ? value.replace(/\s+newconv$/i, "").trim() : value;
-        await workspace.open(unquote(target), { newConv });
+        // Refuser la confiance ferme l'outil.
+        if (!(await workspace.open(unquote(target), { newConv }))) return false;
       }
       break;
 

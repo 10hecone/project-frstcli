@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 
 const { state, resetConversation, setConversation } = require("../state");
@@ -49,6 +50,28 @@ function onChange(listener) {
     return () => listeners.delete(listener);
 }
 
+function samePath(a, b) {
+    const norm = (p) => path.resolve(p).replace(/[\\/]+$/, "");
+    return process.platform === "win32" ? norm(a).toLowerCase() === norm(b).toLowerCase() : norm(a) === norm(b);
+}
+
+// Message de confiance unique, réutilisé par la CLI, la TUI et la GUI.
+function trustMessage(dir) {
+    const lines = [
+        `Faire confiance au dossier ${dir} ?`,
+        "FRSTCLI.md, la liste du premier niveau du dossier et ce que lit le modèle " +
+        "(fichiers, sorties de commandes) sont envoyés à ton fournisseur API."
+    ];
+    if (samePath(dir, os.homedir()) || path.dirname(dir) === dir) {
+        lines.push(
+            "ATTENTION : c'est ton dossier personnel ou la racine d'un disque. " +
+            "Le modèle pourra y lire tous tes fichiers. Préfère ouvrir le dossier d'un projet précis."
+        );
+    }
+    return lines.join("\n");
+}
+
+/** Ouvre un dossier. Renvoie false si l'utilisateur refuse de lui faire confiance (rien n'est ouvert). */
 async function open(directory, { newConv = false } = {}) {
     const projects = require("../project/projects");
     const { ui } = require("../ui-bridge");
@@ -58,6 +81,9 @@ async function open(directory, { newConv = false } = {}) {
     const info = await fs.stat(real);
 
     if (!info.isDirectory()) throw new Error("Le projet doit être un dossier.");
+
+    const known = await projects.get(real);
+    if (!(known && known.trusted) && !(await ui.confirm(trustMessage(real), { force: true }))) return false;
 
     state.workspace = real;
     resetConversation();
@@ -84,15 +110,8 @@ async function open(directory, { newConv = false } = {}) {
         ui.info(`Mémoire : ${notes} note(s), ${undo} modification(s) annulable(s).`);
     }
 
-    // Plus d'indexation automatique : le premier message ne joint qu'un contexte court
-    // (environnement, premier niveau du projet, FRSTCLI.md) et le modèle lit les fichiers
-    // avec les outils. /index génère RESUME.md à la demande.
-    ui.warn(
-        "FRSTCLI.md, la liste du premier niveau du projet et ce que lit le modèle " +
-        "(fichiers, sorties de commandes) sont envoyés à ton fournisseur API."
-    );
-
     emitChange();
+    return true;
 }
 
 function close() {
@@ -119,4 +138,4 @@ const workspace = {
     onChange
 };
 
-module.exports = { workspace };
+module.exports = { workspace, trustMessage };
