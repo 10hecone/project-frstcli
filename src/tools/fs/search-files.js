@@ -144,7 +144,9 @@ async function searchFiles(args = {}) {
     const { rel, target } = await resolveInWorkspace(state.workspace, args.path ?? ".");
     const info = await fs.stat(target);
 
-    if (!info.isDirectory()) throw new Error("search_files doit cibler un dossier.");
+    if (!info.isDirectory() && !info.isFile()) {
+        throw new Error("search_files doit cibler un dossier ou un fichier.");
+    }
 
     const matches = [];
     let scanned = 0;
@@ -152,8 +154,14 @@ async function searchFiles(args = {}) {
     const full = () =>
         matches.length >= CONFIG.maxSearchResults || scanned >= CONFIG.maxSearchFiles;
 
-    const all = await walkFiles(target, rel, { maxFiles: CONFIG.maxSearchFiles });
-    const files = all.filter(file => accept(file.rel));
+    // Fichier ciblé directement : on cherche dedans, le glob ne s'applique pas.
+    let files;
+    if (info.isFile()) {
+        files = [{ abs: target, rel: rel.replace(/\\/g, "/") }];
+    } else {
+        const all = await walkFiles(target, rel, { maxFiles: CONFIG.maxSearchFiles });
+        files = all.filter(file => accept(file.rel));
+    }
 
     for (let i = 0; i < files.length && !full(); i += READ_CONCURRENCY) {
         const batch = files.slice(i, i + READ_CONCURRENCY);

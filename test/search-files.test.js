@@ -61,13 +61,23 @@ test("searchFiles limite la recherche au sous-dossier demandé", async () => {
     });
 });
 
-test("searchFiles refuse un fichier comme cible", async () => {
+test("searchFiles refuse toujours un fichier sensible ciblé directement", async () => {
     await withWorkspace(async (dir) => {
         await fill(dir);
         await assert.rejects(
-            searchFiles({ query: "hello", path: "a.txt" }),
-            /doit cibler un dossier/
+            searchFiles({ query: "hello", path: ".env" }),
+            Error
         );
+    });
+});
+
+test("searchFiles accepte un fichier comme cible (le glob ne s'applique pas)", async () => {
+    await withWorkspace(async (dir) => {
+        await fill(dir);
+        const result = await searchFiles({ query: "hello", path: "a.txt" });
+        assert.deepEqual(keys(result), ["a.txt:1", "a.txt:3"]);
+        const filtered = await searchFiles({ query: "hello", path: "sub/c.txt", glob: "*.js" });
+        assert.deepEqual(keys(filtered), ["sub/c.txt:2"]);
     });
 });
 
