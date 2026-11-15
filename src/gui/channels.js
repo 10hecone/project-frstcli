@@ -25,8 +25,20 @@ const CHANNELS = Object.freeze({
     SET_MODEL: "frst:set-model",
     PICK_FILES: "frst:pick-files",
 
+    // Fenêtre → processus principal : modifications de fichiers et chemins
+    CHANGES: "frst:changes",
+    UNDO_CHANGE: "frst:undo-change",
+    UNDO_TURN: "frst:undo-turn",
+    OPEN_PATH: "frst:open-path",
+
+    // Fenêtre → processus principal : intégration au système
+    ATTENTION: "frst:attention",
+    ZOOM: "frst:zoom",
+    APPEARANCE: "frst:appearance",
+
     // Processus principal → fenêtre (webContents.send)
-    ACTION: "frst:action"
+    ACTION: "frst:action",
+    ZOOM_CHANGED: "frst:zoom-changed"
 });
 
 module.exports = { CHANNELS };

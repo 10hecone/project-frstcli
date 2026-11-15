@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityBar } from "./components/ActivityBar.jsx";
-import { Header } from "./components/Header.jsx";
+import { Header, projectName } from "./components/Header.jsx";
+import { TitleBar } from "./components/TitleBar.jsx";
 import { Sidebar } from "./components/Sidebar.jsx";
 import { Transcript } from "./components/Transcript.jsx";
 import { TaskPanel } from "./components/TaskPanel.jsx";
@@ -80,6 +81,7 @@ export function App({ client }) {
     return (
         <div className={`app${sidebarOpen ? "" : " sidebar-closed"}`}>
             <div className="backdrop" aria-hidden="true" />
+            <TitleBar title={title} project={projectName(info && info.project)} />
             <ActivityBar view={view} open={sidebarOpen} controls="sidebar" onSelect={selectView} />
             <Sidebar id="sidebar" view={view} open={sidebarOpen} workspace={workspace} status={status} busy={busy || !ready} />
             <main className="main">

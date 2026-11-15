@@ -41,6 +41,34 @@ contextBridge.exposeInMainWorld("frst", {
     setModel: (id) => invoke(CHANNELS.SET_MODEL, Number(id)),
     pickFiles: () => invoke(CHANNELS.PICK_FILES),
 
+    // ---- Résultat des actions, intégration à la fenêtre ----
+    platform: process.platform,
+    listChanges: () => invoke(CHANNELS.CHANGES),
+    undoChange: (id) => invoke(CHANNELS.UNDO_CHANGE, String(id ?? "")),
+    undoTurn: (turn) =>
+        invoke(CHANNELS.UNDO_TURN, { count: Number(turn?.count) || 0, lastAt: String(turn?.lastAt ?? "") }),
+    openPath: (path) => invoke(CHANNELS.OPEN_PATH, String(path ?? "")),
+    attention: (payload) =>
+        invoke(CHANNELS.ATTENTION, {
+            kind: String(payload?.kind ?? ""),
+            title: String(payload?.title ?? ""),
+            body: String(payload?.body ?? "")
+        }),
+    zoom: (action) => invoke(CHANNELS.ZOOM, String(action ?? "")),
+    setAppearance: (options) =>
+        invoke(CHANNELS.APPEARANCE, {
+            theme: options?.theme === "light" ? "light" : "dark",
+            transparency: options?.transparency !== false
+        }),
+
+    /** Abonnement aux changements de zoom (raccourcis clavier gérés par le processus principal). */
+    onZoomChanged(listener) {
+        if (typeof listener !== "function") return () => {};
+        const handler = (_event, factor) => listener(Number(factor) || 1);
+        ipcRenderer.on(CHANNELS.ZOOM_CHANGED, handler);
+        return () => ipcRenderer.removeListener(CHANNELS.ZOOM_CHANGED, handler);
+    },
+
     /** Abonnement aux actions du store ; renvoie la fonction de désabonnement. */
     onAction(listener) {
         if (typeof listener !== "function") return () => {};

@@ -1,0 +1,62 @@
+/*
+ * Barre de titre personnalisée (voir components/TitleBar.jsx).
+ * -webkit-app-region: drag rend la bande déplaçable ; les contrôles interactifs
+ * doivent être exclus (no-drag), sinon ils ne reçoivent pas les clics.
+ */
+:root {
+    --titlebar-height: 40px;
+}
+
+.titlebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    box-sizing: border-box;
+    height: var(--titlebar-height);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Laisse la place aux boutons système dessinés par Electron (Windows, Linux). */
+    padding: 0 calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 14px;
+    -webkit-app-region: drag;
+    user-select: none;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* macOS : les feux tricolores occupent la gauche. */
+[data-platform="darwin"] .titlebar {
+    padding: 0 14px 0 84px;
+}
+
+.titlebar-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.titlebar-app {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.titlebar-controls {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.titlebar-control,
+.titlebar-controls > * {
+    -webkit-app-region: no-drag;
+}
+
+/* La mise en page démarre sous la barre de titre. */
+.app {
+    box-sizing: border-box;
+    padding-top: var(--titlebar-height);
+}

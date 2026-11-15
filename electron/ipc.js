@@ -1,17 +1,22 @@
 "use strict";
 
 /**
- * Liaison IPC entre la fenêtre et l'hôte de session (src/gui/host.js) et les
- * services de l'espace de travail (src/gui/workspace.js).
- * Ce fichier ne contient aucune logique métier : il traduit seulement les canaux
- * (src/gui/channels.js) en appels à l'hôte. Seule exception : la boîte de dialogue
- * de choix de fichiers, qui a besoin d'Electron.
+ * Liaison IPC entre la fenêtre et l'hôte de session (src/gui/host.js), les services de
+ * l'espace de travail (src/gui/workspace.js) et les modifications de fichiers (src/gui/changes.js).
+ * Ce fichier ne contient presque aucune logique métier : il traduit les canaux
+ * (src/gui/channels.js) en appels. Ce qui a besoin d'Electron (dialogue de fichiers, ouverture
+ * de chemins, alertes, zoom, apparence) passe par des modules dédiés ou reste ici, en une ligne.
  */
 
-const { dialog, ipcMain } = require("electron");
+const { dialog, ipcMain, shell } = require("electron");
 const { CHANNELS } = require("../src/gui/channels");
 const { createGuiHost } = require("../src/gui/host");
 const { createWorkspace } = require("../src/gui/workspace");
+const { createChanges } = require("../src/gui/changes");
+const { openWorkspacePath } = require("../src/gui/paths");
+const { nextZoom, zoomActionForInput } = require("../src/gui/window-state");
+const { createAttention } = require("./attention");
+const { applyAppearance, patchState } = require("./window");
 
 const MAX_PICKED_FILES = 10;
 
@@ -21,18 +26,26 @@ function registerIpc(win, { onExit = null } = {}) {
         win.webContents.send(CHANNELS.ACTION, message);
     };
 
-    // La branche git est lue par l'espace de travail (créé juste après l'hôte).
+    // La branche git est lue par l'espace de travail, le bilan des modifications par `changes`
+    // (tous deux créés juste après l'hôte).
     let workspace = null;
+    let changes = null;
     const host = createGuiHost({
         send,
         onExit,
-        statusExtra: async () => ({ branch: workspace ? await workspace.branch() : null })
+        statusExtra: async () => ({ branch: workspace ? await workspace.branch() : null }),
+        summarizeChanges: (count) => (changes ? changes.summarize(count) : null)
     });
     workspace = createWorkspace({
         backend: host.backend,
         refresh: () => host.syncStatus(),
         isRunning: () => host.isRunning()
     });
+    changes = createChanges({
+        isRunning: () => host.isRunning(),
+        notify: (text) => host.backend.store.dispatch({ type: "append", entry: { type: "info", text } })
+    });
+    const attention = createAttention(win);
 
     // Seule la fenêtre principale peut piloter la session.
     const guard =
@@ -60,6 +73,42 @@ function registerIpc(win, { onExit = null } = {}) {
         return { ...uploaded, cancelled: false };
     }
 
+    /** Ouvre un chemin du projet (jamais hors du projet ; les exécutables sont seulement montrés). */
+    function openPath(input) {
+        const root = require("../src/state").state.workspace;
+        return openWorkspacePath(root, input, shell);
+    }
+
+    /** Applique un zoom (facteur borné, mémorisé) et le renvoie. */
+    function applyZoom(action) {
+        const contents = win.webContents;
+        const factor = nextZoom(contents.getZoomFactor(), action);
+        contents.setZoomFactor(factor);
+        patchState({ zoom: factor });
+        if (!contents.isDestroyed()) contents.send(CHANNELS.ZOOM_CHANGED, factor);
+        return factor;
+    }
+
+    /** Thème et transparence : barre de titre, fond et matériau de la fenêtre ; mémorisés. */
+    function setAppearance(options) {
+        const theme = options && options.theme;
+        const transparency = !options || options.transparency !== false;
+        const look = applyAppearance(win, { theme, transparency });
+        if (!look) return { ok: false };
+        patchState({ appearance: { theme: look.theme, transparency } });
+        return { ok: true, theme: look.theme, glass: look.glass };
+    }
+
+    // Les raccourcis de zoom sont interceptés ici pour ne pas être traités deux fois
+    // (menu par défaut d'Electron + page).
+    const onInput = (event, input) => {
+        const action = zoomActionForInput(input);
+        if (!action) return;
+        event.preventDefault();
+        applyZoom(action);
+    };
+    win.webContents.on("before-input-event", onInput);
+
     const handlers = {
         [CHANNELS.START]: () => host.start(),
         [CHANNELS.SNAPSHOT]: () => host.snapshot(),
@@ -77,7 +126,15 @@ function registerIpc(win, { onExit = null } = {}) {
         [CHANNELS.SKILLS]: () => workspace.listSkills(),
         [CHANNELS.TOGGLE_SKILL]: (id, enabled, shared) => workspace.toggleSkill(id, enabled, shared),
         [CHANNELS.SET_MODEL]: (id) => workspace.setModel(id),
-        [CHANNELS.PICK_FILES]: () => pickFiles()
+        [CHANNELS.PICK_FILES]: () => pickFiles(),
+
+        [CHANNELS.CHANGES]: () => changes.list(),
+        [CHANNELS.UNDO_CHANGE]: (id) => changes.undoFile(id),
+        [CHANNELS.UNDO_TURN]: (turn) => changes.undoTurn(turn || {}),
+        [CHANNELS.OPEN_PATH]: (input) => openPath(input),
+        [CHANNELS.ATTENTION]: (payload) => ({ shown: attention.notify(payload) }),
+        [CHANNELS.ZOOM]: (action) => applyZoom(action),
+        [CHANNELS.APPEARANCE]: (options) => setAppearance(options)
     };
 
     for (const [channel, handler] of Object.entries(handlers)) {
@@ -87,8 +144,10 @@ function registerIpc(win, { onExit = null } = {}) {
     return {
         host,
         workspace,
+        changes,
         dispose() {
             for (const channel of Object.keys(handlers)) ipcMain.removeHandler(channel);
+            if (!win.isDestroyed()) win.webContents.removeListener("before-input-event", onInput);
             host.dispose();
         }
     };
