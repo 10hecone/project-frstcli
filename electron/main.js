@@ -17,6 +17,10 @@ try {
 const { app, BrowserWindow, dialog } = require("electron");
 const { createMainWindow, guiBuilt, GUI_DIR } = require("./window");
 const { registerIpc } = require("./ipc");
+const { folderFromArgv } = require("../src/gui/folders");
+
+/** Dossier passé en ligne de commande (en mode développement, argv commence par l'exécutable et le script). */
+const requestedFolder = (argv, cwd) => folderFromArgv(argv, { defaultApp: process.defaultApp, cwd });
 
 let mainWindow = null;
 let ipc = null;
@@ -32,7 +36,10 @@ function boot() {
     }
 
     mainWindow = createMainWindow();
-    ipc = registerIpc(mainWindow, { onExit: () => app.quit() });
+    ipc = registerIpc(mainWindow, {
+        onExit: () => app.quit(),
+        initialFolder: requestedFolder(process.argv, process.cwd())
+    });
 
     mainWindow.on("closed", () => {
         mainWindow = null;
@@ -43,10 +50,13 @@ function boot() {
 if (!app.requestSingleInstanceLock()) {
     app.quit();
 } else {
-    app.on("second-instance", () => {
+    app.on("second-instance", (_event, argv, workingDirectory) => {
         if (!mainWindow) return;
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.focus();
+        // Le dossier reçu s'ouvre dans la session existante ; la page demande la confiance si besoin.
+        const dir = requestedFolder(argv, workingDirectory);
+        if (dir && ipc) ipc.requestFolder(dir);
     });
 
     app.whenReady().then(boot);

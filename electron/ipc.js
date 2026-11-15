@@ -21,7 +21,7 @@ const { applyAppearance, patchState } = require("./window");
 
 const MAX_PICKED_FILES = 10;
 
-function registerIpc(win, { onExit = null } = {}) {
+function registerIpc(win, { onExit = null, initialFolder = null } = {}) {
     const send = (message) => {
         if (win.isDestroyed() || win.webContents.isDestroyed()) return;
         win.webContents.send(CHANNELS.ACTION, message);
@@ -126,8 +126,26 @@ function registerIpc(win, { onExit = null } = {}) {
     };
     win.webContents.on("before-input-event", onInput);
 
+    // Dossier demandé au lancement : envoyé une fois la session démarrée (la page écoute alors déjà).
+    let pendingFolder = initialFolder;
+
+    /** Demande à la page d'ouvrir un dossier : même parcours que le sélecteur, confiance comprise. */
+    function requestFolder(dir) {
+        if (!dir || win.isDestroyed() || win.webContents.isDestroyed()) return;
+        win.webContents.send(CHANNELS.FOLDER_REQUESTED, String(dir));
+    }
+
+    async function start() {
+        const result = await host.start();
+        if (pendingFolder) {
+            requestFolder(pendingFolder);
+            pendingFolder = null;
+        }
+        return result;
+    }
+
     const handlers = {
-        [CHANNELS.START]: () => host.start(),
+        [CHANNELS.START]: () => start(),
         [CHANNELS.SNAPSHOT]: () => host.snapshot(),
         [CHANNELS.SUBMIT]: (text, files) => host.submit(text, files),
         [CHANNELS.ANSWER]: (id, value) => host.answer(id, value),
@@ -171,6 +189,7 @@ function registerIpc(win, { onExit = null } = {}) {
         workspace,
         folders,
         changes,
+        requestFolder,
         dispose() {
             for (const channel of Object.keys(handlers)) ipcMain.removeHandler(channel);
             if (!win.isDestroyed()) win.webContents.removeListener("before-input-event", onInput);

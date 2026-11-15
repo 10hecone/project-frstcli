@@ -70,6 +70,14 @@ contextBridge.exposeInMainWorld("frst", {
             transparency: options?.transparency !== false
         }),
 
+    /** Abonnement aux dossiers demandés hors de la fenêtre (ligne de commande, seconde instance). */
+    onFolderRequested(listener) {
+        if (typeof listener !== "function") return () => {};
+        const handler = (_event, dir) => listener(String(dir ?? ""));
+        ipcRenderer.on(CHANNELS.FOLDER_REQUESTED, handler);
+        return () => ipcRenderer.removeListener(CHANNELS.FOLDER_REQUESTED, handler);
+    },
+
     /** Abonnement aux changements de zoom (raccourcis clavier gérés par le processus principal). */
     onZoomChanged(listener) {
         if (typeof listener !== "function") return () => {};

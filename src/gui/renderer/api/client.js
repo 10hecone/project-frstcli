@@ -17,6 +17,7 @@
  * - pickFolder()        → { ok, path } | { needsTrust, path, message } | { cancelled }
  * - openFolder(path)    → { ok, path } | { needsTrust, path, message } ; trustFolder(path) puis openFolder
  * - closeFolder(), recentFolders(), folderSessions(path), setPermissionMode(mode).
+ * - onFolderRequested(listener) → désabonnement ; reçoit le chemin d'un dossier demandé hors de la fenêtre.
  *
  * Pour rebrancher l'interface sur un autre transport (WebSocket, serveur local,
  * tests), il suffit de fournir un objet qui respecte ce contrat.
@@ -45,7 +46,8 @@ export const WORKSPACE_FALLBACKS = {
     recentFolders: async () => [],
     trustFolder: async () => ({ ok: false, reason: OFFLINE }),
     folderSessions: async () => [],
-    setPermissionMode: async () => ({ ok: false, reason: OFFLINE })
+    setPermissionMode: async () => ({ ok: false, reason: OFFLINE }),
+    onFolderRequested: () => () => {}
 };
 
 export const WORKSPACE_METHODS = Object.keys(WORKSPACE_FALLBACKS);

@@ -47,7 +47,8 @@ const CHANNELS = Object.freeze({
 
     // Processus principal → fenêtre (webContents.send)
     ACTION: "frst:action",
-    ZOOM_CHANGED: "frst:zoom-changed"
+    ZOOM_CHANGED: "frst:zoom-changed",
+    FOLDER_REQUESTED: "frst:folder-requested"
 });
 
 module.exports = { CHANNELS };

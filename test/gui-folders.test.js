@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { createFolders } = require("../src/gui/folders");
+const { createFolders, folderFromArgv } = require("../src/gui/folders");
 
 /** Dossiers avec toutes leurs dépendances simulées ; les dossiers sont de vrais dossiers temporaires. */
 function setup({ known = {}, running = false } = {}) {
@@ -44,6 +44,23 @@ function setup({ known = {}, running = false } = {}) {
     });
     return { folders, calls, state, dir, known };
 }
+
+test("folderFromArgv : ignore l'exécutable, le script de développement et les options", () => {
+    const cwd = path.resolve("travail");
+    const absolute = path.resolve("ailleurs", "projet");
+
+    // Application empaquetée : [exécutable, options Chromium, dossier].
+    assert.equal(folderFromArgv(["app.exe", "--allow-file-access", absolute], { cwd }), absolute);
+    assert.equal(folderFromArgv(["app.exe", "sous-dossier"], { cwd }), path.join(cwd, "sous-dossier"));
+    assert.equal(folderFromArgv(["app.exe"], { cwd }), null);
+    assert.equal(folderFromArgv(["app.exe", "--seule-option", "  "], { cwd }), null);
+
+    // Mode développement (electron .) : le deuxième élément est le script, pas un dossier.
+    assert.equal(folderFromArgv(["electron.exe", ".", absolute], { defaultApp: true, cwd }), absolute);
+    assert.equal(folderFromArgv(["electron.exe", "."], { defaultApp: true, cwd }), null);
+
+    assert.equal(folderFromArgv(undefined), null);
+});
 
 test("folders : un dossier de confiance s'ouvre, vide le transcript et oublie le contexte", async () => {
     const ctx = setup();

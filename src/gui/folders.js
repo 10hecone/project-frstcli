@@ -118,4 +118,16 @@ function createFolders({
     return { recent, open, close, trust, sessions };
 }
 
-module.exports = { createFolders, RECENT_LIMIT };
+/**
+ * Dossier demandé en ligne de commande (« frst-gui <dossier> »), ou reçu par une seconde instance.
+ * Fonction pure : ignore l'exécutable, le script en mode développement et les options (-x, --x).
+ * Le chemin est résolu depuis `cwd` ; son existence est vérifiée plus tard, par open().
+ */
+function folderFromArgv(argv, { defaultApp = false, cwd = "" } = {}) {
+    const args = Array.isArray(argv) ? argv.slice(defaultApp ? 2 : 1) : [];
+    const arg = args.find((item) => typeof item === "string" && item.trim() && !item.startsWith("-"));
+    if (!arg) return null;
+    return path.resolve(cwd || process.cwd(), arg.trim());
+}
+
+module.exports = { createFolders, folderFromArgv, RECENT_LIMIT };
