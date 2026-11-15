@@ -160,8 +160,8 @@ function createWorkspace({
 
         const { state, resetConversation, setConversation } = st();
         const agentId = Number.isInteger(detail?.agent?.id) ? detail.agent.id : null;
-        resetConversation("chat");
-        setConversation("chat", chatId, agentId !== null ? { model: agentId } : null);
+        resetConversation();
+        setConversation(chatId, agentId !== null ? { model: agentId } : null);
         state.contextUsagePercent = state.contextDetails = null;
         state.pendingFiles = [];
 
@@ -186,7 +186,7 @@ function createWorkspace({
     function newThread() {
         ensureIdle();
         const { state, resetConversation } = st();
-        resetConversation("chat");
+        resetConversation();
         state.contextUsagePercent = state.contextDetails = null;
         state.pendingFiles = [];
         backend.clear();
@@ -273,7 +273,7 @@ function createWorkspace({
         const { state, resetConversation } = st();
         if (state.model === agent.id) return { ok: true, changed: false, name: agent.name };
         state.model = agent.id;
-        resetConversation("chat");
+        resetConversation();
         state.contextUsagePercent = state.contextDetails = null;
         backend.store.dispatch({
             type: "append",

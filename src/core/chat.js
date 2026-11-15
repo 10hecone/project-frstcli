@@ -297,7 +297,7 @@ function reportUsage(before) {
  * Les erreurs (Ctrl+C compris) remontent après l'enregistrement de la conversation.
  */
 async function send(input, { onDelta, onToolCalls, readOnly = false } = {}) {
-    activateConversation("chat");
+    activateConversation();
     const hadChat = Boolean(state.chatIds.chat);
     const clientTools = toolsFor({ readOnly });
     const changesBefore = memory.sessionChanges();

@@ -128,7 +128,7 @@ test("/new vide la conversation chat et le pourcentage de contexte", { concurren
     try {
         captureUi();
         state.mode = "auto";
-        state.chatIds = { chat: "chat-1", agent: null };
+        state.chatIds = { chat: "chat-1" };
         state.chatId = "chat-1";
         state.contextUsagePercent = 55;
         state.history = [{ role: "user", content: "a" }];
@@ -224,14 +224,13 @@ test("/chat-id <n> reprend une ancienne conversation agent comme conversation ch
         conversations.find = async (ref) =>
             ref === "2" ? { id: "agent-9", title: "Ancienne demande", mode: "agent", model: 5 } : null;
         state.mode = "auto";
-        state.chatIds = { chat: "chat-1", agent: null };
+        state.chatIds = { chat: "chat-1" };
         state.chatId = "chat-1";
         state.contextUsagePercent = 70;
 
         await commands.handleCommand("/chat-id 2");
         assert.equal(state.chatIds.chat, "agent-9");
         assert.equal(state.chatId, "agent-9");
-        assert.equal(state.chatIds.agent, null);
         assert.equal(state.model, 5);
         assert.equal(state.contextUsagePercent, null);
         assert.match(lines.join("\n"), /Conversation reprise : "Ancienne demande" \(agent-9\)/);

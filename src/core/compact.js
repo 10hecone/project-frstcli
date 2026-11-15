@@ -107,7 +107,7 @@ async function askText(message) {
  * Renvoie { summary, chars, previousChatId }.
  */
 async function compactSession({ instruction = "" } = {}) {
-    activateConversation("chat");
+    activateConversation();
     const previousChatId = state.chatIds.chat;
     if (!previousChatId) {
         throw new Error("Aucune conversation à résumer.");
@@ -119,9 +119,9 @@ async function compactSession({ instruction = "" } = {}) {
         throw new Error("Résumé vide : la session n'a pas été compactée.");
     }
 
-    resetConversation("chat");
+    resetConversation();
     state.conversationSettings.chat = previousSettings ? { ...previousSettings } : null;
-    activateConversation("chat");
+    activateConversation();
     state.contextUsagePercent = null;
     state.contextDetails = null;
     state.compactSummary = summary;

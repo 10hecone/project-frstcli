@@ -68,12 +68,8 @@ async function handleCommand(input) {
         break;
       }
 
-      {
-        const newConv = /\s+newconv$/i.test(value);
-        const target = newConv ? value.replace(/\s+newconv$/i, "").trim() : value;
-        // Refuser la confiance ferme l'outil.
-        if (!(await workspace.open(unquote(target), { newConv }))) return false;
-      }
+      // Refuser la confiance ferme l'outil.
+      if (!(await workspace.open(unquote(value)))) return false;
       break;
 
     case "/unproject":
@@ -402,7 +398,7 @@ async function handleCommand(input) {
       break;
 
     case "/new":
-      resetConversation("chat");
+      resetConversation();
       state.contextUsagePercent = state.contextDetails = null;
       ui.info("Nouvelle conversation.");
       break;
@@ -474,11 +470,9 @@ async function handleCommand(input) {
         break;
       }
 
-      // Une seule conversation active : même une ancienne conversation « agent »
-      // est reprise comme conversation chat (avec les outils client).
-      resetConversation("chat");
+      // Une ancienne conversation « agent » est reprise comme les autres (avec les outils client).
+      resetConversation();
       setConversation(
-        "chat",
         id,
         target?.settings || (Number.isInteger(target?.model) ? { model: target.model } : null),
       );
@@ -535,7 +529,7 @@ async function handleCommand(input) {
       }
 
       state.model = agent.id;
-      resetConversation("chat");
+      resetConversation();
       state.contextUsagePercent = state.contextDetails = null;
       ui.info(`Agent sélectionné : ${agent.name}`);
       break;

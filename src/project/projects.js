@@ -7,10 +7,10 @@ const { CONFIG } = require("../config");
 const { ui } = require("../ui-bridge");
 
 /*
- * Projets connus du CLI, enregistrés dans CONFIG.dataDir/projects.json
- * (~/.francestudent-cli par défaut, jamais dans le projet ouvert). Un projet = une conversation chat + une conversation agent.
- * Forme : { "<clé>": { path, trusted, createdAt, lastOpenedAt, conversations: { chat, agent } } }
- * avec chat / agent = { id, settings, updatedAt } ou null.
+ * Dossiers connus du CLI, enregistrés dans CONFIG.dataDir/projects.json
+ * (~/.francestudent-cli par défaut, jamais dans le dossier ouvert).
+ * Forme : { "<clé>": { path, trusted, createdAt, lastOpenedAt, sessions: [{ id, title, settings, updatedAt }] } }
+ * Les conversations restent sur le serveur : on ne garde que leurs identifiants, la plus récente en premier.
  */
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
@@ -26,8 +26,19 @@ function keyOf(workspace) {
     return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
-function emptyConversations() {
-    return { chat: null, agent: null };
+/**
+ * Ancienne forme { conversations: { chat, agent } } : la conversation chat devient la première session,
+ * l'ancienne conversation agent est oubliée. Renvoie true si le projet a été modifié.
+ */
+function migrateProject(project) {
+    if (!project || typeof project !== "object" || Array.isArray(project.sessions)) return false;
+
+    const chat = project.conversations && project.conversations.chat;
+    project.sessions = chat && chat.id
+        ? [{ id: chat.id, title: null, settings: chat.settings || null, updatedAt: chat.updatedAt || null }]
+        : [];
+    delete project.conversations;
+    return true;
 }
 
 /** Lit un fichier JSON : found vaut false seulement si le fichier n'existe pas. */
@@ -51,6 +62,9 @@ async function load() {
 
     // Première utilisation ou fichier illisible : aucun projet.
     projects = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+    for (const project of Object.values(projects)) {
+        if (migrateProject(project)) migrate = true;
+    }
     if (migrate) await save();
 
     return projects;
@@ -79,45 +93,50 @@ async function get(workspace) {
     return projects[keyOf(workspace)] || null;
 }
 
-/**
- * Ouvre un projet. S'il est inconnu, il est créé. S'il existe, il est repris tel quel,
- * sauf avec newConv : ses deux conversations sont alors oubliées.
- */
-async function open(workspace, { newConv = false } = {}) {
+function entryFor(workspace, now) {
+    const key = keyOf(workspace);
+    return projects[key] || (projects[key] = { path: workspace, createdAt: now, lastOpenedAt: now, sessions: [] });
+}
+
+/** Ouvre un dossier (créé s'il est inconnu) et le marque comme digne de confiance. */
+async function open(workspace) {
     await load();
 
-    const key = keyOf(workspace);
     const now = new Date().toISOString();
-    const existing = projects[key] || null;
-
-    const project = existing || { path: workspace, createdAt: now, conversations: emptyConversations() };
+    const created = !projects[keyOf(workspace)];
+    const project = entryFor(workspace, now);
 
     project.path = workspace;
     project.lastOpenedAt = now;
     // open() n'est appelé qu'une fois la confiance accordée (workspace.open).
     project.trusted = true;
-    if (!project.conversations || newConv) project.conversations = emptyConversations();
 
-    projects[key] = project;
     await save();
 
-    return { project, created: !existing };
+    return { project, created };
 }
 
-/** Mémorise la conversation (chat ou agent) d'un projet. */
-async function setConversation(workspace, mode, id, settings = null) {
+/**
+ * Mémorise une session du dossier et la place en tête. Un titre déjà connu est gardé :
+ * celui de l'API s'il a été enregistré, sinon le début du premier message.
+ */
+async function saveSession(workspace, { id, title = null, settings = null }) {
     if (!workspace || !id) return;
-await load();
+    await load();
 
-    const key = keyOf(workspace);
     const now = new Date().toISOString();
-    const project = projects[key] ||
-        (projects[key] = { path: workspace, createdAt: now, lastOpenedAt: now, conversations: emptyConversations() });
+    const project = entryFor(workspace, now);
+    const index = project.sessions.findIndex((session) => session.id === id);
+    const previous = index === -1 ? null : project.sessions.splice(index, 1)[0];
 
-    if (!project.conversations) project.conversations = emptyConversations();
-    project.conversations[mode === "agent" ? "agent" : "chat"] = { id, settings: settings || null, updatedAt: now };
+    project.sessions.unshift({
+        id,
+        title: (previous && previous.title) || title || null,
+        settings: settings || (previous && previous.settings) || null,
+        updatedAt: now
+    });
 
     await save();
 }
 
-module.exports = { open, get, setConversation, readStore, FILE, LEGACY_FILE, REPO_ROOT };
+module.exports = { open, get, saveSession, migrateProject, readStore, FILE, LEGACY_FILE, REPO_ROOT };

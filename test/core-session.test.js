@@ -205,7 +205,7 @@ test("handleInput : les erreurs de chat.send remontent à l'appelant", async () 
 
 // ---- bootstrap ----
 
-test("bootstrap : session valide, seule la conversation chat est restaurée", async () => {
+test("bootstrap : session valide, la conversation chat est restaurée", async () => {
     const { calls, restore } = setup();
     try {
         auth.initAuth = async () => {};
@@ -217,7 +217,6 @@ test("bootstrap : session valide, seule la conversation chat est restaurée", as
 
         assert.deepEqual(await session.bootstrap(), { ok: true });
         assert.equal(state.chatIds.chat, "c-1");
-        assert.equal(state.chatIds.agent, null);
         assert.deepEqual(asked, ["chat"]);
         assert.ok(calls.ui.some((call) => call.name === "info"));
     } finally {

@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const { state, resetConversation, setConversation } = require("../state");
+const { state, resetConversation } = require("../state");
 
 // ui-bridge, memory et project-context sont chargés dans open() et close() : les outils et la
 // sécurité lisent `workspace.root`, et ce chargement différé évite tout import circulaire.
@@ -72,7 +72,7 @@ function trustMessage(dir) {
 }
 
 /** Ouvre un dossier. Renvoie false si l'utilisateur refuse de lui faire confiance (rien n'est ouvert). */
-async function open(directory, { newConv = false } = {}) {
+async function open(directory) {
     const projects = require("../project/projects");
     const { ui } = require("../ui-bridge");
     const memory = require("../project/memory");
@@ -91,17 +91,15 @@ async function open(directory, { newConv = false } = {}) {
     projectContext.clear();
     await memory.open(real);
 
-    const { project, created } = await projects.open(real, { newConv });
-
-    // Seule la conversation chat est reprise : l'ancienne conversation agent écraserait ses réglages.
-    const saved = project.conversations.chat;
-    if (saved && saved.id) setConversation("chat", saved.id, saved.settings);
+    // Chaque ouverture démarre une nouvelle session ; les précédentes restent dans projects.json.
+    const { project, created } = await projects.open(real);
+    const previous = project.sessions.length;
 
     ui.info(`Projet : ${real}`);
-
     if (created) ui.info("Nouveau projet enregistré dans projects.json.");
-    else if (newConv) ui.info("Projet existant : nouvelle conversation.");
-    else ui.info("Projet existant : reprise de sa conversation (le contexte n'est pas renvoyé).");
+    ui.info(previous
+        ? `Nouvelle session (${previous} session(s) précédente(s) dans ce dossier : /history et /chat-id pour en reprendre une).`
+        : "Nouvelle session.");
 
     const notes = memory.listNotes().length;
     const undo = memory.listUndo().length;

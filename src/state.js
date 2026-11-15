@@ -4,9 +4,8 @@ const { CONFIG } = require("./config");
 
 const state = {
     chatId: null,
-    // La case "agent" ne sert plus qu'à relire les anciennes données (projects.json, /chat-id).
-    chatIds: { chat: null, agent: null },
-    conversationSettings: { chat: null, agent: null },
+    chatIds: { chat: null },
+    conversationSettings: { chat: null },
     model: CONFIG.defaultAgentId,
     webSearch: false,
     private: true,
@@ -14,7 +13,7 @@ const state = {
     workspace: null,
     frProject: null,     // projet FranceStudent { id, name } rattaché aux nouvelles conversations
     history: [],
-    mode: "auto",        // auto (outils client) | chat (aucun outil)
+    mode: "auto", // auto (outils client) | chat (aucun outil)
     autoApprove: false,  // true = plus de confirmation pour la session
     contextUsagePercent: null, // contexte utilisé par la conversation chat (0 à 100), null si inconnu
     contextDetails: null, // détails de GET /chats/{id}/context (account.normalizeContext), null si inconnus
@@ -22,40 +21,29 @@ const state = {
     pendingFiles: []     // ids Files v2 joints au prochain message (consommés une seule fois)
 };
 
-function activateConversation(mode) {
-    const key = mode === "agent" ? "agent" : "chat";
-    state.chatId = state.chatIds[key];
+/** Rend active la conversation enregistrée : son id et ses réglages. */
+function activateConversation() {
+    state.chatId = state.chatIds.chat;
 
-    const settings = state.conversationSettings[key];
+    const settings = state.conversationSettings.chat;
     if (settings) {
         for (const name of ["model", "webSearch", "private", "incognito"]) {
             if (settings[name] !== undefined) state[name] = settings[name];
         }
     }
-
-    return key;
 }
 
-function setConversation(mode, id, settings = null) {
-    const key = mode === "agent" ? "agent" : "chat";
-    state.chatIds[key] = id || null;
-    state.conversationSettings[key] = settings ? { ...settings } : null;
+function setConversation(id, settings = null) {
+    state.chatIds.chat = id || null;
+    state.conversationSettings.chat = settings ? { ...settings } : null;
     state.compactSummary = null;
-    activateConversation(key);
+    activateConversation();
 }
 
-function resetConversation(mode = null) {
-    if (mode) {
-        const key = mode === "agent" ? "agent" : "chat";
-        state.chatIds[key] = null;
-        state.conversationSettings[key] = null;
-        activateConversation(key);
-    } else {
-        state.chatIds = { chat: null, agent: null };
-        state.conversationSettings = { chat: null, agent: null };
-        state.chatId = null;
-    }
-
+function resetConversation() {
+    state.chatIds = { chat: null };
+    state.conversationSettings = { chat: null };
+    state.chatId = null;
     state.history = [];
     state.compactSummary = null;
 }

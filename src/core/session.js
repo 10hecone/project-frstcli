@@ -43,7 +43,7 @@ async function bootstrap() {
 
     // Une seule conversation : celle du chat (les anciennes conversations « agent » ne sont plus reprises).
     const saved = await conversations.findForWorkspace(null, "chat");
-    if (saved) setConversation("chat", saved.id, saved.settings);
+    if (saved) setConversation(saved.id, saved.settings);
 
     return { ok: true };
 }

@@ -12,17 +12,17 @@ const { CHANNELS } = require("../src/gui/channels");
 
 /** Workspace avec toutes ses dépendances simulées : aucun réseau, aucun Electron. */
 function setup({ routes = () => ({}), running = false, uploads = null } = {}) {
-    const calls = { requests: [], dispatched: [], cleared: 0, refreshed: 0, resets: [], conversations: [], saved: undefined };
+    const calls = { requests: [], dispatched: [], cleared: 0, refreshed: 0, resets: 0, conversations: [], saved: undefined };
     const state = { workspace: path.join("dev", "projet"), model: 7, chatIds: {}, frProject: null, pendingFiles: ["ancien"] };
     const stateModule = {
         state,
-        resetConversation(kind) {
-            calls.resets.push(kind);
+        resetConversation() {
+            calls.resets += 1;
             state.chatIds = {};
         },
-        setConversation(kind, id, extra) {
-            calls.conversations.push({ kind, id, extra });
-            state.chatIds = { [kind]: id };
+        setConversation(id, extra) {
+            calls.conversations.push({ id, extra });
+            state.chatIds = { chat: id };
             if (extra && extra.model) state.model = extra.model;
         }
     };
@@ -162,8 +162,8 @@ test("workspace : openChat vide le transcript puis rejoue l'historique", async (
     const result = await workspace.openChat(" c1 ");
     assert.deepEqual(result, { ok: true, id: "c1", title: "Révisions" });
     assert.equal(calls.requests[0].route, "/chats/c1");
-    assert.deepEqual(calls.resets, ["chat"]);
-    assert.deepEqual(calls.conversations, [{ kind: "chat", id: "c1", extra: { model: 9 } }]);
+    assert.equal(calls.resets, 1);
+    assert.deepEqual(calls.conversations, [{ id: "c1", extra: { model: 9 } }]);
     assert.deepEqual(state.pendingFiles, []);
     assert.equal(state.model, 9);
 
@@ -195,7 +195,7 @@ test("workspace : newThread réinitialise la conversation et l'écran", () => {
     const { workspace, calls, state } = setup();
     state.chatIds = { chat: "c1" };
     assert.deepEqual(workspace.newThread(), { ok: true });
-    assert.deepEqual(calls.resets, ["chat"]);
+    assert.equal(calls.resets, 1);
     assert.deepEqual(state.chatIds, {});
     assert.deepEqual(state.pendingFiles, []);
     assert.equal(calls.cleared, 1);
@@ -206,11 +206,11 @@ test("workspace : setModel change de modèle et ouvre une nouvelle conversation"
     const { workspace, calls, state } = setup();
 
     assert.deepEqual(await workspace.setModel(7), { ok: true, changed: false, name: "Rapide" });
-    assert.equal(calls.resets.length, 0);
+    assert.equal(calls.resets, 0);
 
     assert.deepEqual(await workspace.setModel("9"), { ok: true, changed: true, name: "Expert" });
     assert.equal(state.model, 9);
-    assert.deepEqual(calls.resets, ["chat"]);
+    assert.equal(calls.resets, 1);
     assert.match(calls.dispatched[0].entry.text, /Expert/);
     assert.equal(calls.refreshed, 1);
 

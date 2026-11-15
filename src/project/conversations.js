@@ -109,7 +109,7 @@ async function touch({ id, firstMessage, model, workspace, mode = "chat", settin
 
   await save();
 
-  if (workspace) await projects.setConversation(workspace, mode, id, entry.settings);
+  if (workspace) await projects.saveSession(workspace, { id, title: entry.title, settings: entry.settings });
 
   return entry;
 }
