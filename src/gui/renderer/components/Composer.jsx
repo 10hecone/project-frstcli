@@ -23,6 +23,7 @@ const contextKey = (ctx) => (ctx ? `${ctx.kind}:${ctx.start}` : null);
  * - Échap (dans la saisie ou n'importe où dans la fenêtre) interrompt la tâche en
  *   cours ; les messages en file reviennent alors dans la saisie.
  * - Trombone : envoie des fichiers (Files v2) ; leurs ids partent avec le message.
+ * - Ctrl+V sur une image : elle est jointe comme avec le trombone (le texte collé reste du texte).
  * - Sélecteur de modèle, usage (contexte et budget), dossier et branche git.
  */
 export function Composer({
@@ -39,6 +40,7 @@ export function Composer({
     onSubmit,
     onInterrupt,
     onPickFiles,
+    onPasteImage,
     onPickFolder,
     onSetModel,
     onRefreshUsage
@@ -173,6 +175,16 @@ export function Composer({
         else complete(item);
     };
 
+    /** Ajoute les fichiers envoyés ({ files, errors }) aux pièces jointes, sans doublon. */
+    const addAttachments = (result) => {
+        const added = result.files || [];
+        setAttachments((prev) => {
+            const known = new Set(prev.map((file) => file.id));
+            return [...prev, ...added.filter((file) => !known.has(file.id))].slice(0, MAX_ATTACHMENTS);
+        });
+        if (result.errors && result.errors.length) setFileError(result.errors.join(" · "));
+    };
+
     const attach = async () => {
         if (!onPickFiles || uploading) return;
         setUploading(true);
@@ -180,12 +192,46 @@ export function Composer({
         try {
             const result = (await onPickFiles()) || {};
             if (result.cancelled && !(result.files || []).length) return;
-            const added = result.files || [];
-            setAttachments((prev) => {
-                const known = new Set(prev.map((file) => file.id));
-                return [...prev, ...added.filter((file) => !known.has(file.id))].slice(0, MAX_ATTACHMENTS);
-            });
-            if (result.errors && result.errors.length) setFileError(result.errors.join(" · "));
+            addAttachments(result);
+        } finally {
+            setUploading(false);
+            inputRef.current?.focus();
+        }
+    };
+
+    /**
+     * Ctrl+V : une image du presse-papiers (capture d'écran, « copier l'image ») devient une
+     * pièce jointe. Si le presse-papiers contient aussi du texte, le collage reste un collage de texte.
+     */
+    const paste = async (event) => {
+        const data = event.clipboardData;
+        if (!onPasteImage || !data || data.getData("text/plain")) return;
+        const images = Array.from(data.items || [])
+            .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+            .map((item) => item.getAsFile())
+            .filter(Boolean);
+        if (!images.length) return;
+        event.preventDefault();
+        if (uploading) return;
+        const room = MAX_ATTACHMENTS - attachments.length;
+        if (room <= 0) {
+            setFileError(`${MAX_ATTACHMENTS} pièces jointes au maximum.`);
+            return;
+        }
+        setUploading(true);
+        setFileError(null);
+        try {
+            const files = [];
+            const errors = [];
+            for (const image of images.slice(0, room)) {
+                const result = (await onPasteImage(new Uint8Array(await image.arrayBuffer()), image.type)) || {};
+                files.push(...(result.files || []));
+                errors.push(...(result.errors || []));
+            }
+            if (images.length > room) errors.push(`${MAX_ATTACHMENTS} pièces jointes au maximum.`);
+            addAttachments({ files, errors });
+        } catch (error) {
+            setFileError(error && error.message ? error.message : "Image collée illisible.");
         } finally {
             setUploading(false);
             inputRef.current?.focus();
@@ -295,8 +341,12 @@ export function Composer({
                 {attachments.length || uploading ? (
                     <ul className="attachments" aria-label="Pièces jointes">
                         {attachments.map((file) => (
-                            <li key={file.id} className="attachment" title={file.name}>
-                                <PaperclipIcon size={12} />
+                            <li key={file.id} className={`attachment${file.preview ? " has-preview" : ""}`} title={file.name}>
+                                {file.preview ? (
+                                    <img className="attachment-thumb" src={file.preview} alt={`Aperçu de ${file.name}`} draggable={false} />
+                                ) : (
+                                    <PaperclipIcon size={12} />
+                                )}
                                 <span className="attachment-name">{file.name}</span>
                                 {file.bytes ? <span className="attachment-size">{bytes(file.bytes)}</span> : null}
                                 <button
@@ -338,6 +388,7 @@ export function Composer({
                     }}
                     onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
                     onKeyDown={onKeyDown}
+                    onPaste={paste}
                     onBlur={() => setDismissed(key)}
                     onFocus={() => setDismissed(null)}
                 />

@@ -9,12 +9,47 @@
  * sessionUsage.
  */
 
+const fs = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 const { workspace } = require("../core/workspace");
 
 const CHAT_PAGE = 40;
 
+// Types d'image acceptés au collage (presse-papiers) → extension du fichier envoyé.
+const IMAGE_EXTENSIONS = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/bmp": "bmp"
+};
+
+// Aperçu des pièces jointes : images courantes seulement (le SVG peut contenir du script), 3 Mo au plus.
+const PREVIEW_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp"
+};
+const PREVIEW_MAX_BYTES = 3 * 1024 * 1024;
+
 const text = (value) => (value === null || value === undefined ? "" : String(value));
+
+/** URL data: d'aperçu d'une image locale, ou null (autre type, trop lourde, illisible). Ne lève jamais. */
+async function previewOf(filePath) {
+    const mime = PREVIEW_TYPES[path.extname(text(filePath)).toLowerCase()];
+    if (!mime) return null;
+    try {
+        const stat = await fs.stat(filePath);
+        if (!stat.isFile() || stat.size === 0 || stat.size > PREVIEW_MAX_BYTES) return null;
+        return `data:${mime};base64,${(await fs.readFile(filePath)).toString("base64")}`;
+    } catch {
+        return null;
+    }
+}
 
 /** Liste d'éléments quel que soit l'emballage : tableau, { data }, { chats }, { items }. */
 function listOf(payload, key = null) {
@@ -299,12 +334,42 @@ function createWorkspace({
         for (const filePath of paths) {
             const name = path.basename(text(filePath));
             try {
-                files.push(normalizeFile(await api().uploadFile(filePath), name));
+                const file = normalizeFile(await api().uploadFile(filePath), name);
+                const preview = await previewOf(filePath);
+                files.push(preview ? { ...file, preview } : file);
             } catch (error) {
                 errors.push(`${name} : ${error && error.message ? error.message : String(error)}`);
             }
         }
         return { files, errors };
+    }
+
+    /**
+     * Envoie une image collée (octets du presse-papiers) comme pièce jointe Files v2.
+     * L'image passe par un fichier temporaire, supprimé aussitôt : { files, errors }.
+     */
+    async function uploadImage(data, mime = "image/png") {
+        const extension = IMAGE_EXTENSIONS[text(mime).toLowerCase()];
+        if (!extension) return { files: [], errors: ["Format d'image non pris en charge."] };
+        const content = Buffer.isBuffer(data)
+            ? data
+            : ArrayBuffer.isView(data)
+                ? Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+                : null;
+        if (!content || !content.length) return { files: [], errors: ["Image vide ou illisible."] };
+
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "");
+        let dir = null;
+        try {
+            dir = await fs.mkdtemp(path.join(os.tmpdir(), "frst-paste-"));
+            const filePath = path.join(dir, `image-collee-${stamp}.${extension}`);
+            await fs.writeFile(filePath, content);
+            return await uploadFiles([filePath]);
+        } catch (error) {
+            return { files: [], errors: [`Image collée : ${error && error.message ? error.message : String(error)}`] };
+        } finally {
+            if (dir) await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+        }
     }
 
     return {
@@ -320,7 +385,8 @@ function createWorkspace({
         toggleSkill,
         setModel,
         setPermissionMode,
-        uploadFiles
+        uploadFiles,
+        uploadImage
     };
 }
 

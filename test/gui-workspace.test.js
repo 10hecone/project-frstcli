@@ -301,8 +301,63 @@ test("workspace : uploadFiles continue après un échec", async () => {
     assert.deepEqual(result.errors, ["gros.zip : fichier trop gros"]);
 });
 
+test("workspace : uploadImage envoie l'image collée puis supprime le fichier temporaire", async () => {
+    const fs = require("node:fs");
+    const seen = {};
+    const { workspace } = setup({
+        uploads: async (filePath) => {
+            seen.path = filePath;
+            seen.content = fs.readFileSync(filePath);
+            return { data: { id: "img-1", bytes: seen.content.length } };
+        }
+    });
+    const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+    const result = await workspace.uploadImage(png, "image/png");
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.files.length, 1);
+    assert.equal(result.files[0].id, "img-1");
+    assert.match(result.files[0].name, /^image-collee-\d{14}\.png$/);
+    assert.deepEqual([...seen.content], [...png]);
+    assert.equal(fs.existsSync(seen.path), false);
+});
+
+test("workspace : uploadFiles joint un aperçu aux images seulement", async () => {
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "frst-preview-"));
+    try {
+        const png = path.join(dir, "photo.png");
+        const svg = path.join(dir, "dessin.svg");
+        const txt = path.join(dir, "notes.txt");
+        fs.writeFileSync(png, Buffer.from([137, 80, 78, 71, 1, 2, 3]));
+        fs.writeFileSync(svg, "<svg></svg>");
+        fs.writeFileSync(txt, "bonjour");
+        const { workspace } = setup({ uploads: async (filePath) => ({ data: { id: `id-${path.basename(filePath)}`, bytes: 3 } }) });
+        const result = await workspace.uploadFiles([png, svg, txt]);
+        assert.deepEqual(result.errors, []);
+        assert.equal(result.files[0].preview, `data:image/png;base64,${Buffer.from([137, 80, 78, 71, 1, 2, 3]).toString("base64")}`);
+        assert.equal(result.files[1].preview, undefined);
+        assert.equal(result.files[2].preview, undefined);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test("workspace : uploadImage refuse un format inconnu et une image vide", async () => {
+    const { workspace } = setup({
+        uploads: async () => {
+            throw new Error("ne doit pas être appelé");
+        }
+    });
+    const format = await workspace.uploadImage(new Uint8Array([1]), "application/pdf");
+    assert.deepEqual(format.files, []);
+    assert.match(format.errors[0], /Format/);
+    assert.match((await workspace.uploadImage(new Uint8Array(0), "image/png")).errors[0], /vide/);
+    assert.match((await workspace.uploadImage(null, "image/png")).errors[0], /vide/);
+});
+
 test("canaux IPC : canaux de l'espace de travail présents", () => {
-    for (const name of ["INFO", "CHATS", "OPEN_CHAT", "NEW_THREAD", "PROJECTS", "SELECT_PROJECT", "USAGE", "SKILLS", "TOGGLE_SKILL", "SET_MODEL", "PICK_FILES", "PICK_FOLDER", "OPEN_FOLDER", "CLOSE_FOLDER", "RECENT_FOLDERS", "TRUST_FOLDER", "FOLDER_SESSIONS", "SET_PERMISSION_MODE"]) {
+    for (const name of ["INFO", "CHATS", "OPEN_CHAT", "NEW_THREAD", "PROJECTS", "SELECT_PROJECT", "USAGE", "SKILLS", "TOGGLE_SKILL", "SET_MODEL", "PICK_FILES", "PASTE_IMAGE", "PICK_FOLDER", "OPEN_FOLDER", "CLOSE_FOLDER", "RECENT_FOLDERS", "TRUST_FOLDER", "FOLDER_SESSIONS", "SET_PERMISSION_MODE"]) {
         assert.match(CHANNELS[name] || "", /^frst:/, name);
     }
 });

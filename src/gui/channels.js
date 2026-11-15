@@ -24,6 +24,7 @@ const CHANNELS = Object.freeze({
     TOGGLE_SKILL: "frst:toggle-skill",
     SET_MODEL: "frst:set-model",
     PICK_FILES: "frst:pick-files",
+    PASTE_IMAGE: "frst:paste-image",
 
     // Fenêtre → processus principal : dossiers et mode de permission
     PICK_FOLDER: "frst:pick-folder",

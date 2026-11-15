@@ -151,6 +151,16 @@ export function useWorkspace(client, status = {}) {
             return { files: [], errors: [errorText(err)], cancelled: false };
         }
         }, [client]);
+    const pasteImage = useCallback(
+        async (data, mime) => {
+            try {
+                return await client.pasteImage(data, mime);
+            } catch (err) {
+                return { files: [], errors: [errorText(err)] };
+            }
+        },
+        [client]
+    );
 
     const loadFolders = useCallback(async () => {
         try {
@@ -252,6 +262,7 @@ export function useWorkspace(client, status = {}) {
         selectProject,
         toggleSkill,
         pickFiles,
+        pasteImage,
         loadFolders,
         openFolder,
         pickFolder,

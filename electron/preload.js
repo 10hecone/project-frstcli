@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld("frst", {
         invoke(CHANNELS.TOGGLE_SKILL, String(id ?? ""), Boolean(enabled), Boolean(shared)),
     setModel: (id) => invoke(CHANNELS.SET_MODEL, Number(id)),
     pickFiles: () => invoke(CHANNELS.PICK_FILES),
+    pasteImage: (data, mime) => invoke(CHANNELS.PASTE_IMAGE, data, String(mime ?? "")),
 
     // ---- Dossiers et mode de permission ----
     pickFolder: () => invoke(CHANNELS.PICK_FOLDER),

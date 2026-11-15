@@ -162,6 +162,7 @@ function registerIpc(win, { onExit = null, initialFolder = null } = {}) {
         [CHANNELS.TOGGLE_SKILL]: (id, enabled, shared) => workspace.toggleSkill(id, enabled, shared),
         [CHANNELS.SET_MODEL]: (id) => workspace.setModel(id),
         [CHANNELS.PICK_FILES]: () => pickFiles(),
+        [CHANNELS.PASTE_IMAGE]: (data, mime) => workspace.uploadImage(data, mime),
 
         [CHANNELS.PICK_FOLDER]: () => pickFolder(),
         [CHANNELS.OPEN_FOLDER]: (dir) => folders.open(dir),

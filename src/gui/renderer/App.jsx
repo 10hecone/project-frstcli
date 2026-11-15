@@ -145,6 +145,7 @@ export function App({ client }) {
                             onSubmit={submit}
                             onInterrupt={interrupt}
                             onPickFiles={workspace.pickFiles}
+                            onPasteImage={workspace.pasteImage}
                             onPickFolder={workspace.pickFolder}
                             onSetModel={workspace.setModel}
                             onRefreshUsage={loadUsage}

@@ -11,7 +11,7 @@
  *
  * Méthodes d'espace de travail (facultatives, complétées hors ligne si absentes) :
  * info, listChats, openChat, newThread, listProjects, selectProject, usage,
- * listSkills, toggleSkill, setModel, pickFiles.
+ * listSkills, toggleSkill, setModel, pickFiles, pasteImage(octets, type MIME) → { files, errors }.
  *
  * Dossiers et permissions (mêmes règles) :
  * - pickFolder()        → { ok, path } | { needsTrust, path, message } | { cancelled }
@@ -40,6 +40,7 @@ export const WORKSPACE_FALLBACKS = {
     toggleSkill: async () => ({ ok: false, reason: OFFLINE }),
     setModel: async () => ({ ok: false, reason: OFFLINE }),
     pickFiles: async () => ({ files: [], errors: ["Hors ligne"], cancelled: true }),
+    pasteImage: async () => ({ files: [], errors: ["Hors ligne"] }),
     pickFolder: async () => ({ ok: false, cancelled: true }),
     openFolder: async () => ({ ok: false, reason: OFFLINE }),
     closeFolder: async () => ({ ok: false, reason: OFFLINE }),
