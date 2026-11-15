@@ -9,9 +9,8 @@ const projectContext = require("../project/project-context");
 const conversations = require("../project/conversations");
 const { authStatus, getAccessToken } = require("../api/auth");
 const { promptAndLogin } = require("../api/login");
+const { workspace } = require("../core/workspace");
 const {
-  setProject,
-  unsetProject,
   undoLast,
   listDirectory,
   readFile,
@@ -72,12 +71,12 @@ async function handleCommand(input) {
       {
         const newConv = /\s+newconv$/i.test(value);
         const target = newConv ? value.replace(/\s+newconv$/i, "").trim() : value;
-        await setProject(unquote(target), { newConv });
+        await workspace.open(unquote(target), { newConv });
       }
       break;
 
     case "/unproject":
-      unsetProject();
+      workspace.close();
       ui.info("Projet désélectionné. Retour au chat normal.");
       break;
 
