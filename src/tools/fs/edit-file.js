@@ -47,7 +47,15 @@ async function editFile(args = {}) {
         replacement = replacement.replace(/\r?\n/g, "\r\n");
     }
 
-    const count = previous.split(needle).length - 1;
+    let count = previous.split(needle).length - 1;
+
+    if (count === 0) {
+        const loose = findLoose(previous, args.old_string);
+        if (loose) {
+            needle = loose;
+            count = previous.split(needle).length - 1;
+        }
+    }
 
     if (count === 0) {
         throw new Error(
@@ -109,6 +117,31 @@ async function editFile(args = {}) {
     };
 }
 
+/**
+ * Repli quand old_string n'est pas trouvé tel quel : compare ligne à ligne en ignorant
+ * les espaces de début/fin et les \r (indentation ou fins de ligne recopiées de travers).
+ * Renvoie le texte exact du fichier, ou null si zéro ou plusieurs correspondances.
+ */
+function findLoose(text, needle) {
+    const want = needle.replace(/\r?\n$/, "").split(/\r?\n/).map((l) => l.trim());
+    if (!want.some(Boolean)) return null;
+
+    const lines = text.split("\n");
+    const found = [];
+
+    for (let i = 0; i + want.length <= lines.length; i++) {
+        if (want.every((w, j) => lines[i + j].trim() === w)) found.push(i);
+    }
+
+    if (found.length !== 1) return null;
+
+    const end = found[0] + want.length;
+    const span = lines.slice(found[0], end).join("\n");
+
+    // Garde le saut de ligne final seulement si old_string en avait un.
+    return /\n$/.test(needle) && end < lines.length ? `${span}\n` : span.replace(/\r$/, "");
+}
+
 function check(args) {
     requireString(args.path, "path");
 
@@ -136,4 +169,4 @@ function describe(a) {
     return `${a.path} : \"${short(a.old_string, 40)}\" -> \"${short(a.new_string, 40)}\"`;
 }
 
-module.exports = { name: "edit_file", run: editFile, check, describe };
+module.exports = { name: "edit_file", run: editFile, check, describe, findLoose };
