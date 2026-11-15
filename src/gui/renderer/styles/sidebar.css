@@ -13,7 +13,7 @@
     --fill-hover: rgba(255, 255, 255, 0.13);
     --fill-pressed: rgba(255, 255, 255, 0.19);
     --field: rgba(0, 0, 0, 0.25);
-    --selection: rgba(91, 140, 255, 0.26);
+    --selection: rgba(255, 255, 255, 0.2);
     --selection-text: #ffffff;
     --segment: rgba(255, 255, 255, 0.2);
     --control-edge: rgba(255, 255, 255, 0.42);
@@ -45,8 +45,8 @@
     --fill-hover: rgba(0, 0, 0, 0.08);
     --fill-pressed: rgba(0, 0, 0, 0.13);
     --field: rgba(60, 60, 67, 0.12);
-    --selection: rgba(47, 107, 255, 0.14);
-    --selection-text: #123a9c;
+    --selection: rgba(0, 0, 0, 0.14);
+    --selection-text: #1c1e24;
     --segment: #ffffff;
     --control-edge: rgba(0, 0, 0, 0.45);
     --switch-off: rgba(120, 120, 128, 0.32);
@@ -673,7 +673,7 @@
 @media (prefers-reduced-transparency: reduce) {
     :root {
         --field: #0a0b0f;
-        --selection: #253356;
+        --selection: #34373f;
         --segment: #3a3d46;
     }
 
@@ -682,7 +682,7 @@
         --glass-rail: #e6e8ee;
         --glass-popover: #ffffff;
         --field: #e3e5eb;
-        --selection: #dbe5fb;
+        --selection: #dcdfe6;
         --segment: #ffffff;
     }
 
@@ -699,7 +699,7 @@
         --fill-hover: rgba(255, 255, 255, 0.24);
         --fill-pressed: rgba(255, 255, 255, 0.32);
         --field: rgba(0, 0, 0, 0.5);
-        --selection: rgba(91, 140, 255, 0.45);
+        --selection: rgba(255, 255, 255, 0.3);
         --segment: rgba(255, 255, 255, 0.3);
         --control-edge: rgba(255, 255, 255, 0.8);
     }
@@ -709,7 +709,7 @@
         --fill-hover: rgba(0, 0, 0, 0.16);
         --fill-pressed: rgba(0, 0, 0, 0.24);
         --field: rgba(60, 60, 67, 0.2);
-        --selection: rgba(47, 107, 255, 0.25);
+        --selection: rgba(0, 0, 0, 0.22);
         --control-edge: rgba(0, 0, 0, 0.75);
     }
 
