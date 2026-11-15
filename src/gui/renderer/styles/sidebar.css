@@ -3,7 +3,8 @@
  * Les jetons ci-dessous ne servent qu'à ces deux barres ; hors des blocs de jetons,
  * aucune couleur n'est écrite en dur.
  *
- * Matériaux : --glass-rail (le plus sombre) > --glass-thick (barre latérale) ;
+ * Contour : les deux barres partagent un seul contour arrondi (.app::before, --panel-edge),
+ * sans fond ni séparation : le fond du thread passe dessous.
  * --glass-popover pour le toast et les menus. Jamais un verre clair sur un autre.
  * Hiérarchie : l'accent plein ne sert qu'à l'indicateur de vue, au focus et à « Rattaché » ;
  * --selection marque l'élément choisi ; tout le reste est neutre.
@@ -21,8 +22,16 @@
     --switch-on: var(--ok);
     --knob: #ffffff;
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --sheen: rgba(255, 255, 255, 0.07);
     --brand-start: #6f9bff;
-    --brand-end: #8a5cff;
+    --brand-end: #3f6fe8;
+    --panel-edge: rgba(255, 255, 255, 0.14);
+    --panel-highlight: rgba(255, 255, 255, 0.06);
+    --logo-text: #ffffff;
+    --panel-gap: 8px;
+    /* Repli de la barre latérale : courbe sans rebond (amortissement critique). */
+    --collapse-duration: 340ms;
+    --collapse-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /*
@@ -53,8 +62,18 @@
     --switch-on: var(--ok);
     --knob: #ffffff;
     --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.18);
+    --sheen: rgba(255, 255, 255, 0.6);
     --brand-start: #5b8cff;
-    --brand-end: #7a4cff;
+    --brand-end: #3a6ae0;
+    --panel-edge: rgba(0, 0, 0, 0.14);
+    --panel-highlight: rgba(255, 255, 255, 0.6);
+    --logo-text: #1c1e24;
+}
+
+/* Thème clair du contour commun (un pseudo-élément ne peut pas aller dans :is()). */
+[data-theme="light"] .app::before {
+    --panel-edge: rgba(0, 0, 0, 0.14);
+    --panel-highlight: rgba(255, 255, 255, 0.6);
 }
 
 /*
@@ -172,16 +191,61 @@
     filter: brightness(0.92);
 }
 
-/* ---- Barre latérale (matériau épais) ---- */
+/*
+ * ---- Contour commun : barre d'activité + barre latérale ----
+ * Un seul contour arrondi autour des deux colonnes, sans fond : le fond du thread
+ * passe dessous, les trois zones se lisent comme une seule surface.
+ * Le contour suit la colonne de la grille : il se rétracte avec elle au repli.
+ * Placement explicite dans la grille : le pseudo-élément ne décale pas les colonnes.
+ */
+.app {
+    padding-left: var(--panel-gap);
+    transition: grid-template-columns var(--collapse-duration) var(--collapse-ease);
+}
+
+.app::before {
+    content: "";
+    grid-row: 1;
+    grid-column: 1 / 3;
+    margin-bottom: var(--panel-gap);
+    border-radius: var(--radius-lg);
+    background: transparent;
+    box-shadow:
+ inset 0 0 0 1px var(--panel-edge),
+        inset 0 1px 0 var(--panel-highlight);
+    pointer-events: none;
+}
+
+.activity-bar {
+    grid-row: 1;
+    grid-column: 1;
+}
+
+.sidebar {
+    grid-row: 1;
+    grid-column: 2;
+}
+
+.main {
+    grid-row: 1;
+    grid-column: 3;
+}
+
+/*
+ * ---- Barre latérale ----
+ * Transparente : elle repose sur le panneau commun. Ses coins droits suivent ceux du panneau.
+ * Vibrance : léger espacement des lettres pour garder les petits textes lisibles sur le verre.
+ */
 
 .sidebar {
     position: relative;
     min-width: 0;
     min-height: 0;
+    margin-bottom: var(--panel-gap);
     overflow: hidden;
-    background: var(--glass-thick);
-    backdrop-filter: var(--glass-blur-thick);
-    box-shadow: inset -1px 0 0 var(--edge);
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    background: transparent;
+    letter-spacing: 0.006em;
 }
 
 .sidebar-top {
@@ -559,14 +623,25 @@
     transform: none;
 }
 
-/* Largeur fixe : le contenu ne se recompose pas pendant que la colonne se replie. */
+/*
+ * Largeur fixe : le contenu ne se recompose pas pendant que la colonne se replie.
+ * Repli : le contenu glisse vers la barre d'activité (son origine), rétrécit un peu et
+ * se dématérialise (flou + fondu) pendant que le contour se rétracte jusqu'à la barre d'outils.
+ * Il s'efface plus vite que la colonne ne se ferme ; à l'ouverture, il revient par le même
+ * chemin avec un léger retard, une fois que la colonne a commencé à s'élargir.
+ * Transitions CSS : un nouveau clic en plein mouvement repart de la valeur affichée.
+ */
 .sidebar-inner {
     position: relative;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     width: var(--sidebar-width);
     height: 100%;
-    transition: opacity 200ms ease-out;
+    transform-origin: left center;
+    transition:
+        opacity 260ms ease-out 60ms,
+        transform var(--collapse-duration) var(--collapse-ease),
+ filter 260ms ease-out 60ms;
 }
 
 .app.sidebar-closed {
@@ -575,6 +650,27 @@
 
 .app.sidebar-closed .sidebar-inner {
     opacity: 0;
+    transform: translateX(-24px) scale(0.97);
+    filter: blur(6px);
+    transition:
+        opacity 160ms ease-out,
+        transform var(--collapse-duration) var(--collapse-ease),
+        filter 160ms ease-out;
+}
+
+/* Le logo et les icônes restent : un léger « tassement » confirme que la barre seule demeure. */
+.activity-bar {
+    transition: transform var(--collapse-duration) var(--collapse-ease);
+}
+
+.app.sidebar-closed .activity-bar {
+    animation: rail-settle var(--collapse-duration) var(--collapse-ease);
+}
+
+@keyframes rail-settle {
+    40% {
+ transform: translateX(2px);
+    }
 }
 
 .sidebar-title {
@@ -588,7 +684,7 @@
     line-height: 1.6;
 }
 
-/* ---- Barre d'activité (matériau le plus sombre) ---- */
+/* ---- Barre d'activité (sur le panneau commun, sans séparation) ---- */
 
 .activity-bar {
     display: flex;
@@ -596,22 +692,26 @@
     align-items: center;
     gap: 14px;
     min-height: 0;
+    margin-bottom: var(--panel-gap);
     padding: 14px 0;
-    background: var(--glass-rail);
-    backdrop-filter: var(--glass-blur-thick);
-    box-shadow: inset -1px 0 0 var(--edge);
+    background: transparent;
 }
 
+/* Logo : texte blanc dans le même contour que le panneau, sans fond. */
 .logo {
     display: grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--brand-start), var(--brand-end));
-    color: var(--accent-text);
-    font-size: 12px;
-    box-shadow: inset 0 1px 0 var(--highlight);
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--logo-text);
+    font: 700 12.5px/1 var(--font-display);
+    letter-spacing: 0.04em;
+    box-shadow:
+        inset 0 0 0 1px var(--panel-edge),
+        inset 0 1px 0 var(--panel-highlight);
+    user-select: none;
 }
 
 .activity-items {
@@ -663,9 +763,21 @@
     .switch .knob,
     .chevron,
     .activity-indicator,
-    .segmented::before,
+    .segmented::before {
+ transition: none;
+    }
+
+    /* Mouvement réduit : simple fondu, sans glissement, flou ni tassement. */
+    .app,
+    .app.sidebar-closed .sidebar-inner,
     .sidebar-inner {
-        transition: none;
+ transform: none;
+        filter: none;
+ transition: opacity 160ms ease-out;
+    }
+
+    .app.sidebar-closed .activity-bar {
+        animation: none;
     }
 }
 
@@ -686,8 +798,7 @@
         --segment: #ffffff;
     }
 
-    .activity-bar,
-    .sidebar {
+    .folder-menu {
         backdrop-filter: none;
     }
 }
@@ -720,5 +831,10 @@
 
     .segmented::before {
         box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--edge-strong);
+    }
+
+    .app::before,
+    .logo {
+        box-shadow: inset 0 0 0 1px var(--edge-strong);
     }
 }

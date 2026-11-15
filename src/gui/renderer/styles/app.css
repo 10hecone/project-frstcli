@@ -14,8 +14,8 @@
     --glass: rgba(34, 37, 48, 0.52);
     --glass-hover: rgba(255, 255, 255, 0.06);
     --glass-active: rgba(255, 255, 255, 0.1);
-    --glass-thick: rgba(10, 11, 16, 0.62);
-    --glass-rail: rgba(6, 7, 10, 0.72);
+    --glass-thick: rgba(20, 20, 22, 0.76);
+    --glass-rail: rgba(8, 8, 9, 0.8);
     --glass-popover: rgba(30, 32, 42, 0.9);
     --glass-blur: blur(24px) saturate(180%);
     --glass-blur-thick: blur(40px) saturate(160%);
@@ -75,7 +75,7 @@ body {
     inset: 0;
     z-index: -1;
     background:
-        radial-gradient(40% 50% at 15% 20%, rgba(91, 140, 255, 0.28), transparent 70%),
+        radial-gradient(40% 50% at 58% 10%, rgba(91, 140, 255, 0.28), transparent 70%),
         radial-gradient(35% 45% at 85% 15%, rgba(172, 92, 255, 0.2), transparent 70%),
         radial-gradient(45% 55% at 70% 90%, rgba(40, 200, 190, 0.16), transparent 70%),
         var(--backdrop-base);
@@ -845,6 +845,22 @@ kbd {
     color: var(--muted);
 }
 
+/* Image jointe : vignette carrée à gauche. Rayon extérieur 10 − marge 4 = rayon intérieur 6. */
+.attachment.has-preview {
+    padding: 4px 6px 4px 4px;
+}
+
+.attachment-thumb {
+    flex: none;
+    display: block;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--glass-hover);
+    box-shadow: 0 0 0 1px var(--edge);
+}
+
 .attachment-name {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1336,8 +1352,8 @@ kbd {
     :root {
         --backdrop-base: #0f1115;
         --glass: #1b1e27;
-        --glass-thick: #12141a;
-        --glass-rail: #0b0c10;
+        --glass-thick: #161618;
+    --glass-rail: #0e0e10;
         --glass-popover: #1e212b;
         --code-bg: #0b0d11;
     }
@@ -1373,8 +1389,8 @@ kbd {
         --text-secondary: #ffffff;
         --muted: rgba(255, 255, 255, 0.78);
         --glass: rgba(20, 22, 30, 0.92);
-        --glass-thick: rgba(8, 9, 12, 0.95);
-        --glass-rail: #050608;
+        --glass-thick: rgba(10, 10, 11, 0.95);
+    --glass-rail: #060607;
         --glass-popover: #16181f;
     }
 
