@@ -20,6 +20,19 @@ Interface en ligne de commande pour utiliser ia.francestudent depuis un terminal
 - Un compte FranceStudent avec une session active dans le navigateur
 - Pour le mode projet : l'accès aux outils client de l'API (« mode avancé », voir `client-tools.md`), disponible avec les modèles OpenAI et Claude
 
+## Installation Windows de l’application graphique
+
+Télécharge `frst-atelier-<version>-windows-x64-setup.exe` depuis les releases GitHub et lance-le. L’installateur propose le dossier d’installation et crée les raccourcis de l’application. Il inclut Electron : Node.js n’est pas nécessaire pour utiliser l’interface graphique. L’exécutable n’est pas signé ; Windows peut afficher un avertissement SmartScreen. Le CLI est distribué séparément dans `frst-cli-<version>-windows-x64-setup.exe`.
+
+Pour construire l’installateur graphique sur Windows x64 :
+
+```powershell
+npm ci
+npm run dist:win
+```
+
+Le fichier est créé dans `release/`. Le workflow « Windows - Installateurs CLI et application » peut être lancé manuellement depuis Actions : les deux installateurs sont disponibles comme artifacts. Un tag `vX.Y.Z` correspondant à la version de `package.json` crée une release **en brouillon** contenant les deux installateurs et leurs empreintes SHA-256 ; elle doit être vérifiée puis publiée manuellement.
+
 ## Installation
 
 ```bash
