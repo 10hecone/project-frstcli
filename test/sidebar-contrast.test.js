@@ -136,3 +136,54 @@ for (const [name, theme] of Object.entries(THEMES)) {
         assert.ok(edge >= 3, `bord des contrôles : ${edge.toFixed(2)}`);
     });
 }
+
+/** Corps d'un bloc @media, accolades comprises dans le décompte. */
+function mediaBody(css, query) {
+    const open = css.indexOf(`@media (${query}) {`);
+    assert.notEqual(open, -1, `@media (${query}) introuvable`);
+    let depth = 0;
+    for (let i = css.indexOf("{", open); i < css.length; i += 1) {
+        if (css[i] === "{") depth += 1;
+        if (css[i] === "}" && --depth === 0) return css.slice(css.indexOf("{", open) + 1, i);
+    }
+    return assert.fail(`@media (${query}) non fermé`);
+}
+
+test("contraste renforcé : jetons plus marqués, toujours lisibles, sélection cerclée", () => {
+    const body = mediaBody(read("sidebar.css"), "prefers-contrast: more");
+    const darkOverride = tokens(/:root\s*\{([^}]*)\}/.exec(body)[1]);
+    const lightOverride = tokens(/\[data-theme="light"\][^{]*\{([^}]*)\}/.exec(body)[1]);
+    const themes = {
+        sombre: { ...THEMES.sombre, vars: { ...rootTokens, ...darkOverride } },
+        clair: { ...THEMES.clair, vars: { ...THEMES.clair.vars, ...lightOverride } }
+    };
+    for (const [name, theme] of Object.entries(themes)) {
+        const color = (token) => parseColor(theme.vars[token], theme.vars);
+        const thick = over(color("--glass-thick"), theme.backdrop(theme.vars));
+        const selection = over(color("--selection"), thick);
+        const text = ratio(over(color("--selection-text"), selection), selection);
+        const edge = ratio(over(color("--control-edge"), thick), thick);
+        assert.ok(text >= 4.5, `${name} : texte sélectionné ${text.toFixed(2)}`);
+        assert.ok(edge >= 4.5, `${name} : bord des contrôles ${edge.toFixed(2)}`);
+    }
+    // Les sélecteurs doivent exister : sans eux, la sélection n'aurait pas de bord net.
+    assert.match(body, /\.row\[aria-current="true"\]/);
+    assert.match(body, /\.icon\[aria-selected="true"\]/);
+    assert.match(body, /\.segmented::before/);
+    assert.match(body, /--edge-strong/);
+});
+
+test("transparence réduite : champ, sélection et pastille deviennent opaques dans les deux thèmes", () => {
+    const body = mediaBody(read("sidebar.css"), "prefers-reduced-transparency: reduce");
+    const blocks = [/:root\s*\{([^}]*)\}/, /\[data-theme="light"\][^{]*\{([^}]*)\}/].map((re) => tokens(re.exec(body)[1]));
+    for (const block of blocks) {
+        for (const token of ["--field", "--selection", "--segment"]) {
+            assert.equal(parseColor(block[token], block).a, 1, `${token} doit être opaque`);
+        }
+    }
+    assert.match(body, /backdrop-filter:\s*none/);
+});
+
+test("aucun style de sélection ne dépend plus de l'ancienne classe .active des chats", () => {
+    assert.doesNotMatch(read("sidebar.css"), /chat-item\.active/);
+});
