@@ -57,6 +57,19 @@ test("resolveProgram lance npm et npx via node", windowsOnly, () => {
     assert.equal(path.basename(npx.args[0]), "npx-cli.js");
 });
 
+test("resolveProgram ne lance jamais npm via electron.exe", windowsOnly, t => {
+    const original = Object.getOwnPropertyDescriptor(process.versions, "electron");
+    Object.defineProperty(process.versions, "electron", { value: "45.0.0", configurable: true });
+    t.after(() => {
+        if (original) Object.defineProperty(process.versions, "electron", original);
+        else delete process.versions.electron;
+    });
+
+    const npm = resolveProgram("npm", ["run", "build:gui"], process.cwd(), process.env);
+    assert.doesNotMatch(String(npm.file), /electron/i);
+    assert.ok(npm.args.includes("build:gui") || npm.args.some(arg => arg.includes("build:gui")));
+});
+
 test("findOnWindows suit l'ordre de PATHEXT", windowsOnly, t => {
     const dir = makeDir(t);
 

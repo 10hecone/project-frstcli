@@ -89,6 +89,26 @@ function findOnWindows(name, cwd, env) {
 
 const quoteForCmd = arg => (arg === "" || /\s/.test(arg) ? `"${arg}"` : arg);
 
+/**
+ * node.exe + npm-cli.js (ou npx-cli.js) installés ensemble, ou null.
+ * Sous Electron, process.execPath est electron.exe : le lancer avec un script
+ * ouvre une boîte d'erreur native (bip Windows, sortie vide, commande bloquée).
+ * On prend alors le node.exe du PATH.
+ */
+function findNodeCli(name, cwd, env) {
+    const candidates = [];
+    if (!process.versions.electron) candidates.push(process.execPath);
+    const onPath = findOnWindows("node.exe", cwd, env);
+    if (onPath) candidates.push(onPath);
+
+    for (const node of candidates) {
+        const cli = path.join(path.dirname(node), "node_modules", "npm", "bin", `${name}-cli.js`);
+        if (isFile(node) && isFile(cli)) return { node, cli };
+    }
+
+    return null;
+}
+
 /** Programme réellement lancé : { file, args, verbatim }. */
 function resolveProgram(file, args, cwd, env) {
     if (!IS_WINDOWS) return { file, args, verbatim: false };
@@ -96,8 +116,9 @@ function resolveProgram(file, args, cwd, env) {
     const lower = file.toLowerCase();
 
     if (lower === "npm" || lower === "npx") {
-        const cli = path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", `${lower}-cli.js`);
-        return { file: process.execPath, args: [cli, ...args], verbatim: false };
+        const found = findNodeCli(lower, cwd, env);
+        if (found) return { file: found.node, args: [found.cli, ...args], verbatim: false };
+        // Sinon : npm.cmd / npx.cmd du PATH, lancé via cmd.exe ci-dessous.
     }
 
     const resolved = findOnWindows(file, cwd, env);
