@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { relativeTime } from "../lib/format.js";
+import { FolderSwitcher } from "./FolderSwitcher.jsx";
 
 const TABS = [
-    { id: "chats", label: "Chats" },
-    { id: "projects", label: "Projets" }
+    { id: "chats", label: "Threads" },
+    { id: "projects", label: "Projets en ligne" }
 ];
 
 const VIEW_TITLES = { threads: "Conversations", skills: "Skills" };
@@ -18,6 +19,8 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
     const [tab, setTab] = useState("chats");
     const [toast, setToast] = useState(null);
     const { loadProjects, loadSkills } = workspace;
+    // Dossiers : fournis par useWorkspace ; sans eux, la barre latérale garde l'ancien comportement.
+    const folders = workspace.folders || null;
 
     useEffect(() => {
         if (!open) return;
@@ -34,7 +37,7 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
     /** Lance une action et affiche la raison d’un échec. */
     const act = async (fn) => {
         const result = await fn();
-        if (result && result.ok === false) setToast(result.reason || "Action impossible.");
+        if (result && result.ok === false && !result.needsTrust) setToast(result.reason || "Action impossible.");
         return result;
     };
 
@@ -52,6 +55,16 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
                         </p>
                     ) : (
                         <>
+                            {folders ? (
+                                <FolderSwitcher
+                                    folders={folders}
+                                    disabled={busy}
+                                    disabledReason={busyReason}
+                                    onPick={() => act(workspace.pickFolder)}
+                                    onOpen={(dir) => act(() => workspace.openFolder(dir))}
+                                    onClose={() => act(workspace.closeFolder)}
+                                />
+                            ) : null}
                             <button
                                 type="button"
                                 className="new-thread"
@@ -95,7 +108,8 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
                             onSelect={(projectId) => act(() => workspace.selectProject(projectId))}
                         />
                     ) : (
-                        <ChatsPanel
+                        <ThreadsPanel
+                            folders={folders}
                             chats={workspace.chats}
                             activeId={status.chatId}
                             disabled={busy}
@@ -152,6 +166,35 @@ function ScrollArea({ className, resetKey, children }) {
             onScroll={measure}
         >
             <div className="scroll-content">{children}</div>
+        </div>
+    );
+}
+
+/** Threads du dossier actif s'il y en a un, sinon les chats FranceStudent comme avant. */
+function ThreadsPanel({ folders, ...chatProps }) {
+    if (folders && folders.active) {
+        return (
+            <FolderThreads
+                sessions={folders.sessions}
+                activeId={chatProps.activeId}
+                disabled={chatProps.disabled}
+                onOpen={chatProps.onOpen}
+            />
+        );
+    }
+    return <ChatsPanel {...chatProps} />;
+}
+
+function FolderThreads({ sessions = { items: [], loading: false, error: null }, activeId, disabled, onOpen }) {
+    const items = sessions.items.map((session) => ({ id: session.id, title: session.title, lastMessageAt: session.updatedAt }));
+    return (
+        <div className="panel">
+            <ChatList items={items} activeId={activeId} disabled={disabled} onOpen={onOpen} />
+            {sessions.error ? <p className="panel-error">{sessions.error}</p> : null}
+            {sessions.loading ? <p className="panel-empty">Chargement…</p> : null}
+            {!sessions.loading && !sessions.error && items.length === 0 ? (
+                <p className="panel-empty">Aucun thread dans ce dossier.</p>
+            ) : null}
         </div>
     );
 }

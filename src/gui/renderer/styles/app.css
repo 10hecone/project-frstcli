@@ -263,6 +263,96 @@ kbd {
     background: var(--glass-active);
 }
 
+/* Sélecteur du dossier actif (au-dessus des onglets, son menu recouvre la liste). */
+.folder-switcher {
+    position: relative;
+    z-index: 3;
+}
+
+.folder-trigger,
+.folder-menu button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    font-size: 13px;
+}
+
+.folder-trigger {
+    background: var(--glass-hover);
+    box-shadow: inset 0 1px 0 var(--highlight), inset 0 0 0 1px var(--edge);
+}
+
+.folder-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-branch {
+    max-width: 45%;
+    color: var(--muted);
+    font: 12px var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-chevron {
+    color: var(--muted);
+    transition: transform 200ms var(--ease-out);
+}
+
+.folder-trigger[aria-expanded="true"] .folder-chevron {
+    transform: rotate(90deg);
+}
+
+.folder-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: var(--radius);
+    background: var(--glass-popover);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--highlight), inset 0 0 0 1px var(--edge);
+    transform-origin: top center;
+    animation: materialize 180ms var(--ease-out);
+}
+
+.folder-menu button {
+    border-radius: 7px;
+}
+
+.folder-menu button:active:not(:disabled) {
+    background: var(--glass-active);
+}
+
+.folder-separator {
+    width: 100%;
+    height: 1px;
+    margin: 2px 0;
+    border: 0;
+    background: var(--edge);
+}
+
+@media (hover: hover) {
+    .folder-menu button:hover:not(:disabled) {
+        background: var(--glass-hover);
+    }
+}
+
 /* Contrôle segmenté des onglets. */
 .segmented {
     display: grid;
