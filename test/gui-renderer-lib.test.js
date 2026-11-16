@@ -101,3 +101,20 @@ test("client : window.frst utilisé s'il respecte le contrat, sinon client hors 
     assert.equal(received.length, 1);
     assert.equal(received[0].seq, 1);
 });
+
+test("client : les quatre méthodes MCP ont une valeur hors ligne", async () => {
+    for (const name of ["listMcp", "setMcpEnabled", "connectMcp", "loginMcp"]) {
+        assert.ok(client.WORKSPACE_METHODS.includes(name), name);
+    }
+    assert.ok(!client.WORKSPACE_METHODS.some((name) => /mcp/i.test(name) && /add|remove|call|config/i.test(name)));
+    assert.deepEqual(await client.WORKSPACE_FALLBACKS.listMcp(), { servers: [], warnings: [] });
+    for (const name of ["setMcpEnabled", "connectMcp", "loginMcp"]) {
+        const result = await client.WORKSPACE_FALLBACKS[name]("serveur", true);
+        assert.equal(result.ok, false, name);
+        assert.equal(typeof result.reason, "string", name);
+    }
+    const frst = Object.fromEntries(client.CLIENT_METHODS.map((name) => [name, () => {}]));
+    const completed = client.withWorkspace(frst);
+    assert.equal(typeof completed.listMcp, "function");
+    assert.deepEqual(await completed.listMcp(), { servers: [], warnings: [] });
+});

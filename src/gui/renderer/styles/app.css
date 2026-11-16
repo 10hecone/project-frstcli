@@ -1125,6 +1125,10 @@ kbd {
 .dialog .question {
     margin: 0;
     white-space: pre-wrap;
+    /* Arguments JSON et commandes de serveur MCP peuvent être longs : coupure et défilement. */
+    overflow-wrap: anywhere;
+    max-height: 40vh;
+    overflow: auto;
 }
 
 .dialog .prefix {
@@ -1132,6 +1136,9 @@ kbd {
     border-radius: var(--radius);
     background: var(--code-bg);
     font-family: var(--mono);
+    overflow-wrap: anywhere;
+    max-height: 40vh;
+    overflow: auto;
 }
 
 .dialog input {

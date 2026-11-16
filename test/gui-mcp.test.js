@@ -232,3 +232,29 @@ test("un échec OAuth est renvoyé sans reconnexion", async () => {
     assert.deepEqual(await panel.login("oauth"), { ok: false, reason: "annulé" });
     assert.equal(manager.calls.length, 0);
 });
+
+test("un message contenant du HTML ressort tel quel, sans interprétation", async () => {
+    const html = "<img src=x onerror=alert(1)>";
+    const manager = fakeManager({
+        async list() {
+            return {
+                servers: [{ name: "distant", scope: "project", type: "http", status: "failed", error: `refus ${html}` }],
+                warnings: [`avertissement ${html}`]
+            };
+        }
+    });
+    const { panel } = setup({ manager });
+    const { servers, warnings } = await panel.list();
+    assert.equal(servers[0].reason, `refus ${html}`);
+    assert.equal(warnings[0], `avertissement ${html}`);
+
+    const refused = await panel.connect(html);
+    assert.equal(refused.ok, false);
+    assert.ok(!refused.reason.includes("onerror"), "le nom refusé n'est pas renvoyé");
+});
+
+test("seuls quatre canaux MCP existent : ni ajout, ni config, ni appel d'outil", () => {
+    const { CHANNELS } = require("../src/gui/channels");
+    const mcp = Object.entries(CHANNELS).filter(([key, value]) => /mcp/i.test(key) || /mcp/i.test(String(value)));
+    assert.deepEqual(mcp.map(([key]) => key).sort(), ["MCP_CONNECT", "MCP_LIST", "MCP_LOGIN", "MCP_SET_ENABLED"]);
+});
