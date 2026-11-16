@@ -3,18 +3,31 @@
 const fs = require("node:fs/promises");
 
 const { programName } = require("./policy");
+const { PROGRAM, canonicalMcpArgs } = require("../../mcp/policy");
 const { writeJsonFile } = require("../core/atomic");
 
 const FILE_NAME = "permissions.json";
 const MAX_RULES = 200;
 
+// mcp-call : le raccourci `mcp-call <serveur> <outil>` est ramené à `mcp-call run <serveur> <outil>`.
+function withCanonicalMcp(tokens) {
+    return tokens[0] === PROGRAM ? [PROGRAM, ...canonicalMcpArgs(tokens.slice(1))] : tokens;
+}
+
 function tokensOf(file, args = []) {
-    return [programName(file ?? ""), ...(Array.isArray(args) ? args.map(String) : [])];
+    return withCanonicalMcp([programName(file ?? ""), ...(Array.isArray(args) ? args.map(String) : [])]);
+}
+
+// Règle trop large pour mcp-call : « mcp-call » ou « mcp-call run » autoriseraient tous les serveurs.
+function isTooBroad(tokens) {
+    return tokens[0] === PROGRAM && tokens.length < 3;
 }
 
 // Préfixe proposé pour la réponse « t » : programme + sous-commande (npm test, git commit).
+// mcp-call : jusqu'à l'outil ou au prompt (4 mots), jusqu'au serveur pour read (3 mots).
 function suggestPrefix(file, args = []) {
     const tokens = tokensOf(file, args);
+    if (tokens[0] === PROGRAM) return tokens.slice(0, tokens[1] === "read" ? 3 : 4);
     const sub = tokens[1];
     if (sub && !sub.startsWith("-") && !/[\\/]/.test(sub)) return tokens.slice(0, 2);
     return tokens.slice(0, 1);
@@ -26,7 +39,7 @@ function normalizePrefix(prefix) {
     const tokens = list.map(String).filter(Boolean);
     if (!tokens.length) return null;
     tokens[0] = programName(tokens[0]);
-    return tokens[0] ? tokens : null;
+    return tokens[0] ? withCanonicalMcp(tokens) : null;
 }
 
 function formatPrefix(prefix) {
@@ -68,7 +81,7 @@ function createStore(file) {
             const list = Array.isArray(raw?.rules) ? raw.rules : [];
             for (const rule of list) {
                 const prefix = normalizePrefix(rule?.prefix);
-                if (prefix && !rules.some(r => formatPrefix(r.prefix) === formatPrefix(prefix))) {
+                if (prefix && !isTooBroad(prefix) && !rules.some(r => formatPrefix(r.prefix) === formatPrefix(prefix))) {
                     rules.push({ prefix, added: typeof rule.added === "string" ? rule.added : null });
                 }
             }
@@ -96,6 +109,9 @@ function createStore(file) {
         await ensure();
         const tokens = normalizePrefix(prefix);
         if (!tokens) throw new Error("Préfixe de commande vide.");
+        if (isTooBroad(tokens)) {
+            throw new Error("Règle trop large pour mcp-call : précise au moins le serveur (/mcp allow <serveur>).");
+        }
         if (rules.some(r => formatPrefix(r.prefix) === formatPrefix(tokens))) return false;
         if (rules.length >= MAX_RULES) throw new Error(`Trop de règles : maximum ${MAX_RULES}.`);
         rules.push({ prefix: tokens, added: new Date().toISOString() });
@@ -154,6 +170,7 @@ module.exports = {
     decide,
     parseAnswer,
     suggestPrefix,
+    isTooBroad,
     normalizePrefix,
     matchesPrefix,
     formatPrefix

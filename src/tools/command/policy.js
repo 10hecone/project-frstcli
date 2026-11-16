@@ -3,6 +3,7 @@
 const path = require("node:path");
 
 const { normalizeRelative } = require("../security");
+const { judgeMcpCall } = require("../../mcp/policy");
 
 // Programmes jamais lancés : shells (ils contourneraient l'analyse de la
 // commande), suppression ou formatage, élévation de privilèges, exécution indirecte.
@@ -301,6 +302,9 @@ function judge({ file, args = [], cwd, workspace } = {}) {
     if (isOutside(path.relative(root, base))) {
         return deny(`Dossier courant hors du projet : ${cwd}`);
     }
+
+    // Avant la vérification des chemins : un argument JSON n'est pas un chemin.
+    if (name === "mcp-call") return judgeMcpCall(list, { cwd: base, workspace: root });
 
     for (const arg of list) {
         const value = pathCandidate(arg);

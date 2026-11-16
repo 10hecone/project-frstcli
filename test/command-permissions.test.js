@@ -94,6 +94,38 @@ test("permissions : remove par numéro ou préfixe, puis clear", async () => {
     assert.deepEqual(await reloaded.load(), []);
 });
 
+test("permissions : mcp-call, règle limitée à l'outil, jamais à tout mcp-call", async () => {
+    // Le raccourci est ramené à la forme complète : 4 mots, jusqu'à l'outil.
+    assert.deepEqual(suggestPrefix("mcp-call", ["github", "create_issue", "{}"]), ["mcp-call", "run", "github", "create_issue"]);
+    assert.deepEqual(suggestPrefix("mcp-call", ["run", "github", "create_issue"]), ["mcp-call", "run", "github", "create_issue"]);
+    assert.deepEqual(suggestPrefix("mcp-call", ["read", "docs", "fake://x"]), ["mcp-call", "read", "docs"]);
+
+    const rules = [{ prefix: ["mcp-call", "run", "github", "create_issue"] }];
+    const ask = { level: "ask" };
+    assert.equal(decide({ verdict: ask, rules, file: "mcp-call", args: ["github", "create_issue", "{}"] }), "run");
+    assert.equal(decide({ verdict: ask, rules, file: "mcp-call", args: ["run", "github", "delete_repo", "{}"] }), "ask");
+    assert.equal(decide({ verdict: ask, rules, file: "mcp-call", args: ["github", "create_issue_x"] }), "ask");
+
+    const store = createStore(await tempFile());
+    await assert.rejects(store.add(["mcp-call"]), /trop large/);
+    await assert.rejects(store.add(["mcp-call", "run"]), /trop large/);
+    assert.equal(await store.add("mcp-call run github"), true);
+    // Le raccourci enregistré par l'utilisateur est aussi ramené à la forme complète.
+    assert.equal(await store.add("mcp-call docs search"), true);
+    assert.deepEqual(store.list().map(r => r.text), ["mcp-call run github", "mcp-call run docs search"]);
+    assert.equal(await store.allows("mcp-call", ["github", "delete_repo"]), true);
+    assert.equal(await store.allows("mcp-call", ["docs", "search", "{}"]), true);
+    assert.equal(await store.allows("mcp-call", ["docs", "other"]), false);
+});
+
+test("permissions : une règle mcp-call trop large du fichier est ignorée", async () => {
+    const file = await tempFile();
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify({ version: 1, rules: [{ prefix: ["mcp-call"] }, { prefix: ["mcp-call", "run"] }, { prefix: ["npm", "test"] }] }));
+    const store = createStore(file);
+    assert.deepEqual((await store.load()).map(r => r.text), ["npm test"]);
+});
+
 test("permissions : fichier JSON invalide ignoré", async () => {
     const file = await tempFile();
     await fs.mkdir(path.dirname(file), { recursive: true });

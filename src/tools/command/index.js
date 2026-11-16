@@ -7,7 +7,8 @@ const { state } = require("../../state");
 const memory = require("../../project/memory");
 const { formatCommand } = require("./parse");
 const { runProcess } = require("./runner");
-const { judge } = require("./policy");
+const { judge, programName } = require("./policy");
+const { describeMcpCall } = require("../../mcp/policy");
 const { splitPipeline, executePipeline, resolveStartDir, isCd } = require("./pipeline");
 const { cleanOutput, snapshotChanges, diffSnapshots, sanitizeDescription } = require("./output");
 const {
@@ -118,7 +119,10 @@ async function confirmSegments(segments, cwd) {
     for (const segment of pending) {
         const prefix = suggestPrefix(segment.file, segment.args);
         const prefixText = formatPrefix(prefix);
-        const answer = parseAnswer(await ui.askCommand(`Lancer "${segment.display}" dans le projet ?`, prefixText));
+        const question = programName(segment.file) === "mcp-call"
+            ? describeMcpCall(segment.args)
+            : `Lancer "${segment.display}" dans le projet ?`;
+        const answer = parseAnswer(await ui.askCommand(question, prefixText));
         if (answer === "no") {
             return { denied: true, message: "Action refusée par l'utilisateur. Ne la redemande pas." };
         }
