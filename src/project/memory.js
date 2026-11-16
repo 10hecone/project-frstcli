@@ -283,6 +283,7 @@ module.exports = {
     save,
     backupsDir,
     trashDir,
+    projectDir,
     projectPath,
     rememberFile,
     getFile,
