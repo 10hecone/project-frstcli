@@ -1,9 +1,9 @@
 "use strict";
 
 const fs = require("node:fs/promises");
-const path = require("node:path");
 
 const { programName } = require("./policy");
+const { writeJsonFile } = require("../core/atomic");
 
 const FILE_NAME = "permissions.json";
 const MAX_RULES = 200;
@@ -85,16 +85,7 @@ function createStore(file) {
     }
 
     async function save() {
-        await fs.mkdir(path.dirname(file), { recursive: true });
-        const tmp = `${file}.${process.pid}.tmp`;
-        const data = JSON.stringify({ version: 1, rules }, null, 2) + "\n";
-        await fs.writeFile(tmp, data, { mode: 0o600 });
-        await fs.rename(tmp, file);
-        try {
-            await fs.chmod(file, 0o600);
-        } catch {
-            // Sans effet sous Windows.
-        }
+        await writeJsonFile(file, { version: 1, rules });
     }
 
     function listRules() {

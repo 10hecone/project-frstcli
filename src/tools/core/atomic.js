@@ -56,4 +56,32 @@ async function writeAtomic(target, content, { expected = null, read = readUtf8 }
     }
 }
 
-module.exports = { writeAtomic, NEW_FILE_MODE };
+/**
+ * Écrit un objet JSON (indentation 2, saut de ligne final) : fichier temporaire puis rename.
+ * - privé (défaut) : dossier créé en 0o700, fichier en 0o600 (chmod refait, sans effet sous Windows) ;
+ * - shared: true : fichier fait pour être partagé (ex. .mcp.json), droits par défaut, dossier non touché.
+ * En cas d'erreur, le temporaire est supprimé et l'erreur est relancée.
+ */
+async function writeJsonFile(target, data, { shared = false } = {}) {
+    if (!shared) await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+
+    const tmp = `${target}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify(data, null, 2) + "\n", { mode: shared ? 0o644 : NEW_FILE_MODE });
+
+    try {
+        await fs.rename(tmp, target);
+    } catch (error) {
+        await fs.rm(tmp, { force: true });
+        throw error;
+    }
+
+    if (!shared) {
+        try {
+            await fs.chmod(target, NEW_FILE_MODE);
+        } catch {
+            // Sans effet sous Windows.
+        }
+    }
+}
+
+module.exports = { writeAtomic, writeJsonFile, NEW_FILE_MODE };

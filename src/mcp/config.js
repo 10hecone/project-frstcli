@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const { CONFIG } = require("../config");
 const { projectDir } = require("../project/memory");
+const { writeJsonFile } = require("../tools/core/atomic");
 
 /*
  * Configuration des serveurs MCP locaux (même format que Claude Code) :
@@ -319,27 +320,7 @@ function exclusive(task) {
 
 // Fichier temporaire puis rename. « local » et « user » : 0o600 dans un dossier 0o700.
 // « project » (.mcp.json) est fait pour être partagé : droits par défaut, sans toucher au dossier du projet.
-async function writeJson(file, data, { shared }) {
-    if (!shared) await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-
-    const tmp = `${file}.${process.pid}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify(data, null, 2) + "\n", { mode: shared ? 0o644 : 0o600 });
-
-    try {
-        await fs.rename(tmp, file);
-    } catch (error) {
-        await fs.rm(tmp, { force: true });
-        throw error;
-    }
-
-    if (!shared) {
-        try {
-            await fs.chmod(file, 0o600);
-        } catch {
-            // Sans effet sous Windows.
-        }
-    }
-}
+const writeJson = writeJsonFile;
 
 // Fichier brut et son objet « mcpServers ». Un fichier illisible n'est jamais écrasé.
 async function readRaw(file) {
@@ -348,7 +329,7 @@ async function readRaw(file) {
         text = await fs.readFile(file, "utf8");
     } catch (error) {
         if (error.code === "ENOENT") return { data: {}, servers: {}, exists: false };
-            throw new McpConfigError(`lecture impossible : ${file} (${error.code || "erreur"})`);
+        throw new McpConfigError(`lecture impossible : ${file} (${error.code || "erreur"})`);
     }
 
     let data;
