@@ -222,6 +222,8 @@ async function runProcess({
 
 module.exports = {
     runProcess,
+    createCollector,
+    clampTimeout,
     filterEnv,
     killTree,
     resolveProgram,
