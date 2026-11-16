@@ -20,6 +20,29 @@ function chooseInterface({ argv = [], env = {}, isTTY = false, hasBundle = false
     return "tui";
 }
 
+// `frst mcp …` : gestion des serveurs MCP hors session (ni TUI ni connexion France Student).
+function isMcpCommand(argv = []) {
+    return argv[0] === "mcp";
+}
+
+// Exécute `frst mcp …` et renvoie le code de sortie (0 si réussi, 1 sinon).
+// `run` et `stop` sont injectables pour les tests.
+async function runMcp(argv = [], { run, stop } = {}) {
+    const execute = run ?? require("../src/mcp/cli").runMcpCommand;
+    let code = 1;
+    try {
+        const result = await execute(argv.slice(1));
+        code = result && result.ok ? 0 : 1;
+    } finally {
+        try {
+            const halt = typeof stop === "function" ? stop : () => require("../src/mcp/manager").getManager().killAll();
+            halt();
+        } catch {
+        }
+    }
+    return code;
+}
+
 function runClassic() {
     const index = process.argv.indexOf("--classic");
     if (index !== -1) process.argv.splice(index, 1);
@@ -43,6 +66,12 @@ async function main() {
     try {
         require("dotenv").config({ quiet: true });
     } catch {
+    }
+
+    const args = process.argv.slice(2);
+    if (isMcpCommand(args)) {
+        // Sortie explicite : un serveur stdio ou readline ne doit pas garder le processus en vie.
+        process.exit(await runMcp(args));
     }
 
     const choice = chooseInterface({
@@ -73,4 +102,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { chooseInterface, restoreTerminal, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE };
+module.exports = { chooseInterface, restoreTerminal, isMcpCommand, runMcp, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE };
