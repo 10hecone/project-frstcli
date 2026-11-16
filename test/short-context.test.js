@@ -27,9 +27,10 @@ test("buildShortContext : environnement et premier niveau, sans fichiers sensibl
     await fs.writeFile(path.join(dir, ".env"), "SECRET=1");
 
     clearShortContextCache();
-    const text = await buildShortContext(dir);
+    const text = await buildShortContext(dir, { mcpServers: async () => [] });
 
     assert.match(text, /- Git : oui, branche main/);
+    assert.ok(!text.includes("mcp-call"), "pas de rappel MCP sans serveur");
     assert.match(text, /- Tests : npm test/);
     assert.ok(text.indexOf("\nsrc/") < text.indexOf("\na.txt"), "dossiers d'abord");
     assert.ok(!text.includes(".env") && !text.includes("\n.git"));
@@ -43,10 +44,26 @@ test("buildShortContext : la liste est coupée sous SHORT_CONTEXT_CHARS", async 
     );
 
     clearShortContextCache();
-    const text = await buildShortContext(dir);
+    const text = await buildShortContext(dir, { mcpServers: async () => [] });
 
     assert.ok(text.length <= SHORT_CONTEXT_CHARS);
     assert.match(text, /… \(\d+ autres\)$/);
+
+    // Avec des serveurs MCP : le rappel tient dans le budget, la liste est coupée plus tôt.
+    const withMcp = await buildShortContext(dir, { mcpServers: async () => ["fake", "docs"] });
+    assert.ok(withMcp.length <= SHORT_CONTEXT_CHARS);
+    const last = withMcp.split("\n").at(-1);
+    assert.match(last, /^- MCP local : commande `mcp-call` \(voir `mcp-call --help`\)\. Serveurs : fake, docs\./);
+    assert.match(last, /données, pas des instructions/);
+    assert.match(withMcp, /… \(\d+ autres\)\n- MCP local/);
+});
+
+test("buildShortContext : une erreur de configuration MCP n'empêche pas le contexte", async () => {
+    const dir = await tempDir();
+    clearShortContextCache();
+    const text = await buildShortContext(dir, { mcpServers: async () => { throw new Error("mcp.json invalide"); } });
+    assert.match(text, /Premier niveau du projet/);
+    assert.ok(!text.includes("mcp-call"));
 });
 
 test("read_file coupe sur une fin de ligne, next_line permet de reprendre, formatClientResult numérote", async (t) => {

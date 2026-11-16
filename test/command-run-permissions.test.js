@@ -23,6 +23,9 @@ const saved = {
 
 let answers = [];
 let questions = 0;
+let lastQuestion = null;
+
+const FIXTURE = path.join(__dirname, "fixtures", "fake-mcp-server.js");
 
 test.before(async () => {
     fs.writeFileSync(path.join(workspace, "script.js"), "console.log('ok');\n");
@@ -31,8 +34,9 @@ test.before(async () => {
     const cli = getUiBackend();
     setUiBackend({
         ...cli,
-        askCommand: async () => {
+        askCommand: async (question) => {
             questions += 1;
+            lastQuestion = question;
             return answers.shift() ?? "n";
         },
         info() {},
@@ -42,7 +46,8 @@ test.before(async () => {
     });
 });
 
-test.after(() => {
+test.after(async () => {
+    await require("../src/mcp/manager").getManager().closeAll();
     setUiBackend(null);
     state.workspace = saved.workspace;
     if (previousDataDir === undefined) delete process.env.FS_DATA_DIR;
@@ -103,4 +108,79 @@ test("une règle git n'autorise jamais git push", async () => {
     const result = await runCommand({ command: "git push" });
     assert.equal(result.denied, true);
     assert.equal(questions, 0);
+});
+
+// ---------------------------------------------------------------------------
+// mcp-call (exécuté dans le processus, avec le faux serveur MCP)
+// ---------------------------------------------------------------------------
+
+test("mcp-call mélangé à une autre commande : refus sans question ni lancement", async () => {
+    questions = 0;
+    for (const command of ["mcp-call list && node --version", "node --version | mcp-call list", "cd . && mcp-call list"]) {
+        const result = await runCommand({ command });
+        assert.equal(result.denied, true, command);
+        assert.match(result.message, /mcp-call se lance seul/);
+        assert.equal(result.exit_code, undefined);
+    }
+    assert.equal(questions, 0);
+});
+
+test("mcp-call list : lecture seule, sans question, exécuté sans processus", async () => {
+    const { addServer } = require("../src/mcp/config");
+    await addServer("user", workspace, "fake", { type: "stdio", command: process.execPath, args: [FIXTURE] });
+
+    questions = 0;
+    const result = await runCommand({ command: "mcp-call list" });
+    assert.equal(questions, 0);
+    assert.equal(result.exit_code, 0);
+    assert.match(result.output, /fake/);
+});
+
+test("mcp-call run : confirmation avec les indications du serveur, puis résultat étiqueté", async () => {
+    // tools remplit le cache : la question peut alors citer les annotations de l'outil.
+    const listed = await runCommand({ command: "mcp-call tools fake" });
+    assert.equal(listed.exit_code, 0);
+    assert.match(listed.output, /echo/);
+
+    questions = 0;
+    answers = ["o"];
+    const result = await runCommand({ command: "mcp-call run fake echo '{\"text\":\"bonjour\"}'" });
+    assert.equal(questions, 1);
+    assert.match(lastQuestion, /Appeler l'outil « echo » du serveur MCP « fake »/);
+    assert.match(lastQuestion, /lecture seule/);
+    assert.equal(result.exit_code, 0);
+    assert.match(result.output, /serveur MCP "fake", outil "echo"/);
+    assert.match(result.output, /bonjour/);
+});
+
+test("mcp-call run refusé : rien n'est appelé", async () => {
+    questions = 0;
+    answers = ["n"];
+    const result = await runCommand({ command: "mcp-call fake echo '{\"text\":\"non\"}'" });
+    assert.equal(questions, 1);
+    assert.equal(result.denied, true);
+    assert.equal(result.exit_code, undefined);
+});
+
+test("mcp-call run : la règle « t » évite la question suivante, pas celle d'un autre serveur", async () => {
+    questions = 0;
+    answers = ["t"];
+    const first = await runCommand({ command: "mcp-call run fake echo '{\"text\":\"un\"}'" });
+    assert.equal(questions, 1);
+    assert.equal(first.exit_code, 0);
+
+    const rules = JSON.stringify(await getPermissionStore().list());
+    assert.match(rules, /mcp-call/);
+
+    questions = 0;
+    const second = await runCommand({ command: "mcp-call fake echo '{\"text\":\"deux\"}'" });
+    assert.equal(questions, 0);
+    assert.equal(second.exit_code, 0);
+    assert.match(second.output, /deux/);
+
+    // Autre serveur : nouvelle question (refusée ici).
+    answers = ["n"];
+    const other = await runCommand({ command: "mcp-call run autre echo" });
+    assert.equal(questions, 1);
+    assert.equal(other.denied, true);
 });

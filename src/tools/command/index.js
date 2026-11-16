@@ -8,7 +8,8 @@ const memory = require("../../project/memory");
 const { formatCommand } = require("./parse");
 const { runProcess } = require("./runner");
 const { judge, programName } = require("./policy");
-const { describeMcpCall } = require("../../mcp/policy");
+const { describeMcpCall, parseMcpArgs } = require("../../mcp/policy");
+const { runMcpCall } = require("../../mcp/call");
 const { splitPipeline, executePipeline, resolveStartDir, isCd } = require("./pipeline");
 const { cleanOutput, snapshotChanges, diffSnapshots, sanitizeDescription } = require("./output");
 const {
@@ -43,6 +44,49 @@ const LEGACY_COMMANDS = new Map([
 ]);
 
 const GIT_STATUS_TIMEOUT_MS = 10000;
+
+const isMcpCall = segment => !isCd(segment) && programName(segment.file) === "mcp-call";
+
+// Annotations de l'outil visé (cache du serveur déjà connecté), ou null : jamais de connexion ici.
+function cachedAnnotations(args) {
+    try {
+        const parsed = parseMcpArgs(args);
+        if (parsed.error || parsed.help || parsed.action !== "run" || !parsed.server) return null;
+        const { getManager } = require("../../mcp/manager");
+        const tools = getManager().peek(parsed.server)?.cache?.tools;
+        const tool = Array.isArray(tools) ? tools.find(item => item?.name === parsed.target) : null;
+        return tool?.annotations || null;
+    } catch {
+        return null;
+    }
+}
+
+// Lance un segment : mcp-call est exécuté dans le processus, le reste par runProcess.
+function runSegment(segment, options) {
+    if (isMcpCall(segment)) {
+        return runMcpCall({
+            args: segment.args,
+            cwd: options.cwd,
+            workspace: workspace.root,
+            timeoutMs: options.timeoutMs,
+            signalHandle: options.signalHandle,
+            onLine: options.onLine
+        });
+    }
+    return runProcess({
+        file: segment.file,
+        args: segment.args,
+        cwd: options.cwd,
+        timeoutMs: options.timeoutMs,
+        onLine: options.onLine,
+        signalHandle: options.signalHandle,
+        input: options.input,
+        captureStdout: options.pipeStdout,
+        discardStdout: segment.discardStdout,
+        discardStderr: segment.discardStderr,
+        stderrToStdout: segment.stderrToStdout
+    });
+}
 
 // Renvoie le motif de refus de judge(), ou null si la commande n'est pas interdite.
 function denialReason(file, args = [], cwd = workspace.root) {
@@ -120,7 +164,7 @@ async function confirmSegments(segments, cwd) {
         const prefix = suggestPrefix(segment.file, segment.args);
         const prefixText = formatPrefix(prefix);
         const question = programName(segment.file) === "mcp-call"
-            ? describeMcpCall(segment.args)
+            ? describeMcpCall(segment.args, { annotations: cachedAnnotations(segment.args) })
             : `Lancer "${segment.display}" dans le projet ?`;
         const answer = parseAnswer(await ui.askCommand(question, prefixText));
         if (answer === "no") {
@@ -152,6 +196,17 @@ async function runCommand(toolArgs = {}) {
     const startCwd = resolveStartDir(toolArgs.cwd, state.cwd, workspace.root);
     const display = segments.length === 1 ? segments[0].display : line.trim();
 
+    // mcp-call n'est pas un vrai programme : ni tube, ni enchaînement, ni redirection.
+    if (segments.length > 1 && segments.some(isMcpCall)) {
+        return {
+            command: display,
+            description,
+            changed: false,
+            denied: true,
+            message: "mcp-call se lance seul : pas de |, &&, || ni ; avec une autre commande."
+        };
+    }
+
     const permission = await confirmSegments(segments, startCwd);
     if (permission.denied) {
         return { command: display, description, changed: false, denied: true, message: permission.message };
@@ -166,18 +221,13 @@ async function runCommand(toolArgs = {}) {
             launch: ({ onLine, signalHandle }) => executePipeline(segments, {
                 cwd: startCwd,
                 workspace: workspace.root,
-                run: (segment, { cwd, input, pipeStdout }) => runProcess({
-                    file: segment.file,
-                    args: segment.args,
+                run: (segment, { cwd, input, pipeStdout }) => runSegment(segment, {
                     cwd,
                     timeoutMs: toolArgs.timeout_ms ?? 600000,
                     onLine,
                     signalHandle,
                     input,
-                    captureStdout: pipeStdout,
-                    discardStdout: segment.discardStdout,
-                    discardStderr: segment.discardStderr,
-                    stderrToStdout: segment.stderrToStdout
+                    pipeStdout
                 })
             }).then(run => run.last)
         });
@@ -204,18 +254,13 @@ async function runCommand(toolArgs = {}) {
         run = await executePipeline(segments, {
             cwd: startCwd,
             workspace: workspace.root,
-            run: (segment, { cwd, input, pipeStdout }) => runProcess({
-                file: segment.file,
-                args: segment.args,
+            run: (segment, { cwd, input, pipeStdout }) => runSegment(segment, {
                 cwd,
                 timeoutMs: toolArgs.timeout_ms,
                 onLine: (text) => ui.commandLine(text),
                 signalHandle,
                 input,
-                captureStdout: pipeStdout,
-                discardStdout: segment.discardStdout,
-                discardStderr: segment.discardStderr,
-                stderrToStdout: segment.stderrToStdout
+                pipeStdout
             })
         });
     } finally {
