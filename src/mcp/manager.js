@@ -227,6 +227,13 @@ function createMcpManager(options = {}) {
 
 let shared = null;
 
+/** Suit le dossier ouvert : chaque changement arrête les serveurs du précédent. Renvoie le désabonnement. */
+function bindWorkspace(manager, workspace) {
+    return workspace.onChange(({ root } = {}) => {
+        manager.setRoot(root).catch(() => {});
+    });
+}
+
 function getManager() {
     if (shared) return shared;
 
@@ -236,12 +243,10 @@ function getManager() {
     const { isDisabled } = require("./disabled");
 
     shared = createMcpManager({ root: workspace.root, ui, isDisabled });
-    workspace.onChange(({ root }) => {
-        shared.setRoot(root).catch(() => {});
-    });
+    bindWorkspace(shared, workspace);
     // À la sortie du CLI, aucun serveur ne doit survivre.
     process.once("exit", () => shared.killAll());
     return shared;
 }
 
-module.exports = { MAX_CONNECTED, createMcpManager, getManager };
+module.exports = { MAX_CONNECTED, createMcpManager, bindWorkspace, getManager };

@@ -15,6 +15,7 @@ const { createWorkspace } = require("../src/gui/workspace");
 const { createFolders } = require("../src/gui/folders");
 const { createChanges } = require("../src/gui/changes");
 const { openWorkspacePath } = require("../src/gui/paths");
+const oauth = require("../src/mcp/oauth");
 const { nextZoom, zoomActionForInput } = require("../src/gui/window-state");
 const { createAttention } = require("./attention");
 const { applyAppearance, patchState } = require("./window");
@@ -52,6 +53,10 @@ function registerIpc(win, { onExit = null, initialFolder = null } = {}) {
         notify: (text) => host.backend.store.dispatch({ type: "append", entry: { type: "info", text } })
     });
     const attention = createAttention(win);
+
+    // OAuth MCP : le navigateur s'ouvre via Electron. L'URL a déjà été validée par oauth.js
+    // (https ou boucle locale, longueur bornée) : aucune autre URL ne passe par ici.
+    oauth.setUrlOpener((url) => shell.openExternal(url));
 
     // Seule la fenêtre principale peut piloter la session.
     const guard =
@@ -194,6 +199,12 @@ function registerIpc(win, { onExit = null, initialFolder = null } = {}) {
         dispose() {
             for (const channel of Object.keys(handlers)) ipcMain.removeHandler(channel);
             if (!win.isDestroyed()) win.webContents.removeListener("before-input-event", onInput);
+            // Un flux OAuth en cours (serveur de retour local) est annulé avant l'arrêt des serveurs.
+            try {
+                oauth.cancelPending();
+            } catch {
+                // Rien à annuler.
+            }
             host.dispose();
         }
     };

@@ -10,9 +10,9 @@ const { createGuiHost } = require("../src/gui/host");
 const { CHANNELS } = require("../src/gui/channels");
 
 /** Hôte complet avec un cœur simulé : aucun accès réseau, aucun Electron. */
-function setup({ bootstrap, handleInput } = {}) {
+function setup({ bootstrap, handleInput, jobs } = {}) {
     const sent = [];
-    const calls = { bootstrap: 0, inputs: [], killAll: 0, close: 0, exit: 0 };
+    const calls = { bootstrap: 0, inputs: [], killAll: 0, mcpKillAll: 0, close: 0, exit: 0 };
     const bridge = {
         current: undefined,
         setUiBackend(backend) {
@@ -37,7 +37,8 @@ function setup({ bootstrap, handleInput } = {}) {
         session,
         bridge,
         createBackend: (store) => createTuiBackend(store, { jobs: { runningCount: () => 0 }, usage: {} }),
-        jobs: { killAll: () => (calls.killAll += 1) },
+        jobs: jobs || { killAll: () => (calls.killAll += 1) },
+        mcp: { killAll: () => (calls.mcpKillAll += 1) },
         memory: { close: () => (calls.close += 1) }
     });
     return { host, sent, calls, bridge };
@@ -199,12 +200,26 @@ test("hôte : interrupt seulement pendant une tâche", async () => {
     assert.equal(typeof release, "function");
 });
 
-test("hôte : dispose arrête les jobs, ferme la mémoire et débranche le port une seule fois", async () => {
+test("hôte : dispose arrête les jobs et les serveurs MCP, ferme la mémoire et débranche le port une seule fois", async () => {
     const { host, calls, bridge } = setup();
     host.dispose();
     host.dispose();
     assert.equal(calls.killAll, 1);
+    assert.equal(calls.mcpKillAll, 1);
     assert.equal(calls.close, 1);
     assert.equal(bridge.current, null);
     assert.equal((await host.submit("après")).ok, false);
+});
+
+test("hôte : dispose arrête les serveurs MCP même si l'arrêt des jobs échoue", () => {
+    const jobs = {
+        killAll() {
+            throw new Error("jobs en panne");
+        }
+    };
+    const { host, calls, bridge } = setup({ jobs });
+    assert.doesNotThrow(() => host.dispose());
+    assert.equal(calls.mcpKillAll, 1);
+    assert.equal(calls.close, 1);
+    assert.equal(bridge.current, null);
 });

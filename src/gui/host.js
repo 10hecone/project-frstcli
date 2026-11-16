@@ -7,7 +7,7 @@
  * avec le même adaptateur que la TUI, branché sur un store distant. Ce module ne
  * dépend pas d'Electron : `send` suffit, ce qui le rend testable avec node --test.
  *
- * Dépendances injectables (tests) : session, bridge, createBackend, jobs, memory.
+ * Dépendances injectables (tests) : session, bridge, createBackend, jobs, mcp, memory.
  */
 
 const { createRemoteStore } = require("./remote-store");
@@ -23,6 +23,8 @@ function createGuiHost({
     bridge = null,
     createBackend = null,
     jobs = null,
+    // Gestionnaire MCP (killAll) : par défaut l'instance partagée de src/mcp/manager.js.
+    mcp = null,
     memory = null,
     stateModule = null,
     statusExtra = null,
@@ -205,7 +207,7 @@ function createGuiHost({
         return store.snapshot();
     }
 
-    /** Fermeture : arrêt des commandes en arrière-plan, mémoire, port d'interface. */
+    /** Fermeture : arrêt des commandes en arrière-plan et des serveurs MCP, mémoire, port d'interface. */
     function dispose() {
         if (disposed) return;
         disposed = true;
@@ -219,6 +221,11 @@ function createGuiHost({
         attempt(() => {
             const manager = jobs || require("../tools/command/jobs").manager;
             if (manager && typeof manager.killAll === "function") manager.killAll();
+        });
+        // Serveurs MCP : sans cet arrêt, les processus stdio survivraient à l'application.
+        attempt(() => {
+            const servers = mcp || require("../mcp/manager").getManager();
+            if (servers && typeof servers.killAll === "function") servers.killAll();
         });
         attempt(() => {
             const mem = memory || require("../project/memory");

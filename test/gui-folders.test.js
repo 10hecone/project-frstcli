@@ -73,6 +73,82 @@ test("folders : un dossier de confiance s'ouvre, vide le transcript et oublie le
     assert.deepEqual(ctx.state.pendingFiles, []);
 });
 
+test("folders : ouvrir un autre dossier arrête les serveurs MCP du précédent", async () => {
+    const { createMcpManager, bindWorkspace } = require("../src/mcp/manager");
+    const first = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "frst-folders-")));
+    const second = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "frst-folders-")));
+
+    // Cœur d'espace de travail simulé, même contrat que src/core/workspace.js (open + onChange).
+    const listeners = new Set();
+    let root = first;
+    const workspaceCore = {
+        async open(p) {
+            root = p;
+            for (const listener of listeners) listener({ root });
+            return true;
+        },
+        close() {},
+        onChange(listener) {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+        }
+    };
+
+    // Connexions simulées : aucun processus lancé.
+    const closed = [];
+    const manager = createMcpManager({
+        root: first,
+        loadServers: async () => ({ servers: [{ name: "local", scope: "user", transport: "stdio", command: "srv", args: [] }] }),
+        expandServer: (server) => server,
+        ensureApproved: async () => "approved",
+        statusOf: async () => "approved",
+        fingerprint: () => "empreinte",
+        createConnection: (server, options) => ({
+            state: "idle",
+            busy: false,
+            lastUsed: 0,
+            cwd: options.cwd,
+            async connect() {
+                this.state = "connected";
+            },
+            async close() {
+                this.state = "closed";
+                closed.push(this.cwd);
+            },
+            killSync() {
+                this.state = "closed";
+            }
+        })
+    });
+    const unbind = bindWorkspace(manager, workspaceCore);
+
+    const projects = {
+        async get(p) {
+            return { path: p, trusted: true };
+        },
+        async list() {
+            return [];
+        },
+        async trust() {}
+    };
+    const folders = createFolders({
+        backend: { clear: () => {} },
+        projects,
+        detectEnvironment: async () => ({}),
+        stateModule: { state: { pendingFiles: [] } },
+        workspaceCore
+    });
+
+    const connection = await manager.connect("local");
+    assert.equal(connection.cwd, first);
+    assert.equal((await folders.open(second)).ok, true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(connection.state, "closed");
+    assert.deepEqual(closed, [first]);
+    assert.equal(manager.root, second);
+    unbind();
+});
+
 test("folders : un dossier sans confiance n'est pas ouvert, la confiance est demandée", async () => {
     const ctx = setup();
     const result = await ctx.folders.open(ctx.dir);
