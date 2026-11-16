@@ -58,6 +58,12 @@ contextBridge.exposeInMainWorld("frst", {
     undoTurn: (turn) =>
         invoke(CHANNELS.UNDO_TURN, { count: Number(turn?.count) || 0, lastAt: String(turn?.lastAt ?? "") }),
     openPath: (path) => invoke(CHANNELS.OPEN_PATH, String(path ?? "")),
+
+    // ---- Panneau MCP (lister, activer, connecter ; ni ajout, ni lecture de config, ni appel d'outil) ----
+    listMcp: () => invoke(CHANNELS.MCP_LIST),
+    setMcpEnabled: (name, enabled) => invoke(CHANNELS.MCP_SET_ENABLED, String(name ?? ""), enabled === true),
+    connectMcp: (name) => invoke(CHANNELS.MCP_CONNECT, String(name ?? "")),
+    loginMcp: (name) => invoke(CHANNELS.MCP_LOGIN, String(name ?? "")),
     attention: (payload) =>
         invoke(CHANNELS.ATTENTION, {
             kind: String(payload?.kind ?? ""),

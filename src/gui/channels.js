@@ -41,6 +41,12 @@ const CHANNELS = Object.freeze({
     UNDO_TURN: "frst:undo-turn",
     OPEN_PATH: "frst:open-path",
 
+    // Fenêtre → processus principal : panneau MCP (lister, activer, connecter ; rien d'autre)
+    MCP_LIST: "frst:mcp-list",
+    MCP_SET_ENABLED: "frst:mcp-set-enabled",
+    MCP_CONNECT: "frst:mcp-connect",
+    MCP_LOGIN: "frst:mcp-login",
+
     // Fenêtre → processus principal : intégration au système
     ATTENTION: "frst:attention",
     ZOOM: "frst:zoom",

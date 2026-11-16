@@ -599,6 +599,85 @@
     transform: translateX(17px);
 }
 
+.switch:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Panneau MCP : l'état est écrit en toutes lettres, avec un symbole ; la couleur n'est qu'un appoint. */
+.mcp-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.mcp-server {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px;
+    border-radius: var(--radius);
+}
+
+.mcp-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mcp-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.mcp-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+}
+
+.mcp-symbol {
+    width: 12px;
+    text-align: center;
+}
+
+.mcp-detail {
+    color: var(--muted);
+    font: 11px/1.4 var(--mono, monospace);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mcp-reason {
+    color: var(--muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mcp-action {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+}
+
+.mcp-failed .mcp-status,
+.mcp-rejected .mcp-status {
+    font-weight: 600;
+}
+
 /* Message court en bas de la barre latérale : entre et sort par le même chemin. */
 .toast {
     position: absolute;

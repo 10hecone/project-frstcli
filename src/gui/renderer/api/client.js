@@ -19,6 +19,9 @@
  * - closeFolder(), recentFolders(), folderSessions(path), setPermissionMode(mode).
  * - onFolderRequested(listener) → désabonnement ; reçoit le chemin d'un dossier demandé hors de la fenêtre.
  *
+ * Serveurs MCP (mêmes règles) : listMcp() → { servers, warnings } ; setMcpEnabled(nom, actif),
+ * connectMcp(nom), loginMcp(nom) → { ok, reason? }. Ni ajout, ni lecture de config, ni appel d'outil.
+ *
  * Pour rebrancher l'interface sur un autre transport (WebSocket, serveur local,
  * tests), il suffit de fournir un objet qui respecte ce contrat.
  */
@@ -48,6 +51,10 @@ export const WORKSPACE_FALLBACKS = {
     trustFolder: async () => ({ ok: false, reason: OFFLINE }),
     folderSessions: async () => [],
     setPermissionMode: async () => ({ ok: false, reason: OFFLINE }),
+    listMcp: async () => ({ servers: [], warnings: [] }),
+    setMcpEnabled: async () => ({ ok: false, reason: OFFLINE }),
+    connectMcp: async () => ({ ok: false, reason: OFFLINE }),
+    loginMcp: async () => ({ ok: false, reason: OFFLINE }),
     onFolderRequested: () => () => {}
 };
 

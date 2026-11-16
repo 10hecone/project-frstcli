@@ -99,6 +99,17 @@ export function SkillsIcon({ size = 20 }) {
     );
 }
 
+/** Serveurs MCP (barre d'activité) : une prise. */
+export function McpIcon({ size = 20 }) {
+    return (
+        <svg {...base(size)}>
+            <path d="M6 2v3M10 2v3" />
+            <path d="M4 5h8v2.5a4 4 0 0 1-8 0z" />
+            <path d="M8 11.5V14" />
+        </svg>
+    );
+}
+
 export function RefreshIcon({ size = 14 }) {
     return (
         <svg {...base(size)}>

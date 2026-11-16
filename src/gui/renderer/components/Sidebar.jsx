@@ -7,7 +7,21 @@ const TABS = [
     { id: "projects", label: "Projets en ligne" }
 ];
 
-const VIEW_TITLES = { threads: "Conversations", skills: "Skills" };
+const VIEW_TITLES = { threads: "Conversations", skills: "Skills", mcp: "Serveurs MCP" };
+
+/** Libellé et symbole de chaque état : l'état ne repose jamais sur la couleur seule. */
+const MCP_STATES = {
+    connected: { label: "Connecté", symbol: "●" },
+    connecting: { label: "Connexion…", symbol: "◌" },
+    idle: { label: "Inactif", symbol: "○" },
+    failed: { label: "En échec", symbol: "✕" },
+    "needs-approval": { label: "À approuver", symbol: "?" },
+    "needs-auth": { label: "Connexion requise", symbol: "⚿" },
+    rejected: { label: "Refusé", symbol: "⊘" },
+    disabled: { label: "Désactivé", symbol: "–" }
+};
+
+const MCP_SCOPES = { project: "projet", user: "utilisateur", local: "local" };
 
 const BUSY_REASON = "Indisponible pendant une réponse";
 
@@ -20,15 +34,17 @@ const errorText = (err) => (err && err.message ? err.message : String(err));
 export function Sidebar({ id, view = "threads", open = true, workspace, status = {}, busy = false }) {
     const [tab, setTab] = useState("chats");
     const [toast, setToast] = useState(null);
-    const { loadProjects, loadSkills } = workspace;
+    const { loadProjects, loadSkills, loadMcp } = workspace;
     // Dossiers : fournis par useWorkspace ; sans eux, la barre latérale garde l'ancien comportement.
     const folders = workspace.folders || null;
 
     useEffect(() => {
         if (!open) return;
         if (view === "skills") loadSkills();
-        else if (tab === "projects") loadProjects();
-    }, [open, view, tab, loadProjects, loadSkills]);
+        else if (view === "mcp") {
+            if (loadMcp) loadMcp();
+        } else if (tab === "projects") loadProjects();
+    }, [open, view, tab, loadProjects, loadSkills, loadMcp]);
 
     useEffect(() => {
         if (!toast) return undefined;
@@ -54,6 +70,10 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
                     {view === "skills" ? (
                         <p className="panel-hint">
                             Tape <kbd>$</kbd> dans la barre de chat pour mentionner un skill.
+                        </p>
+                    ) : view === "mcp" ? (
+                        <p className="panel-hint">
+                            Ajoute un serveur avec <kbd>/mcp add</kbd> dans la barre de chat.
                         </p>
                     ) : (
                         <>
@@ -107,6 +127,15 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
                         <SkillsPanel
                             skills={workspace.skills}
                             onToggle={(skill, enabled) => act(() => workspace.toggleSkill(skill.id, enabled, skill.shared))}
+                        />
+                    ) : view === "mcp" ? (
+                        <McpPanel
+                            mcp={workspace.mcp || { items: [], warnings: [], loading: false, error: null }}
+                            disabled={busy}
+                            disabledReason={busyReason}
+                            onToggle={(server, enabled) => act(() => workspace.setMcpEnabled(server.name, enabled))}
+                            onConnect={(server) => act(() => workspace.connectMcp(server.name))}
+                            onLogin={(server) => act(() => workspace.loginMcp(server.name))}
                         />
                     ) : tab === "projects" ? (
                         <ProjectsPanel
@@ -390,6 +419,89 @@ function SkillsPanel({ skills, onToggle }) {
                 ))}
             </ul>
             {skills.loading ? <p className="panel-empty">Chargement…</p> : null}
+        </div>
+    );
+}
+
+/** Action proposée selon l'état d'un serveur (null : aucune). */
+function mcpAction(server) {
+    if (!server.enabled) return null;
+    if (server.status === "needs-approval") return { label: "Examiner", kind: "connect" };
+    if (server.status === "needs-auth") return { label: "Se connecter", kind: "login" };
+    if (server.status === "failed" || server.status === "idle") return { label: "Reconnecter", kind: "connect" };
+    return null;
+}
+
+function McpPanel({ mcp, disabled, disabledReason, onToggle, onConnect, onLogin }) {
+    const items = Array.isArray(mcp.items) ? mcp.items : [];
+    const warnings = Array.isArray(mcp.warnings) ? mcp.warnings : [];
+    return (
+        <div className="panel mcp-panel">
+            {mcp.error ? <p className="panel-error">{mcp.error}</p> : null}
+            {warnings.map((warning, index) => (
+                <p key={index} className="panel-error">
+                    {String(warning)}
+                </p>
+            ))}
+            {!mcp.loading && !mcp.error && items.length === 0 ? (
+                <p className="panel-empty">Aucun serveur MCP configuré.</p>
+            ) : null}
+            <ul className="mcp-list">
+                {items.map((server) => {
+                    const state = MCP_STATES[server.status] || { label: String(server.status || "inconnu"), symbol: "·" };
+                    const action = mcpAction(server);
+                    return (
+                        <li key={server.scope + ":" + server.name} className={"mcp-server mcp-" + (server.status || "idle")}>
+                            <div className="mcp-text">
+                                <span className="mcp-name">
+                                    {server.name}
+                                    <span className="tag">{MCP_SCOPES[server.scope] || server.scope}</span>
+                                </span>
+                                <span className="mcp-status">
+                                    <span className="mcp-symbol" aria-hidden="true">
+                                        {state.symbol}
+                                    </span>
+                                    {state.label}
+                                    {server.status === "connected" && typeof server.toolCount === "number"
+                                        ? ` · ${server.toolCount} outil${server.toolCount > 1 ? "s" : ""}`
+                                        : null}
+                                </span>
+                                {server.detail ? (
+                                    <span className="mcp-detail" title={server.detail}>
+                                        {server.transport ? server.transport + " · " : null}
+                                        {server.detail}
+                                    </span>
+                                ) : null}
+                                {server.reason ? <span className="mcp-reason">{server.reason}</span> : null}
+                                {action ? (
+                                    <button
+                                        type="button"
+                                        className="secondary mcp-action"
+                                        disabled={disabled}
+                                        title={disabledReason}
+                                        onClick={() => (action.kind === "login" ? onLogin(server) : onConnect(server))}
+                                    >
+                                        {action.label}
+                                    </button>
+                                ) : null}
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={Boolean(server.enabled)}
+                                aria-label={`${server.enabled ? "Désactiver" : "Activer"} ${server.name}`}
+                                className="switch"
+                                disabled={disabled}
+                                title={disabledReason}
+                                onClick={() => onToggle(server, !server.enabled)}
+                            >
+                                <span className="knob" />
+                            </button>
+                        </li>
+                    );
+                })}
+            </ul>
+            {mcp.loading ? <p className="panel-empty">Chargement…</p> : null}
         </div>
     );
 }

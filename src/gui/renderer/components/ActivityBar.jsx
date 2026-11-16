@@ -1,8 +1,9 @@
-import { ChatsIcon, SkillsIcon } from "./Icons.jsx";
+import { ChatsIcon, McpIcon, SkillsIcon } from "./Icons.jsx";
 
 export const VIEWS = [
     { id: "threads", label: "Conversations", Icon: ChatsIcon },
-    { id: "skills", label: "Skills", Icon: SkillsIcon }
+    { id: "skills", label: "Skills", Icon: SkillsIcon },
+    { id: "mcp", label: "Serveurs MCP", Icon: McpIcon }
 ];
 
 /** Pas vertical entre deux boutons : hauteur (40) + espacement (4), voir app.css. */

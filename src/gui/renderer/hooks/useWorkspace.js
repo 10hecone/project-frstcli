@@ -16,6 +16,7 @@ export function useWorkspace(client, status = {}) {
     const [projects, setProjects] = useState({ selectedId: null, items: [], loading: false, error: null });
     const [usage, setUsage] = useState({ data: null, loading: false, error: null });
     const [skills, setSkills] = useState({ items: [], loading: false, error: null });
+    const [mcp, setMcp] = useState({ items: [], warnings: [], loading: false, error: null });
     const [recent, setRecent] = useState([]);
     const [sessions, setSessions] = useState({ path: null, items: [], loading: false, error: null });
     const [trust, setTrust] = useState(null);
@@ -102,6 +103,21 @@ export function useWorkspace(client, status = {}) {
         }
         }, [client]);
 
+    const loadMcp = useCallback(async () => {
+        setMcp((prev) => ({ ...prev, loading: true, error: null }));
+        try {
+            const result = await client.listMcp();
+            setMcp({
+                items: (result && Array.isArray(result.servers) && result.servers) || [],
+                warnings: (result && Array.isArray(result.warnings) && result.warnings) || [],
+                loading: false,
+                error: null
+            });
+        } catch (err) {
+            setMcp((prev) => ({ ...prev, loading: false, error: errorText(err) }));
+        }
+    }, [client]);
+
     /** Exécute une action et transforme une exception en { ok:false, reason }. */
     const run = useCallback(async (fn) => {
         try {
@@ -143,6 +159,35 @@ export function useWorkspace(client, status = {}) {
             return result;
         },
         [client, run, loadSkills]
+    );
+    const setMcpEnabled = useCallback(
+        async (name, enabled) => {
+            // Mise à jour optimiste, comme pour les skills.
+            setMcp((prev) => ({
+                ...prev,
+                items: prev.items.map((server) => (server.name === name ? { ...server, enabled } : server))
+            }));
+            const result = await run(() => client.setMcpEnabled(name, enabled));
+            loadMcp();
+            return result;
+        },
+        [client, run, loadMcp]
+    );
+    const connectMcp = useCallback(
+        async (name) => {
+            const result = await run(() => client.connectMcp(name));
+            loadMcp();
+            return result;
+        },
+        [client, run, loadMcp]
+    );
+    const loginMcp = useCallback(
+        async (name) => {
+            const result = await run(() => client.loginMcp(name));
+            loadMcp();
+            return result;
+        },
+        [client, run, loadMcp]
     );
     const pickFiles = useCallback(async () => {
         try {
@@ -250,6 +295,7 @@ export function useWorkspace(client, status = {}) {
         projects,
         usage,
         skills,
+        mcp,
         refreshInfo,
         loadChats,
         fetchChats,
@@ -261,6 +307,10 @@ export function useWorkspace(client, status = {}) {
         setModel,
         selectProject,
         toggleSkill,
+        loadMcp,
+        setMcpEnabled,
+        connectMcp,
+        loginMcp,
         pickFiles,
         pasteImage,
         loadFolders,

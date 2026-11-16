@@ -14,6 +14,7 @@ const { createGuiHost } = require("../src/gui/host");
 const { createWorkspace } = require("../src/gui/workspace");
 const { createFolders } = require("../src/gui/folders");
 const { createChanges } = require("../src/gui/changes");
+const { createMcpPanel } = require("../src/gui/mcp");
 const { openWorkspacePath } = require("../src/gui/paths");
 const oauth = require("../src/mcp/oauth");
 const { nextZoom, zoomActionForInput } = require("../src/gui/window-state");
@@ -52,6 +53,8 @@ function registerIpc(win, { onExit = null, initialFolder = null } = {}) {
         isRunning: () => host.isRunning(),
         notify: (text) => host.backend.store.dispatch({ type: "append", entry: { type: "info", text } })
     });
+    // Panneau MCP : mêmes refus pendant une réponse que les skills et les dossiers.
+    const mcp = createMcpPanel({ isRunning: () => host.isRunning() });
     const attention = createAttention(win);
 
     // OAuth MCP : le navigateur s'ouvre via Electron. L'URL a déjà été validée par oauth.js
@@ -181,6 +184,10 @@ function registerIpc(win, { onExit = null, initialFolder = null } = {}) {
         [CHANNELS.UNDO_CHANGE]: (id) => changes.undoFile(id),
         [CHANNELS.UNDO_TURN]: (turn) => changes.undoTurn(turn || {}),
         [CHANNELS.OPEN_PATH]: (input) => openPath(input),
+        [CHANNELS.MCP_LIST]: () => mcp.list(),
+        [CHANNELS.MCP_SET_ENABLED]: (name, enabled) => mcp.setEnabled(name, enabled),
+        [CHANNELS.MCP_CONNECT]: (name) => mcp.connect(name),
+        [CHANNELS.MCP_LOGIN]: (name) => mcp.login(name),
         [CHANNELS.ATTENTION]: (payload) => ({ shown: attention.notify(payload) }),
         [CHANNELS.ZOOM]: (action) => applyZoom(action),
         [CHANNELS.APPEARANCE]: (options) => setAppearance(options)
