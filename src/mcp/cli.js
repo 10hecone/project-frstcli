@@ -36,6 +36,8 @@ const USAGE = [
     "  reconnect <nom|all>",
     "  allow <serveur>          autoriser mcp-call run <serveur> sans confirmation",
     "  reset-project-choices    oublier les réponses aux serveurs du projet (.mcp.json)",
+    "  login <nom> [--client-id <id>] [--client-secret] [--callback-port <port>]   connexion OAuth (http, sse)",
+    "  logout <nom>      supprimer les jetons OAuth d'un serveur",
     "Secrets : --env CLE=${VAR} ou --header \"Authorization: Bearer ${VAR}\" ; sans valeur, saisie masquée."
 ].join("\n");
 
@@ -127,7 +129,7 @@ function parseOptions(args, allowed) {
             break;
         }
 
-        const match = /^(--?[A-Za-z]+)(?:=(.*))?$/s.exec(arg);
+        const match = /^(--?[A-Za-z][A-Za-z-]*)(?:=(.*))?$/s.exec(arg);
         if (!match) {
             positional.push(arg);
             continue;
@@ -499,12 +501,62 @@ async function cmdResetProjectChoices(ctx) {
     return { ok: true, code: 0 };
 }
 
-function cmdAuth(ctx) {
-    ctx.ui.info(
-        "La connexion OAuth aux serveurs MCP n'est pas encore disponible. " +
-        "En attendant : /mcp add --transport http --header \"Authorization: Bearer ${MON_JETON}\" <nom> <url>."
-    );
-    return { ok: false, code: 1 };
+/** Serveur http/sse développé (URL réelle) pour OAuth. */
+async function oauthServer(ctx, name) {
+    const server = await findServer(ctx, name);
+    if (server.type === "stdio") fail(`« ${name} » est un serveur stdio : OAuth ne concerne que les serveurs http et sse`);
+    try {
+        return config.expandServer(server, ctx.env);
+    } catch (error) {
+        fail(error.message);
+    }
+    return null;
+}
+
+async function cmdLogin(ctx, args) {
+    // --client-secret ne prend jamais de valeur sur la ligne : saisie masquée.
+    const askClientSecret = args.includes("--client-secret");
+    if (args.some(arg => arg.startsWith("--client-secret="))) fail(plainSecretMessage("l'option", "--client-secret"));
+    const { options, positional } = parseOptions(args.filter(arg => arg !== "--client-secret"), ["--client-id", "--callback-port"]);
+    const [name, ...extra] = positional;
+    if (!name || extra.length) fail("usage : /mcp login <nom> [--client-id <id>] [--client-secret] [--callback-port <port>]");
+
+    let callbackPort = 0;
+    if (options["callback-port"] !== undefined) {
+        callbackPort = Number(options["callback-port"]);
+        if (!Number.isInteger(callbackPort) || callbackPort < 1024 || callbackPort > 65535) fail("--callback-port : entier entre 1024 et 65535");
+    }
+    if (askClientSecret && !options["client-id"]) fail("--client-secret demande aussi --client-id");
+
+    const server = await oauthServer(ctx, name);
+    if (Object.keys(server.headers ?? {}).some(header => header.toLowerCase() === "authorization")) {
+        fail(`« ${name} » a déjà un en-tête Authorization : retire-le (/mcp remove puis /mcp add) pour utiliser OAuth`);
+    }
+
+    let clientSecret;
+    if (askClientSecret) {
+        if (!ctx.ui || typeof ctx.ui.askSecret !== "function") fail("--client-secret : saisie masquée indisponible");
+        clientSecret = String((await ctx.ui.askSecret("Secret client OAuth (saisie masquée) : ")) ?? "");
+        if (!clientSecret) fail("secret client vide : connexion annulée");
+    }
+
+    ctx.ui.info(`Connexion OAuth à « ${name} »… (abandon au bout de 5 min, /mcp logout ${name} pour annuler)`);
+    try {
+        await ctx.oauth.login(server, { ui: ctx.ui, clientId: options["client-id"], clientSecret, callbackPort });
+    } catch (error) {
+        fail(`connexion à « ${name} » impossible : ${error.message}`);
+    }
+    ctx.ui.info(`Connecté à « ${name} » : les jetons sont enregistrés (jamais transmis à l'IA).`);
+    const ok = await reconnectOne(ctx, name);
+    return { ok, code: ok ? 0 : 1 };
+}
+
+async function cmdLogout(ctx, [name]) {
+    const server = await oauthServer(ctx, name);
+    const removed = await ctx.oauth.logout(server);
+    await ctx.manager.close(name);
+    ctx.ui.info(removed ? `Jetons de « ${name} » supprimés.` : `Aucun jeton enregistré pour « ${name} ».`);
+    return { ok: true, code: 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -527,6 +579,8 @@ function contextOf(options) {
         setDisabled: options.setDisabled ?? disabledStore.setDisabled,
         setDecision: options.setDecision ?? approvals.setDecision,
         resetProjectChoices: options.resetProjectChoices ?? approvals.resetProjectChoices,
+        oauth: options.oauth ?? require("./oauth"),
+        env: options.env ?? process.env,
         permissionStore: options.permissionStore
             ? () => options.permissionStore
             : () => require("../tools/command/index").getPermissionStore()
@@ -566,8 +620,9 @@ async function runMcpCommand(argv = [], options = {}) {
             case "reset-project-choices":
                 return await cmdResetProjectChoices(ctx);
             case "login":
+                return await cmdLogin(ctx, rest);
             case "logout":
-                return cmdAuth(ctx);
+                return await cmdLogout(ctx, rest);
             case "help":
             case "--help":
             case "-h":

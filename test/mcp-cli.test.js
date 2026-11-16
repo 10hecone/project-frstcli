@@ -377,9 +377,89 @@ test("reset-project-choices : efface les réponses du dossier", async () => {
     assert.equal(result.code, 2);
 });
 
-test("login / logout : pas encore disponibles, conseil d'en-tête ${VAR}", async () => {
-    const { code, ui } = await run("login srv", { root: newWorkspace() });
-    assert.equal(code, 1);
-    assert.match(ui.text(), /pas encore disponible/);
-    assert.match(ui.text(), /Authorization: Bearer \$\{/);
+function fakeOauth({ fail: failure = null } = {}) {
+    const calls = { login: [], logout: [] };
+    return {
+        calls,
+        login: async (server, options) => {
+            calls.login.push({ server, options });
+            if (failure) throw new Error(failure);
+            return { ok: true };
+        },
+        logout: async server => {
+            calls.logout.push(server);
+            return true;
+        }
+    };
+}
+
+test("login : flux OAuth sur l'URL développée, puis reconnexion", async () => {
+    const root = newWorkspace();
+    await config.addServer("local", root, "web", { type: "http", url: "https://mcp.exemple.fr/${CHEMIN}" });
+    const oauth = fakeOauth();
+
+    const result = await run("login web --callback-port 4567", { root, oauth, env: { CHEMIN: "mcp" } });
+    assert.equal(result.code, 0, result.ui.text());
+    assert.equal(oauth.calls.login.length, 1);
+    assert.equal(oauth.calls.login[0].server.url, "https://mcp.exemple.fr/mcp");
+    assert.equal(oauth.calls.login[0].options.callbackPort, 4567);
+    assert.deepEqual(result.manager.calls.reconnect, ["web"]);
+    assert.match(result.ui.text(), /jamais transmis à l'IA/);
+});
+
+test("login : secret client en saisie masquée seulement", async () => {
+    const root = newWorkspace();
+    await config.addServer("local", root, "web", { type: "http", url: "https://mcp.exemple.fr/" });
+
+    let oauth = fakeOauth();
+    let result = await run("login web --client-id abc --client-secret=en-clair", { root, oauth });
+    assert.equal(result.code, 2);
+    assert.equal(oauth.calls.login.length, 0);
+    assert.doesNotMatch(result.ui.text(), /en-clair/);
+
+    oauth = fakeOauth();
+    const ui = fakeUi([SECRET]);
+    result = await run("login web --client-id abc --client-secret", { root, oauth, ui });
+    assert.equal(result.code, 0, ui.text());
+    assert.equal(ui.questions.length, 1);
+    assert.equal(oauth.calls.login[0].options.clientId, "abc");
+    assert.equal(oauth.calls.login[0].options.clientSecret, SECRET);
+    assert.doesNotMatch(ui.text(), new RegExp(SECRET));
+
+    result = await run("login web --client-secret", { root, oauth: fakeOauth() });
+    assert.equal(result.code, 2);
+});
+
+test("login : refusé pour un serveur stdio, un en-tête Authorization ou un mauvais port", async () => {
+    const root = newWorkspace();
+    await config.addServer("local", root, "loc", { type: "stdio", command: "node" });
+    await config.addServer("local", root, "jeton", { type: "http", url: "https://a.exemple.fr/", headers: { Authorization: "Bearer ${JETON}" } });
+    await config.addServer("local", root, "web", { type: "http", url: "https://b.exemple.fr/" });
+    const oauth = fakeOauth();
+
+    for (const line of ["login loc", "login jeton", "login web --callback-port 80", "login web --callback-port abc", "login"]) {
+        const result = await run(line, { root, oauth });
+        assert.equal(result.code, 2, line);
+    }
+    assert.equal(oauth.calls.login.length, 0);
+});
+
+test("login : un échec du flux est signalé sans reconnexion", async () => {
+    const root = newWorkspace();
+    await config.addServer("local", root, "web", { type: "http", url: "https://b.exemple.fr/" });
+    const result = await run("login web", { root, oauth: fakeOauth({ fail: "connexion abandonnée" }) });
+    assert.equal(result.code, 2);
+    assert.match(result.ui.text(), /connexion abandonnée/);
+    assert.deepEqual(result.manager.calls.reconnect, []);
+});
+
+test("logout : supprime les jetons et ferme la connexion", async () => {
+    const root = newWorkspace();
+    await config.addServer("local", root, "web", { type: "http", url: "https://b.exemple.fr/" });
+    const oauth = fakeOauth();
+    const result = await run("logout web", { root, oauth });
+    assert.equal(result.code, 0);
+    assert.equal(oauth.calls.logout.length, 1);
+    assert.deepEqual(result.manager.calls.close, ["web"]);
+    assert.match(result.ui.text(), /supprimés/);
 });

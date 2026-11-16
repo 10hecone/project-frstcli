@@ -104,8 +104,11 @@ function locateProgram(command, args, cwd, env) {
     return { command, args };
 }
 
+// Jetons OAuth enregistrés par /mcp login (chargement paresseux : oauth.js n'est utile qu'en http/sse).
+const defaultAuthProviderFor = server => require("./oauth").providerFor(server);
+
 /** Transport du SDK pour un serveur déjà développé (variables remplacées). */
-function createTransport(server, { cwd = process.cwd(), env = process.env } = {}) {
+async function createTransport(server, { cwd = process.cwd(), env = process.env, authProviderFor = defaultAuthProviderFor } = {}) {
     if (server.type === "stdio") {
         // Seul l'env déclaré peut contenir des secrets : FS_* et *_TOKEN du parent sont retirés.
         const childEnv = { ...filterEnv(env), ...server.env };
@@ -121,8 +124,10 @@ function createTransport(server, { cwd = process.cwd(), env = process.env } = {}
 
     const url = new URL(server.url);
     const requestInit = { headers: { ...server.headers } };
-    if (server.type === "sse") return new SSEClientTransport(url, { requestInit });
-    return new StreamableHTTPClientTransport(url, { requestInit });
+    const authProvider = authProviderFor ? await authProviderFor(server) : undefined;
+    const transportOptions = authProvider ? { requestInit, authProvider } : { requestInit };
+    if (server.type === "sse") return new SSEClientTransport(url, transportOptions);
+    return new StreamableHTTPClientTransport(url, transportOptions);
 }
 
 // ---------------------------------------------------------------------------
