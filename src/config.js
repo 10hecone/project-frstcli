@@ -28,6 +28,10 @@ const CONFIG = {
     // Boucle d'outils client : 0 = sans limite, sinon confirmation toutes les N rondes.
     maxAgentTurns: envInt("FS_MAX_AGENT_TURNS", 0),
 
+    // Serveurs MCP locaux : délai de démarrage et délai d'un appel (10 minutes au plus, comme run_command).
+    mcpTimeoutMs: Math.max(1000, envInt("FS_MCP_TIMEOUT_MS", 30_000)),
+    mcpToolTimeoutMs: Math.min(600_000, Math.max(1000, envInt("FS_MCP_TOOL_TIMEOUT_MS", 120_000))),
+
     // Fichiers
     maxReadBytes: 1024 * 1024,      // taille max d'un fichier lisible sur disque
     maxReadChars: 30_000,           // caractères renvoyés au modèle par read_file

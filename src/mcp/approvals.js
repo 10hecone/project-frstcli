@@ -192,7 +192,7 @@ async function ensureApproved(workspace, server, { ui = null, isTrusted = defaul
     if (asking.has(key)) return asking.get(key);
 
     const pending = (async () => {
-            const yes = Boolean(await ui.confirm(describeForApproval(server)));
+        const yes = Boolean(await ui.confirm(describeForApproval(server)));
             const decision = yes ? STATUS.approved : STATUS.rejected;
         await setDecision(workspace, server, decision);
         return decision;
