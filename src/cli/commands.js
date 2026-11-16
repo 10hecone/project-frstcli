@@ -331,6 +331,12 @@ async function handleCommand(input) {
       break;
     }
 
+    case "/mcp": {
+      const { runMcpCommand } = require("../mcp/cli");
+      await runMcpCommand(value);
+      break;
+    }
+
     case "/jobs": {
       const { manager: jobManager, statusMessage } = require("../tools/command/jobs");
       const [action, ...rest] = String(value || "").trim().split(/\s+/);

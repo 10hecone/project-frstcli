@@ -233,7 +233,9 @@ function getManager() {
     const { workspace } = require("../core/workspace");
     const { ui } = require("../ui-bridge");
 
-    shared = createMcpManager({ root: workspace.root, ui });
+    const { isDisabled } = require("./disabled");
+
+    shared = createMcpManager({ root: workspace.root, ui, isDisabled });
     workspace.onChange(({ root }) => {
         shared.setRoot(root).catch(() => {});
     });

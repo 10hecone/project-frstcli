@@ -22,6 +22,7 @@ const COMMANDS = [
     ["/remember <texte>", "Ajouter une note durable au projet"],
     ["/forget <n|all>", "Supprimer une note (ou toutes)"],
     ["/permissions [remove <n|préfixe>|clear]", "Règles des commandes autorisées (projet)"],
+    ["/mcp [list|get|add|add-json|remove|enable|disable|reconnect|allow|reset-project-choices]", "Serveurs MCP locaux (/mcp help)"],
     ["/jobs [stop <id>|stop-all]", "Commandes en arrière-plan (liste / arrêt)"],
     ["/mode default|acceptEdits|plan", "Mode de permission : confirmer, accepter les écritures, lecture seule"],
     ["/new", "Nouvelle conversation"],
