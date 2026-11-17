@@ -27,7 +27,8 @@
     "prepare": "npm run build:tui",
     "pretest": "npm run build:tui",
     "test": "node --test test/*.test.js",
-    "bench:search": "node scripts/bench-search.js"
+    "bench:search": "node scripts/bench-search.js",
+    "bench:tools": "node scripts/bench-tools.js"
   },
   "keywords": [
     "cli",
