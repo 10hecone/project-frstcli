@@ -3,7 +3,13 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { createJobManager, MAX_JOBS, statusMessage } = require("../src/tools/command/jobs");
+const {
+    createJobManager,
+    MAX_JOBS,
+    MAX_BUFFER_CHARS,
+    statusMessage,
+    watchWorkspace
+} = require("../src/tools/command/jobs");
 const { runProcess } = require("../src/tools/command/runner");
 
 // Job factice : écrit des lignes, puis attend kill() ou finish().
@@ -18,21 +24,22 @@ function fakeLaunch(lines = []) {
     return { launch, control };
 }
 
-test("jobs : au maximum 3 jobs en cours", async () => {
-    assert.equal(MAX_JOBS, 3);
+test("jobs : au maximum 4 jobs en cours", async () => {
+    assert.equal(MAX_JOBS, 4);
+    assert.equal(MAX_BUFFER_CHARS, 16000);
     const manager = createJobManager();
-    const fakes = [fakeLaunch(), fakeLaunch(), fakeLaunch()];
+    const fakes = [fakeLaunch(), fakeLaunch(), fakeLaunch(), fakeLaunch()];
     const ids = fakes.map((fake, i) => manager.start({ command: `cmd ${i}`, launch: fake.launch }).id);
-    assert.deepEqual(ids, ["job-1", "job-2", "job-3"]);
-    assert.equal(manager.runningCount(), 3);
+    assert.deepEqual(ids, ["job-1", "job-2", "job-3", "job-4"]);
+    assert.equal(manager.runningCount(), 4);
 
-    assert.throws(() => manager.start({ command: "cmd 4", launch: fakeLaunch().launch }), /maximum 3/);
+    assert.throws(() => manager.start({ command: "cmd 5", launch: fakeLaunch().launch }), /maximum 4.*bg-stop/);
 
     fakes[0].control.finish(0);
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(manager.get("job-1").status, "done");
-    const fourth = manager.start({ command: "cmd 4", launch: fakeLaunch().launch });
-    assert.equal(fourth.id, "job-4");
+    const fifth = manager.start({ command: "cmd 5", launch: fakeLaunch().launch });
+    assert.equal(fifth.id, "job-5");
     await manager.stopAll();
     assert.equal(manager.runningCount(), 0);
 });

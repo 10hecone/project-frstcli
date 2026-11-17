@@ -107,6 +107,7 @@ async function runProcess({
     args = [],
     cwd = process.cwd(),
     timeoutMs,
+    noTimeout = false,
     onLine,
     signalHandle,
     input,
@@ -205,10 +206,13 @@ async function runProcess({
         child.on("error", error => finish(null, null, launchError(file, error)));
         child.on("close", (code, signal) => finish(code, signal));
 
-        timer = setTimeout(() => {
-            timedOut = true;
-            stop();
-        }, limit);
+        // noTimeout : commande lancée avec bg-run (serveur), arrêtée par bg-stop ou à la sortie du CLI.
+        if (!noTimeout) {
+            timer = setTimeout(() => {
+                timedOut = true;
+                stop();
+            }, limit);
+        }
 
         if (signalHandle) {
             signalHandle.kill = () => {

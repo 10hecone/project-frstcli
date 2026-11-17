@@ -2,8 +2,8 @@
 
 const { cleanOutput } = require("./output");
 
-const MAX_JOBS = 3;
-const MAX_BUFFER_CHARS = 200000;
+const MAX_JOBS = 4;
+const MAX_BUFFER_CHARS = 16000;
 const STOP_WAIT_MS = 5000;
 
 // Gestionnaire de commandes lancées en arrière-plan (background:true).
@@ -19,6 +19,7 @@ function createJobManager({ maxJobs = MAX_JOBS, maxBufferChars = MAX_BUFFER_CHAR
     function summary(job) {
         return {
             id: job.id,
+            origin: job.origin,
             command: job.command,
             description: job.description,
             cwd: job.cwd,
@@ -60,15 +61,17 @@ function createJobManager({ maxJobs = MAX_JOBS, maxBufferChars = MAX_BUFFER_CHAR
         return [...jobs.values()].filter(isRunning).length;
     }
 
-    function start({ command, description = null, cwd = ".", launch }) {
+    // origin : "bg-run" (lancé par l'IA, qu'elle peut lire et arrêter elle-même) ou "client".
+    function start({ command, description = null, cwd = ".", origin = "client", launch }) {
         if (typeof launch !== "function") throw new Error("launch doit être une fonction.");
         const active = runningCount();
         if (active >= maxJobs) {
-            throw new Error(`Déjà ${active} job(s) en cours (maximum ${maxJobs}). Arrête-en un avec /jobs stop <id>.`);
+            throw new Error(`Déjà ${active} job(s) en cours (maximum ${maxJobs}). Arrête-en un avec bg-stop <id> ou /jobs stop <id>.`);
         }
 
         const job = {
             id: `job-${nextId++}`,
+            origin,
             command,
             description,
             cwd,
@@ -143,6 +146,15 @@ function createJobManager({ maxJobs = MAX_JOBS, maxBufferChars = MAX_BUFFER_CHAR
         return summary(job);
     }
 
+    // Attend la fin du job ou waitMs millisecondes, puis renvoie son état.
+    async function wait(id, waitMs) {
+        const job = get(id);
+        let timer;
+        await Promise.race([job.done, new Promise(resolve => { timer = setTimeout(resolve, waitMs); })]);
+        clearTimeout(timer);
+        return summary(job);
+    }
+
     function list() {
         return [...jobs.values()].map(summary);
     }
@@ -163,7 +175,7 @@ function createJobManager({ maxJobs = MAX_JOBS, maxBufferChars = MAX_BUFFER_CHAR
         }
     }
 
-    return { start, output, stop, list, stopAll, killAll, runningCount, get: id => summary(get(id)) };
+    return { start, output, stop, wait, list, stopAll, killAll, runningCount, get: id => summary(get(id)) };
 }
 
 function statusMessage(job) {
@@ -181,6 +193,28 @@ const manager = createJobManager();
 // À la sortie du CLI, aucun job ne doit survivre : arrêt synchrone (process.on("exit") n'attend pas).
 process.once("exit", () => manager.killAll());
 
+/**
+ * Changement de projet : les jobs du projet précédent sont arrêtés (comme les serveurs MCP).
+ * Renvoie le désabonnement.
+ */
+function watchWorkspace(jobManager, workspace) {
+    let root = workspace.root || null;
+    return workspace.onChange(({ root: next } = {}) => {
+        const value = next || null;
+        if (value === root) return;
+        root = value;
+        jobManager.killAll();
+    });
+}
+
+// Liaison paresseuse (au premier bg-run) : les tests de createJobManager restent isolés.
+let workspaceBound = false;
+function bindWorkspace() {
+    if (workspaceBound) return;
+    workspaceBound = true;
+    watchWorkspace(manager, require("../../core/workspace").workspace);
+}
+
 function jobOutput(args = {}) {
     const result = manager.output(args.id);
     return { ...result, changed: false, message: statusMessage(result) };
@@ -191,4 +225,14 @@ async function jobStop(args = {}) {
     return { ...result, changed: false, message: statusMessage(result) };
 }
 
-module.exports = { MAX_JOBS, createJobManager, manager, jobOutput, jobStop, statusMessage };
+module.exports = {
+    MAX_JOBS,
+    MAX_BUFFER_CHARS,
+    createJobManager,
+    manager,
+    watchWorkspace,
+    bindWorkspace,
+    jobOutput,
+    jobStop,
+    statusMessage
+};

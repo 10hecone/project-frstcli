@@ -15,7 +15,7 @@ function level(file, args = [], cwd) {
 
 test("policy : programmes interdits, quel que soit le chemin ou l'extension", () => {
     assert.equal(level("rm", ["-rf", "src"]), "deny");
-    assert.equal(level("PowerShell.EXE", ["-Command", "x"]), "deny");
+    assert.equal(level("PowerShell.EXE", ["-EncodedCommand", "eAA="]), "deny");
     assert.equal(level("C:\\Windows\\System32\\cmd.exe", ["/c", "dir"]), "deny");
     assert.equal(level("node", ["-e", "1"]), "deny");
     assert.equal(level("node", ["-pe", "1"]), "deny");

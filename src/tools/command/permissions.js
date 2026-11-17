@@ -10,7 +10,11 @@ const FILE_NAME = "permissions.json";
 const MAX_RULES = 200;
 
 // mcp-call : le raccourci `mcp-call <serveur> <outil>` est ramené à `mcp-call run <serveur> <outil>`.
+// bg-run : les règles portent sur la commande lancée (« rojo serve » vaut pour bg-run rojo serve).
 function withCanonicalMcp(tokens) {
+    if (tokens[0] === "bg-run" && tokens.length > 1) {
+        return withCanonicalMcp([programName(tokens[1]), ...tokens.slice(2)]);
+    }
     return tokens[0] === PROGRAM ? [PROGRAM, ...canonicalMcpArgs(tokens.slice(1))] : tokens;
 }
 
@@ -60,10 +64,12 @@ function parseAnswer(raw) {
 
 /**
  * Décision finale pour une commande : "deny" (jamais lancée), "run" (sans
- * confirmation) ou "ask". Une règle enregistrée ne lève jamais un deny.
+ * confirmation) ou "ask". Une règle enregistrée ne lève jamais un deny,
+ * ni une confirmation obligatoire (alwaysAsk : PowerShell).
  */
 function decide({ verdict, rules = [], file, args = [] }) {
     if (!verdict || verdict.level === "deny") return "deny";
+    if (verdict.alwaysAsk) return "ask";
     if (verdict.level === "safe") return "run";
     const tokens = tokensOf(file, args);
     return rules.some(rule => matchesPrefix(rule.prefix, tokens)) ? "run" : "ask";

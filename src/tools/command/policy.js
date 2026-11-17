@@ -1,5 +1,6 @@
 "use strict";
 
+const fs = require("node:fs");
 const path = require("node:path");
 
 const { normalizeRelative } = require("../security");
@@ -8,7 +9,7 @@ const { judgeMcpCall } = require("../../mcp/policy");
 // Programmes jamais lancés : shells (ils contourneraient l'analyse de la
 // commande), suppression ou formatage, élévation de privilèges, exécution indirecte.
 const DENIED_PROGRAMS = new Set([
-    "bash", "sh", "zsh", "fish", "cmd", "powershell", "pwsh", "wsl",
+    "bash", "sh", "zsh", "fish", "cmd", "wsl",
     "rm", "rmdir", "rd", "del", "erase", "format", "mkfs", "dd", "diskpart",
     "sudo", "su", "doas", "runas", "xargs", "eval", "env",
     "reg", "schtasks", "shutdown", "mshta", "rundll32", "regsvr32", "cscript", "wscript"
@@ -52,8 +53,23 @@ const PACKAGE_MANAGERS = new Set(["npm", "pnpm", "yarn", "npx", "pnpx"]);
 
 const URL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 const SENSITIVE_NAME_RE = /^(\.env.*|\.npmrc|\.netrc|\.pgpass|(id_rsa|id_ed25519|credentials|secrets?)(\..*)?|.*\.(pem|key|p12|pfx|kdbx|keystore|jks))$/i;
-// Options à la Windows (/s, /?) : ce ne sont pas des chemins.
-const WINDOWS_SWITCH_RE = /^\/[a-z?]{1,2}$/i;
+// Options à la Windows (/s, /?, /min, /wait) : ce ne sont pas des chemins.
+const WINDOWS_SWITCH_RE = /^\/[a-z?]{1,10}$/i;
+
+/**
+ * Vrai si value est une option Windows (/s, /min) et non un chemin.
+ * Une ou deux lettres : toujours une option. Au-delà, seulement si aucun
+ * fichier ou dossier de ce nom n'existe (ls /users reste un chemin).
+ */
+function isWindowsSwitch(value, base = process.cwd()) {
+    if (!WINDOWS_SWITCH_RE.test(value)) return false;
+    if (value.length <= 3) return true;
+    try {
+        return !fs.existsSync(path.resolve(base, value));
+    } catch {
+        return false;
+    }
+}
 
 // "C:\\Tools\\Node.EXE" -> "node", "/usr/bin/rm" -> "rm".
 function programName(file) {
@@ -121,7 +137,7 @@ function looksLikePath(value) {
 }
 
 // Partie d'un argument qui peut désigner un chemin, ou null.
-function pathCandidate(arg) {
+function pathCandidate(arg, base) {
     let value = arg;
     if (value.startsWith("-")) {
         const eq = value.indexOf("=");
@@ -135,7 +151,7 @@ function pathCandidate(arg) {
         }
     }
     if (!value || URL_RE.test(value)) return null;
-    if (process.platform === "win32" && WINDOWS_SWITCH_RE.test(value)) return null;
+    if (process.platform === "win32" && isWindowsSwitch(value, base)) return null;
     // Référence git "rev:chemin" (HEAD:src/a.js) ; une lettre de lecteur (C:) est exclue.
     const revPath = /^[^\\/:]{2,}:(.*)$/.exec(value);
     if (revPath) value = revPath[1];
@@ -272,6 +288,98 @@ function judgePackageManager(name, args) {
     return ask(`${name} ${sub} lance des scripts ou modifie le projet.`);
 }
 
+const MAX_PS_SCRIPT_CHARS = 20000;
+const PS_USAGE = "Utilise powershell -NoProfile -Command '<script>' (script entre guillemets simples) ou powershell -NoProfile -File script.ps1.";
+
+/** Nom d'option PowerShell sans tiret ni barre (-NoProfile, --nop, /c), ou null. */
+function psOptionName(arg) {
+    const m = /^(?:--?|\/)([a-z]+)$/i.exec(arg);
+    return m ? m[1].toLowerCase() : null;
+}
+
+function isPsPrefix(option, full, min) {
+    return option.length >= min && full.startsWith(option);
+}
+
+/**
+ * PowerShell : jamais sans confirmation, ni règle « Toujours » (alwaysAsk).
+ * Le script complet (-Command ou contenu de -File) est renvoyé pour être montré.
+ */
+function judgePowerShell(name, list, base, root) {
+    for (let i = 0; i < list.length; i += 1) {
+        const arg = list[i];
+        const option = psOptionName(arg);
+        if (option === null) {
+            return deny(`Argument PowerShell inattendu : ${arg}. ${PS_USAGE}`);
+        }
+        if (option.startsWith("e") && !option.startsWith("ex") && option !== "ep") {
+            return deny("PowerShell -EncodedCommand interdit : le script doit rester lisible.");
+        }
+        if (isPsPrefix(option, "noexit", 3)) {
+            return deny("PowerShell -NoExit interdit : la commande ne se terminerait jamais.");
+        }
+        if (isPsPrefix(option, "noprofile", 3) || isPsPrefix(option, "nologo", 3) || isPsPrefix(option, "noninteractive", 3)) {
+            continue;
+        }
+        if (option === "ep" || isPsPrefix(option, "executionpolicy", 2)) {
+            if (i + 1 >= list.length) return deny("PowerShell -ExecutionPolicy sans valeur.");
+            i += 1;
+            continue;
+        }
+        if (option === "c" || isPsPrefix(option, "command", 3)) {
+            const rest = list.slice(i + 1);
+            if (rest.length === 0) return deny(`PowerShell -Command sans script. ${PS_USAGE}`);
+            if (rest.length === 1 && rest[0] === "-") {
+                return deny("PowerShell -Command - (script lu sur l'entrée) interdit : le script doit être visible.");
+            }
+            const script = rest.join(" ");
+            return { level: "ask", alwaysAsk: true, script, reason: `${name} lance un script PowerShell.` };
+        }
+        if (option === "f" || isPsPrefix(option, "file", 2)) {
+            const file = list[i + 1];
+            if (!file) return deny(`PowerShell -File sans script. ${PS_USAGE}`);
+            const problem = checkPath(file, base, root);
+            if (problem) return deny(problem);
+            let content;
+            try {
+                content = fs.readFileSync(path.resolve(base, file), "utf8");
+            } catch {
+                return deny(`Script PowerShell introuvable : ${file}`);
+            }
+            if (content.length > MAX_PS_SCRIPT_CHARS) {
+                return deny(`Script PowerShell trop long pour être relu (plus de ${MAX_PS_SCRIPT_CHARS} caractères) : ${file}`);
+            }
+            const extra = list.slice(i + 2);
+            const header = extra.length ? `# ${file} ${extra.join(" ")}` : `# ${file}`;
+            return { level: "ask", alwaysAsk: true, script: `${header}\n${content}`, reason: `${name} lance le script ${file}.` };
+        }
+        return deny(`Option PowerShell non autorisée : ${arg}. ${PS_USAGE}`);
+    }
+    return deny(`PowerShell interactif interdit. ${PS_USAGE}`);
+}
+
+const BG_COMMANDS = new Set(["bg-run", "bg-output", "bg-stop"]);
+const JOB_ID_RE = /^job-\d+$/;
+const BG_NESTED = new Set([...BG_COMMANDS, "mcp-call", "cd"]);
+
+/** bg-run <commande> : la commande lancée est jugée comme si elle était lancée directement. */
+function judgeBgRun(list, ctx) {
+    if (list.length === 0 || list[0].startsWith("-")) {
+        return deny("Usage : bg-run <commande> (ex. bg-run rojo serve). Puis bg-output <id> pour lire sa sortie, bg-stop <id> pour l'arrêter.");
+    }
+    const inner = programName(list[0]);
+    if (BG_NESTED.has(inner)) return deny(`bg-run ${inner} interdit : donne directement la commande à lancer.`);
+    const verdict = judge({ file: list[0], args: list.slice(1), cwd: ctx.cwd, workspace: ctx.workspace });
+    if (verdict.level === "deny") return verdict;
+    return { ...verdict, level: "ask", reason: `Lancement en arrière-plan. ${verdict.reason}` };
+}
+
+function judgeBgJob(name, list) {
+    if (name === "bg-output" && list.length === 0) return safe("Liste des jobs en arrière-plan.");
+    if (list.length === 1 && JOB_ID_RE.test(list[0])) return safe(`${name} ${list[0]}.`);
+    return deny(`Usage : ${name} <id> (ex. ${name} job-1).`);
+}
+
 /**
  * Classe une commande déjà analysée (sans shell) :
  * - "safe" : lecture seule, aucune confirmation nécessaire ;
@@ -284,6 +392,9 @@ function judge({ file, args = [], cwd, workspace } = {}) {
     const list = Array.isArray(args) ? args.map(String) : [];
 
     if (!name) return deny("Programme manquant.");
+    if (name === "start") {
+        return deny("start est une commande interne de cmd, indisponible ici (aucun shell). Pour lancer un programme en arrière-plan, utilise bg-run <commande> (ex. bg-run rojo serve).");
+    }
     if (DENIED_PROGRAMS.has(name)) {
         return deny(`Programme interdit : ${name}. Utilise les outils de fichiers ou une commande plus ciblée.`);
     }
@@ -305,9 +416,12 @@ function judge({ file, args = [], cwd, workspace } = {}) {
 
     // Avant la vérification des chemins : un argument JSON n'est pas un chemin.
     if (name === "mcp-call") return judgeMcpCall(list, { cwd: base, workspace: root });
+    if (name === "bg-run") return judgeBgRun(list, { cwd, workspace: root });
+    if (BG_COMMANDS.has(name)) return judgeBgJob(name, list);
+    if (name === "powershell" || name === "pwsh") return judgePowerShell(name, list, base, root);
 
     for (const arg of list) {
-        const value = pathCandidate(arg);
+        const value = pathCandidate(arg, base);
         if (value === null) continue;
         const problem = checkPath(value, base, root);
         if (problem) return deny(problem);
@@ -339,6 +453,7 @@ module.exports = {
     judge,
     programName,
     isNodeEvalFlag,
+    isWindowsSwitch,
     DENIED_PROGRAMS,
     SAFE_PROGRAMS
 };
