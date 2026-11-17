@@ -35,6 +35,17 @@ test("barres de progression et lignes d'erreur reconnues", () => {
     assert.equal(isErrorLine("tout va bien"), false);
 });
 
+test("cleanOutput masque les avertissements git LF/CRLF", () => {
+    const result = cleanOutput([
+        "warning: in the working copy of 'src/a.js', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/b.js', LF will be replaced by CRLF the next time Git touches it",
+        " M src/a.js"
+    ].join("\n"));
+    assert.doesNotMatch(result.output, /will be replaced/);
+    assert.match(result.output, / M src\/a\.js/);
+    assert.match(result.output, /\[2 avertissement\(s\) git sur les fins de ligne \(LF\/CRLF\) masqué\(s\)\]/);
+});
+
 test("cleanOutput garde le dernier état d'une ligne réécrite avec \\r", () => {
     const result = cleanOutput("ligne\rprogress 10%\rfin\nok");
     assert.equal(result.output, "fin\nok");

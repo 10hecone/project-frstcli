@@ -20,6 +20,7 @@ const ANSI_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -\/]*[@-~]
 const PERCENT_OR_COUNT = /\d{1,3}(?:[.,]\d+)?\s?%|\b\d+\s?\/\s?\d+\b/;
 const BAR = /[█▓▒░■□▰▱]{2,}|\[[=#>\-. ]{4,}\]/;
 const SPINNER = /^[\u2800-\u28ff]/;
+const GIT_EOL_WARNING = /^warning: (in the working copy of '.*', )?(LF|CRLF) will be replaced by (CRLF|LF)/i;
 const ERROR_LINE = /\b(?:error|erreur|failed|failure|fatal|traceback|panic|not ok)\b|\b\w+(?:Error|Exception)\b|npm ERR!|[✖✗]/i;
 
 function stripAnsi(text) {
@@ -74,11 +75,18 @@ function collapseRepeats(lines) {
  */
 function cleanOutput(text, { maxChars = MAX_CLEAN_CHARS, maxErrorLines = MAX_ERROR_LINES, truncated = false } = {}) {
     const lines = [];
+    let eolWarnings = 0;
     for (const raw of stripAnsi(text).split("\n")) {
         const line = lastCarriageSegment(raw).trimEnd();
         if (isProgressLine(line)) continue;
+        // Avertissements git sur les fins de ligne : du bruit pour le modèle, un par fichier.
+        if (GIT_EOL_WARNING.test(line)) {
+            eolWarnings++;
+            continue;
+        }
         lines.push(line);
     }
+    if (eolWarnings) lines.push(`[${eolWarnings} avertissement(s) git sur les fins de ligne (LF/CRLF) masqué(s)]`);
 
     const collapsed = collapseRepeats(lines);
     const cleaned = collapsed.join("\n").replace(/^\n+|\n+$/g, "");

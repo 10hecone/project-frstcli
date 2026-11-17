@@ -382,10 +382,15 @@ async function runCommand(toolArgs = {}) {
         truncated = cleaned.truncated;
         errorLines = cleaned.error_lines;
     } else {
+        // Étape repérée par son numéro et un début de commande : la commande complète est déjà dans l'en-tête.
+        const label = (entry, i) => {
+            const short = entry.command.length > 60 ? `${entry.command.slice(0, 59)}…` : entry.command;
+            return `[${i + 1}] ${short}`;
+        };
         const raw = run.entries
-            .map(entry => (entry.skipped
-                ? `$ ${entry.command}\n[non lancée]`
-                : `$ ${entry.command}\n${entry.output || ""}`.trimEnd()))
+            .map((entry, i) => (entry.skipped
+                ? `${label(entry, i)}\n[non lancée]`
+                : `${label(entry, i)}\n${entry.output || ""}`.trimEnd()))
             .join("\n");
         const cleaned = cleanOutput(raw, { truncated: executed.some(entry => entry.truncated) });
         output = cleaned.output;

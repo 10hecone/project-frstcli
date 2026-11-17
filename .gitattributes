@@ -1,4 +1,8 @@
-* text=auto
+# Fins de ligne en LF, y compris dans la copie de travail sous Windows :
+# évite les avertissements « LF will be replaced by CRLF » à chaque git add.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
 
 *.png binary
 *.jpg binary
