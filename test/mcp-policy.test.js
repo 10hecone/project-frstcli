@@ -42,6 +42,9 @@ test("mcp policy : run, read et prompt demandent une confirmation", () => {
 test("mcp policy : refus d'un nom de serveur invalide ou d'un --args-file hors du projet", () => {
     assert.equal(level(["tools", "../evil"]), "deny");
     assert.equal(level(["run", "a b", "x"]), "deny");
+    assert.equal(level(["run", "a;b", "x"]), "deny");
+    assert.equal(level(["run", "..", "x"]), "deny");
+    assert.equal(level(["tools", "a;b"]), "deny");
     assert.equal(level(["run", "__proto__", "x"]), "deny");
     assert.equal(level(["run", "github", "x", "--args-file", "../args.json"]), "deny");
     assert.equal(level(["run", "github", "x", "--args-file=~/args.json"]), "deny");
