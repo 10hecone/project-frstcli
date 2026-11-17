@@ -63,15 +63,18 @@ test("normalizeArgs : read_file accepte les numéros de ligne en chaîne", () =>
     );
 });
 
-test("normalizeArgs : search_files détecte les regex et garde max_results", () => {
+test("normalizeArgs : recherche littérale par défaut, regex explicite et max_results", () => {
     assert.deepEqual(
-        normalizeArgs("search_files", { query: "function\\s+run", glob: "*.js", max_results: 5 }),
+        normalizeArgs("search_files", { query: "regex:function\\s+run", glob: "*.js", max_results: 5 }),
         { query: "function\\s+run", glob: "*.js", regex: true, max_results: 5 }
     );
-    // Sans max_results, la valeur par défaut (DEFAULT_SEARCH_RESULTS = 50) est appliquée.
-    assert.deepEqual(normalizeArgs("search_files", { query: "TODO" }), { query: "TODO", max_results: 50 });
-    // Regex invalide : recherche littérale.
-    assert.deepEqual(normalizeArgs("search_files", { query: "foo(" }), { query: "foo(", max_results: 50 });
+    for (const query of ["TODO", "foo(", "package.json", "function\\s+run"]) {
+        assert.deepEqual(normalizeArgs("search_files", { query }), { query, regex: false, max_results: 50 });
+    }
+    assert.deepEqual(normalizeArgs("search_files", { query: "literal:regex:foo" }), {
+        query: "regex:foo", regex: false, max_results: 50
+    });
+    assert.throws(() => validateToolCall({ name: "search_files", args: normalizeArgs("search_files", { query: "regex:foo(" }) }), /regex valide/);
 });
 
 test("normalizeArgs : outil inconnu", () => {

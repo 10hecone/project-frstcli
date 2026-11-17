@@ -83,11 +83,19 @@ function parseMcpArgs(args = []) {
 
     const positionals = [];
     let argsFile = null;
+    let offset = 0;
     let help = false;
     for (let i = 0; i < rest.length; i += 1) {
         const arg = rest[i];
         if (arg === "--help" || arg === "-h") {
             help = true;
+        } else if (arg === "--offset") {
+            if (action !== "describe") return usageError(action, "--offset existe seulement pour describe");
+            const value = rest[++i];
+            if (!/^\d+$/.test(value || "") || !Number.isSafeInteger(Number(value))) {
+                return usageError(action, "--offset attend un entier positif ou nul");
+            }
+            offset = Number(value);
         } else if (arg === "--args-file" || arg.startsWith("--args-file=")) {
             if (!spec.json) return usageError(action, `--args-file n'existe pas pour ${action}`);
             if (argsFile !== null) return usageError(action, "--args-file donné deux fois");
@@ -125,6 +133,7 @@ function parseMcpArgs(args = []) {
         target: positionals[1] ?? null,
         json: extra[0] ?? null,
         argsFile,
+        ...(offset ? { offset } : {}),
         help: false,
         shortcut
     };
@@ -139,6 +148,7 @@ function canonicalMcpArgs(args = []) {
     if (parsed.target !== null) tokens.push(parsed.target);
     if (parsed.json !== null) tokens.push(parsed.json);
     if (parsed.argsFile !== null) tokens.push("--args-file", parsed.argsFile);
+    if (parsed.offset) tokens.push("--offset", String(parsed.offset));
     return tokens;
 }
 

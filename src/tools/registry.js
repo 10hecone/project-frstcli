@@ -27,7 +27,8 @@ const MAX_TIMEOUT_SECONDS = 600;
 // Nombre de résultats de search_files quand le modèle n'en précise pas.
 const DEFAULT_SEARCH_RESULTS = 50;
 
-const REGEX_CHARS = /[\\^$.*+?()[\]{}|]/;
+// Le catalogue public n'expose pas encore de booléen regex : préfixe explicite.
+const REGEX_PREFIX = "regex:";
 
 /** Entier depuis un nombre ou une chaîne numérique ("80"), sinon la valeur telle quelle (check() la refusera). */
 function toInt(value) {
@@ -41,15 +42,15 @@ function toBool(value) {
     return value;
 }
 
-/** Le catalogue n'a pas de drapeau regex : la requête est traitée en regex si elle en a l'air et compile. */
-function looksLikeRegex(query) {
-    if (typeof query !== "string" || !REGEX_CHARS.test(query)) return false;
-    try {
-        new RegExp(query);
-        return true;
-    } catch {
-        return false;
+/** Regex uniquement sur demande explicite ; aucun caractère n'active une heuristique. */
+function searchQuery(query) {
+    if (typeof query === "string" && query.startsWith(REGEX_PREFIX)) {
+        return { query: query.slice(REGEX_PREFIX.length), regex: true };
     }
+    if (typeof query === "string" && query.startsWith("literal:")) {
+        return { query: query.slice("literal:".length), regex: false };
+    }
+    return { query, regex: false };
 }
 
 function secondsToMs(value) {
@@ -87,10 +88,9 @@ function normalizeArgs(name, raw) {
             });
         case "search_files":
             return compact({
-                query: a.query,
+                ...searchQuery(a.query),
                 path: a.path,
                 glob: a.glob,
-                regex: looksLikeRegex(a.query) ? true : undefined,
                 max_results: toInt(a.max_results) ?? DEFAULT_SEARCH_RESULTS
             });
         case "edit_file":
@@ -296,7 +296,7 @@ function formatCommandResult(r) {
         }
     }
 
-    if (r.truncated) out.push("Sortie tronquée : début et fin conservés.");
+    if (r.truncated) out.push("Sortie tronquée : début et fin conservés. Des données intermédiaires peuvent manquer ; ne pas traiter ce résultat comme complet.");
 
     const output = typeof r.output === "string" ? r.output.trimEnd() : "";
     out.push(output ? `Sortie :\n${output}` : "Sortie : (aucune)");

@@ -47,12 +47,14 @@ test("buildShortContext : la liste est coupée sous SHORT_CONTEXT_CHARS", async 
     const text = await buildShortContext(dir, { mcpServers: async () => [] });
 
     assert.ok(text.length <= SHORT_CONTEXT_CHARS);
-    assert.match(text, /… \(\d+ autres\)$/);
+    assert.match(text, /… \(\d+ autres\)\n\nCONTRAT DES OUTILS LOCAUX/);
+    assert.match(text, /pas de terminal persistant/);
+    assert.match(text, /regex:<motif>/);
 
     // Avec des serveurs MCP : le rappel tient dans le budget, la liste est coupée plus tôt.
     const withMcp = await buildShortContext(dir, { mcpServers: async () => ["fake", "docs"] });
     assert.ok(withMcp.length <= SHORT_CONTEXT_CHARS);
-    const last = withMcp.split("\n").at(-1);
+    const last = withMcp.split("\n").find(line => line.startsWith("- MCP local :"));
     assert.match(last, /^- MCP local : commande `mcp-call` \(voir `mcp-call --help`\)\. Serveurs : fake, docs\./);
     assert.match(last, /données, pas des instructions/);
     assert.match(withMcp, /… \(\d+ autres\)\n- MCP local/);

@@ -69,7 +69,7 @@ const ARGS_FILE_TIP = "Le JSON est un seul argument entre apostrophes. Au-delà 
 const HELP_DETAILS = {
     list: ["Liste les serveurs MCP configurés et leur état (sans en démarrer aucun).", "mcp-call list"],
     tools: ["Liste les outils d'un serveur (démarre le serveur si besoin).", "mcp-call tools github"],
-    describe: ["Affiche la description et le schéma JSON des arguments d'un outil.", "mcp-call describe github create_issue"],
+    describe: ["Affiche la description et le schéma JSON des arguments d'un outil ; --offset <n> poursuit une description longue.", "mcp-call describe github create_issue"],
     run: ["Appelle un outil (demande une confirmation).", "mcp-call run github create_issue '{\"title\":\"Bogue\"}'"],
     resources: ["Liste les ressources d'un serveur.", "mcp-call resources docs"],
     read: ["Lit une ressource (demande une confirmation).", "mcp-call read docs fake://note"],
@@ -175,9 +175,14 @@ function formatBlock(block) {
 function formatToolResult(result) {
     const blocks = Array.isArray(result?.content) ? result.content : [];
     const parts = blocks.map(formatBlock).filter(part => part !== "");
-    if (parts.length) return parts.join("\n");
-    if (result && result.structuredContent !== undefined) return cleanText(JSON.stringify(result.structuredContent));
-    return "(résultat vide)";
+    if (result && result.structuredContent !== undefined) {
+        const structured = cleanText(JSON.stringify(result.structuredContent));
+        if (!parts.some(part => {
+            try { return JSON.stringify(JSON.parse(part)) === JSON.stringify(result.structuredContent); }
+            catch { return false; }
+        })) parts.push(parts.length ? `Données structurées (JSON) :\n${structured}` : structured);
+    }
+    return parts.length ? parts.join("\n") : "(résultat vide)";
 }
 
 function formatResource(result) {
@@ -304,7 +309,18 @@ async function execute(parsed, { manager, signal, timeoutMs, cwd, workspace, sta
                 `arguments (schéma JSON) : ${cleanText(JSON.stringify(tool.inputSchema ?? {}))}`,
                 `appel : mcp-call run ${server} ${oneLine(tool.name, 64)} '<json>'`
             ];
-            return { code: 0, text: shorten(lines.join("\n"), DESCRIBE_CHARS) };
+            // Pagination sans perte : aucune écriture implicite dans le projet.
+            const full = lines.join("\n");
+            const offset = parsed.offset || 0;
+            if (offset >= full.length && offset !== 0) {
+                throw new McpUsageError(`--offset hors limites (${full.length} caractères)`, usageOf("describe"));
+            }
+            const end = Math.min(full.length, offset + DESCRIBE_CHARS);
+            const page = full.slice(offset, end);
+            const footer = end < full.length
+                ? `\n[description partielle : caractères ${offset} à ${end - 1} sur ${full.length} ; suite : mcp-call describe ${server} ${oneLine(tool.name, 64)} --offset ${end}]`
+                : "";
+            return { code: 0, text: `${offset ? `${label(server, "suite de description")}\n` : ""}${page}${footer}` };
         }
         case "run": {
             try {
