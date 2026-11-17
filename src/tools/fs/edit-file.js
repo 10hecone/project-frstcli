@@ -13,6 +13,7 @@ const { finishMutation } = require("../core/journal");
 const { writeAtomic } = require("../core/atomic");
 const { workspace } = require("../../core/workspace");
 const permissionsMode = require("../../core/permissions-mode");
+const { indentWarning } = require("../core/indent-check");
 
 async function editFile(args = {}) {
     requireString(args.path, "path");
@@ -113,8 +114,14 @@ async function editFile(args = {}) {
         path: rel,
         changed: true,
         replacements: replaceAll ? count : 1,
-        message: "Modification enregistrée."
+        message: "Modification enregistrée.",
+        ...withIndentWarning(rel, previous, updated)
     };
+}
+
+function withIndentWarning(rel, before, after) {
+    const warning = indentWarning(rel, before, after);
+    return warning ? { warning } : {};
 }
 
 /**

@@ -16,6 +16,7 @@ const { finishMutation } = require("../core/journal");
 const { writeAtomic } = require("../core/atomic");
 const { workspace } = require("../../core/workspace");
 const permissionsMode = require("../../core/permissions-mode");
+const { indentWarning } = require("../core/indent-check");
 
 async function writeFile(args = {}) {
     requireString(args.path, "path");
@@ -100,6 +101,7 @@ async function writeFile(args = {}) {
     if (!existing) require("../core/temporary-files").trackTemporary(workspace.root, rel, content);
 
     const verb = existing ? "modifié" : "créé";
+    const warning = indentWarning(rel, previous, content);
 
     await finishMutation(
         {
@@ -118,7 +120,8 @@ async function writeFile(args = {}) {
         created: !existing,
         bytes,
         lines: memory.countLines(content),
-        message: existing ? "Fichier modifié." : "Fichier créé."
+        message: existing ? "Fichier modifié." : "Fichier créé.",
+        ...(warning ? { warning } : {})
     };
 }
 
