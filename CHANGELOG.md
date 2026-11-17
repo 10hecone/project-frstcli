@@ -4,6 +4,24 @@ Toutes les modifications notables de FranceStudent Code sont listées ici.
 
 Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Le dépôt n'a encore aucun tag git : `package.json` indique la version 1.0.0 et les sections sont découpées par période. Les hash entre parenthèses renvoient aux commits de la branche `dev`.
 
+## [Non publié] — serveurs MCP locaux (branche `main`)
+
+### Ajouté
+
+- Serveurs MCP locaux (stdio, http, sse) au format de Claude Code, en portées `local`, `project` (`.mcp.json`) et `user`.
+- Commande virtuelle `mcp-call` dans `run_command` : listes sans confirmation, appels d'outils, ressources et prompts confirmés, règles « Toujours » par outil.
+- Approbation des serveurs de `.mcp.json` par empreinte, redemandée si la définition change.
+- Commandes `/mcp` et `frst mcp` (`list`, `get`, `add`, `add-json`, `remove`, `enable`, `disable`, `reconnect`, `allow`, `reset-project-choices`, `login`, `logout`).
+- Connexion OAuth (PKCE, retour sur 127.0.0.1) des serveurs http et sse.
+- GUI : panneau « Serveurs MCP » et arrêt des serveurs à la fermeture et au changement de dossier.
+- Documentation : `docs/mcp.md`.
+
+### Sécurité
+
+- Secrets masqués dans les questions, les résultats et l'affichage ; environnement des serveurs stdio filtré.
+- Résultats des serveurs traités comme des données non fiables (nettoyés, plafonnés à 16 000 caractères, étiquetés).
+- GUI : quatre canaux IPC MCP seulement, aucun pour ajouter un serveur ni appeler un outil.
+
 ## [Non publié] — du 2026-10-19 au 2026-10-21
 
 ### Ajouté

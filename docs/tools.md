@@ -3,7 +3,7 @@
 ## Organisation
 
 - `tools.js` : façade. Elle réexporte TOOLS, validateToolCall et describeCall, et définit summarizeResult, setProject, unsetProject et undoLast.
-- `registry.js` : la liste des outils. Chaque module fournit `name`, `run`, `check` et `describe`. validateToolCall vérifie le nom et les arguments avant l'exécution. Le fichier gère aussi les outils client de l'API (`client-tools.md`) :
+- `registry.js` : la liste des outils. Chaque module fournit `name`, `run`, `check` et `describe`. validateToolCall vérifie le nom et les arguments avant l'exécution. Le fichier gère aussi les outils client de l'API ([sdkapi.md](sdkapi.md)) :
   - `CLIENT_TOOLS` : les six outils déclarés à l'API, dans un ordre fixe (cache de prompt) ; `READ_TOOLS` : les trois outils de lecture (`/plan`).
   - `normalizeArgs` : convertit les arguments du catalogue (`old_text`, `timeout_seconds`…) vers ceux des outils locaux et ignore les clés inconnues. `search_files` reçoit 50 résultats par défaut.
   - `runClientTool` : normalise, valide puis exécute un appel.
@@ -18,9 +18,19 @@
   - `atomic.js` : writeAtomic(target, content, {expected, read}).
   - `journal.js` : journal des modifications et undoLast.
   - `walk.js` : walkFiles(dir, relDir, {maxFiles}).
-- `command/` : run_command (index.js, parse.js, runner.js, program.js). program.js contient filterEnv, killTree et resolveProgram, sortis de runner.js. La sortie renvoyée au modèle est limitée à 16 000 caractères (moitié début, moitié fin, `output.js`). Les commandes en arrière-plan (`jobs.js`) se gèrent avec `/jobs`.
-- `delegate.js` : outil delegate, qui lance un sous-agent en lecture seule (src/agent/subagent.js).
-- `todo-write.js` : outil todo_write, la liste de tâches de l'agent.
+- `command/` : run_command (index.js, parse.js, runner.js, program.js). program.js contient filterEnv, killTree et resolveProgram, sortis de runner.js. La sortie renvoyée au modèle est limitée à 16 000 caractères (moitié début, moitié fin, `output.js`). Les commandes en arrière-plan (`jobs.js`) se gèrent avec `/jobs`. `index.js` reconnaît aussi la commande virtuelle `mcp-call`, exécutée dans le processus (src/mcp/call.js), seule, sans enchaînement ni pipe ; sa question de confirmation vient de src/mcp/policy.js.
+
+Les anciens outils `delegate` et `todo_write` (`delegate.js`, `todo-write.js`) ont été retirés.
+
+## Serveurs MCP (src/mcp/)
+
+- `config.js` : lecture, validation et écriture des portées `local`, `project` (`.mcp.json`) et `user` ; développement de `${VAR}`.
+- `approvals.js` : approbation des serveurs de `.mcp.json` par empreinte ; `disabled.js` : serveurs désactivés.
+- `client.js` : connexion (stdio, http, sse) avec `@modelcontextprotocol/sdk` ; `manager.js` : démarrage paresseux, 8 connexions au plus, arrêt après inactivité, cache des listes.
+- `policy.js` : grammaire de `mcp-call`, questions et règles de permission ; `call.js` : exécution et mise en forme des résultats.
+- `redact.js` : masquage des secrets ; `oauth.js` : connexion OAuth et jetons ; `cli.js` : commandes `/mcp` et `frst mcp`.
+
+Détails : [mcp.md](mcp.md).
 
 ## Ajouter un outil
 

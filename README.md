@@ -13,12 +13,14 @@ Interface en ligne de commande pour utiliser ia.francestudent depuis un terminal
 - Saisie multi-ligne : `\` en fin de ligne pour continuer, ou bloc entre deux lignes `"""`
 - Pré-prompt personnalisé, commun à tous les projets ou propre à un projet (`/preprompt`)
 - Mémoire de profil qui se renforce avec l'usage : faits appris sur l'utilisateur et le projet, ajoutés au pré-prompt (`/profil`)
+- Serveurs MCP locaux (stdio, http, sse) au format de Claude Code, utilisés par le modèle via la commande `mcp-call` (`/mcp`)
+- Application de bureau (Electron) en plus du terminal (`npm run app`)
 
 ## Prérequis
 
 - Node.js 22 ou plus récent
 - Un compte FranceStudent avec une session active dans le navigateur
-- Pour le mode projet : l'accès aux outils client de l'API (« mode avancé », voir `client-tools.md`), disponible avec les modèles OpenAI et Claude
+- Pour le mode projet : l'accès aux outils client de l'API (« mode avancé », voir [docs/sdkapi.md](docs/sdkapi.md)), disponible avec les modèles OpenAI et Claude
 
 ## Installation
 
@@ -61,6 +63,8 @@ Lancement :
 | `frst` (ou `npm run start:tui`) | Nouvelle interface plein terminal (TUI Ink) |
 | `frst --classic` (ou `FRST_UI=classic frst`) | Ancien CLI readline |
 | `frstcli` (ou `npm start`, `node index.js`) | Ancien CLI readline, directement |
+| `frst mcp <commande>` | Gère les serveurs MCP hors session (voir [Serveurs MCP locaux](#serveurs-mcp-locaux)) |
+| `npm run app` | Application de bureau (Electron) ; construit l'interface avant de la lancer |
 
 `frst` ouvre automatiquement l'ancien CLI si le terminal n'est pas interactif, si `dist/tui.mjs` est absent ou si la TUI ne peut pas démarrer.
 
@@ -145,6 +149,11 @@ Exemple de session :
 | `/usage` | Consommation : session, conversation, limites du compte |
 | `/auth [refresh]` | État de la connexion, ou renouvellement du jeton |
 | `/clear` | Efface le terminal (`/quit` est un alias de `/exit`) |
+| `/mcp [list\|get\|add\|add-json\|remove]` | Liste, détaille, ajoute ou supprime des serveurs MCP |
+| `/mcp enable\|disable\|reconnect <nom>` | Active, désactive ou reconnecte un serveur MCP |
+| `/mcp allow <serveur>` | Autorise tous les appels d'un serveur MCP dans le projet |
+| `/mcp login\|logout <nom>` | Connexion OAuth à un serveur MCP http ou sse |
+| `/mcp reset-project-choices` | Oublie les approbations des serveurs de `.mcp.json` |
 
 ### Contexte envoyé au modèle
 
@@ -162,15 +171,33 @@ Exemple de session :
 
 ### Outils du modèle
 
-Le CLI utilise les outils client natifs de l'API France Student (voir `client-tools.md`). Six outils sont déclarés, toujours dans le même ordre pour garder le cache de prompt : `list_directory`, `read_file`, `search_files`, `edit_file`, `write_file` et `run_command`. Avec `/plan`, seuls les trois premiers (lecture seule) sont proposés.
+Le CLI utilise les outils client natifs de l'API France Student (voir [docs/sdkapi.md](docs/sdkapi.md)). Six outils sont déclarés, toujours dans le même ordre pour garder le cache de prompt : `list_directory`, `read_file`, `search_files`, `edit_file`, `write_file` et `run_command`. Avec `/plan`, seuls les trois premiers (lecture seule) sont proposés.
 
 - Les résultats sont renvoyés en texte : `read_file` en lignes numérotées, `search_files` en lignes `chemin:ligne: texte` (50 résultats par défaut), `list_directory` avec une entrée par ligne (dossiers terminés par `/`), `run_command` avec la commande, le statut puis la sortie. Les autres résultats restent en JSON compact.
 - `read_file` renvoie au plus 30 000 caractères, coupés sur une fin de ligne : le résultat indique la ligne où reprendre (`start_line`).
-- La sortie de `run_command` est limitée à 16 000 caractères : le début et la fin sont gardés.
+- La sortie de `run_command` est limitée à 16 000 caractères : le début et la fin sont gardés. La même limite s'applique aux résultats de `mcp-call`.
 - L'API accepte 32 résultats au maximum par envoi : si le modèle demande plus d'appels en une fois, seuls les 32 premiers sont exécutés et un avertissement s'affiche.
 - Les écritures (`edit_file`, `write_file`) et les commandes non sûres demandent une confirmation, sauf avec `/auto on`.
 - Les anciens outils (`glob`, `multi_edit`, `web_search`, `web_fetch`, `delegate`, `todo_write`…) et leurs variables (`FS_WEB`, `FS_SEARCH_*`, `FS_SUBAGENT_*`, `FS_AUTO_COMPACT`, `FS_COMPACT_THRESHOLD`) n'existent plus. La recherche web reste disponible en chat normal avec `/web on`.
 - Le mode agent séparé a été retiré : il n'y a plus qu'une conversation par projet, et le modèle décide lui-même d'appeler ses outils. `/mode agent` reste accepté comme alias de `/mode auto`. Une ancienne conversation « agent » reprise avec `/chat-id` continue comme une conversation normale.
+
+## Serveurs MCP locaux
+
+Le CLI peut utiliser des serveurs MCP installés sur ta machine. La configuration reprend le format de Claude Code (`mcpServers`) avec trois portées : `local` (par défaut, toi seul dans ce projet), `project` (`.mcp.json` partagé avec le dépôt) et `user` (tous tes projets).
+
+```text
+/mcp add fichiers -- npx -y @modelcontextprotocol/server-filesystem .
+/mcp add --transport http --header "Authorization: Bearer ${DOCS_TOKEN}" docs https://exemple.org/mcp
+/mcp
+```
+
+- L'API n'accepte que six outils : le modèle appelle donc les serveurs MCP avec une commande virtuelle de `run_command`, `mcp-call` (`mcp-call list`, `mcp-call tools <serveur>`, `mcp-call run <serveur> <outil> '<json>'`…).
+- Les listes et descriptions passent sans confirmation ; les appels d'outils, lectures de ressources et prompts demandent une confirmation (« Toujours » mémorise la règle pour l'outil).
+- Les serveurs d'un `.mcp.json` ne démarrent qu'après ton approbation, redemandée si leur définition change.
+- Aucun secret en clair sur la ligne de commande : utilise `${VAR}` ou omets la valeur pour une saisie masquée.
+- Dans l'application de bureau, la vue « Serveurs MCP » permet d'activer, examiner, connecter ou reconnecter les serveurs.
+
+Détails : [docs/mcp.md](docs/mcp.md).
 
 ## Variables d'environnement
 
@@ -187,6 +214,8 @@ Toutes sont facultatives. Un fichier `.env` à la racine est lu au démarrage.
 | `FS_DATA_DIR` | Dossier des données du CLI (session, historique, mémoire, sauvegardes) | `~/.francestudent-cli` |
 | `FS_RESUME_IN_PROJECT` | `1` : écrit `RESUME.md` dans le projet | — |
 | `FS_API_URL`, `FS_ORIGIN` | Adresses de l'API et du site | API et site France Student |
+| `FS_MCP_TIMEOUT_MS` | Délai max de démarrage d'un serveur MCP | `30000` |
+| `FS_MCP_TOOL_TIMEOUT_MS` | Délai max d'un appel MCP (10 min au plus) | `120000` |
 | `FS_DEBUG` | `1` : journaux de débogage | — |
 | `FRST_UI` | `classic` : lance l'ancien CLI avec `frst` | — |
 | `FRST_TUI_FULLSCREEN` | `1` : TUI en plein écran (en-tête fixe, défilement) | — |
@@ -197,7 +226,10 @@ Toutes sont facultatives. Un fichier `.env` à la racine est lu au démarrage.
 ```bash
 npm test       # construit la TUI puis lance node --test test/*.test.js
 npm run build:tui     # reconstruit dist/tui.mjs
+npm run build:gui     # construit l'interface de l'application de bureau
+npm run app           # construit puis lance l'application de bureau (Electron)
+npm run dist:app      # paquet installable de l'application (electron-builder)
 npm run bench:search  # banc de search_files
 ```
 
-Documentation technique : [docs/architecture.md](docs/architecture.md), [docs/tools.md](docs/tools.md), [docs/tui.md](docs/tui.md), [client-tools.md](client-tools.md) (protocole des outils client) et [CHANGELOG.md](CHANGELOG.md).
+Documentation technique : [docs/architecture.md](docs/architecture.md), [docs/tools.md](docs/tools.md), [docs/tui.md](docs/tui.md), [docs/mcp.md](docs/mcp.md) (serveurs MCP locaux), [docs/sdkapi.md](docs/sdkapi.md) (API et outils client) et [CHANGELOG.md](CHANGELOG.md).
