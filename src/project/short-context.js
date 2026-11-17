@@ -33,6 +33,7 @@ function toolContract(hasMcp) {
         "- search_files : recherche littérale, insensible à la casse par défaut ; query='regex:<motif>' active une regex ; 'literal:<texte>' force le littéral, y compris pour chercher ces préfixes.",
         `- search_files : au plus ${CONFIG.maxSearchResults} résultats et ${CONFIG.maxSearchFiles} fichiers parcourus ; réduire avec path/glob si tronqué.`,
         "- edit_file : old_text exact et unique sauf replace_all ; préférer une édition ciblée à write_file.",
+        "- Scripts jetables : créer avec write_file dans .frst-tmp/ ; nouveaux fichiers inchangés supprimés en fin de demande, même interrompue. Jamais de livrable dans ce dossier.",
         "- run_command : analyseur interne, pas PowerShell/bash/cmd ; cwd par appel (racine par défaut), pas de terminal persistant. &&, ||, ; et | sont gérés, au plus 8 segments ; pas de substitution ni expansion de variables, pas de redirection vers un fichier.",
         "- run_command : délai par défaut 120 s, maximum 600 s ; code non nul = échec de la commande, pas preuve d'échec de l'outil. Les confirmations restent gérées par le client.",
         ...(hasMcp ? ["- MCP via run_command : mcp-call tools <serveur>, puis describe <serveur> <outil> avant run ; --help décrit la syntaxe. Aucun contenu visuel MCP n'est transmis au modèle."] : [])

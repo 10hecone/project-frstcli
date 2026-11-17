@@ -191,7 +191,7 @@ test("un 429 « budget épuisé » n'est pas relancé et indique l'heure de repr
     assert.equal(calls, 1);
 });
 
-test("Ctrl+C coupe le flux, appelle stream/cancel et ne relance pas", { concurrency: false }, async () => {
+test("interruption GUI sans TTY : coupe le flux, appelle stream/cancel et ne relance pas", { concurrency: false }, async t => {
     prepareAuth();
     const streamCalls = [];
     const cancelCalls = [];
@@ -216,10 +216,20 @@ test("Ctrl+C coupe le flux, appelle stream/cancel et ne relance pas", { concurre
 
     let interrupt = null;
     let removed = false;
-    const pending = requestModel("bonjour", {
-        fresh: true,
-        onInterrupt: handler => { interrupt = handler; return () => { removed = true; }; },
+    const bridge = require("../src/ui-bridge");
+    const originalBackend = bridge.getUiBackend();
+    const tty = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
+    Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: false });
+    bridge.setUiBackend({ ...originalBackend, onInterrupt: handler => {
+        interrupt = handler;
+        return () => { removed = true; };
+    } });
+    t.after(() => {
+        bridge.setUiBackend(originalBackend);
+        if (tty) Object.defineProperty(process.stdin, "isTTY", tty);
+        else delete process.stdin.isTTY;
     });
+    const pending = requestModel("bonjour", { fresh: true });
 
     await new Promise(resolve => setTimeout(resolve, 50));
     assert.equal(typeof interrupt, "function");

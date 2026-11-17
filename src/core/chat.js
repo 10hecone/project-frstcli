@@ -298,6 +298,7 @@ async function send(input, { onDelta, onToolCalls, readOnly = false } = {}) {
     activateConversation();
     const hadChat = Boolean(state.chatIds.chat);
     const clientTools = toolsFor({ readOnly });
+    const temporaryRoot = workspace.root;
     const changesBefore = memory.sessionChanges();
     const usageBefore = { ...api.usage };
     const texts = [];
@@ -338,6 +339,10 @@ async function send(input, { onDelta, onToolCalls, readOnly = false } = {}) {
         }
     } catch (error) {
         failure = error;
+    } finally {
+        const cleaned = await require("../tools/core/temporary-files").cleanupTemporary(temporaryRoot);
+        if (cleaned.kept.length) ui.warn(`Temporaires modifiés conservés : ${cleaned.kept.join(", ")}`);
+        if (cleaned.errors.length) ui.warn(`Nettoyage incomplet : ${cleaned.errors.join(" ; ")}`);
     }
 
     const response = texts.filter(text => text && text.trim()).join("\n\n");

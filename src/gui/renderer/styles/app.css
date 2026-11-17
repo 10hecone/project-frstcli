@@ -521,8 +521,15 @@ kbd {
     white-space: pre;
 }
 
+/* Les entrées doivent grandir dans le transcript, pas se comprimer entre elles. */
+.transcript > * {
+    flex-shrink: 0;
+}
+
 .print.command {
     color: var(--muted);
+    max-height: min(40vh, 360px);
+    overflow: auto;
 }
 
 .hidden-lines {

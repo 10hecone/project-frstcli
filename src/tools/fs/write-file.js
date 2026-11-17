@@ -97,6 +97,7 @@ async function writeFile(args = {}) {
     }
 
     memory.rememberFile(rel, content);
+    if (!existing) require("../core/temporary-files").trackTemporary(workspace.root, rel, content);
 
     const verb = existing ? "modifié" : "créé";
 

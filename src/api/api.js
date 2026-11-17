@@ -325,7 +325,8 @@ async function streamOnce(request, options) {
         }
     };
     const registerInterrupt = options.onInterrupt ??
-        (process.stdin.isTTY ? handler => ui.onInterrupt(handler) : null);
+        ((process.stdin.isTTY || require("../ui-bridge").getUiBackend() !== require("../cli/ui").ui)
+            ? handler => ui.onInterrupt(handler) : null);
     const offInterrupt = registerInterrupt ? registerInterrupt(() => interrupt()) : null;
 
     // options.signal : annulation demandée par le code appelant.
