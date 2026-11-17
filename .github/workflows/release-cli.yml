@@ -1,0 +1,276 @@
+name: Windows - Installateurs CLI et application
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-cli-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+    steps:
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Installer Node.js pour la construction
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          architecture: x64
+          cache: npm
+
+      - name: Valider la version
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw 'Cette configuration attend une version stable X.Y.Z dans package.json.'
+          }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Le tag doit correspondre a package.json : v$version"
+          }
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Installer les dependances verrouillees
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci a echoue.' }
+
+      - name: Construire et tester le CLI
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'Les tests ont echoue : pas de publication.' }
+          if (!(Test-Path dist/tui.mjs)) { throw 'Bundle TUI absent.' }
+
+      - name: Preparer les fichiers distribues
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force stage/app, stage/runtime, output | Out-Null
+          # npm pack suit la liste files du package et n'embarque pas de .env local.
+          $packed = npm pack --ignore-scripts --json
+          if ($LASTEXITCODE -ne 0) { throw 'npm pack a echoue.' }
+          $archive = ($packed | ConvertFrom-Json)[0].filename
+          npm prune --omit=dev --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'npm prune a echoue.' }
+          tar -xzf $archive -C stage/app --strip-components=1
+          if ($LASTEXITCODE -ne 0) { throw 'Extraction du package impossible.' }
+          Copy-Item node_modules stage/app/node_modules -Recurse
+          foreach ($file in @('bin/frst.js', 'index.js', 'dist/tui.mjs', 'src/main.js')) {
+            if (!(Test-Path "stage/app/$file")) { throw "Fichier requis absent : $file" }
+          }
+
+          # Distribue le runtime officiel correspondant a la version de build,
+          # avec sa licence, apres verification SHA-256 du ZIP officiel.
+          $nodeVersion = (node -p 'process.version').Trim()
+          $zip = "node-$nodeVersion-win-x64.zip"
+          $base = "https://nodejs.org/dist/$nodeVersion"
+          Invoke-WebRequest "$base/$zip" -OutFile "$env:RUNNER_TEMP/$zip"
+          $sums = (Invoke-WebRequest "$base/SHASUMS256.txt").Content
+          $line = ($sums -split "`n" | Where-Object {
+            $_.Trim() -match ('\s+' + [regex]::Escape($zip) + '$')
+          } | Select-Object -First 1)
+          if (!$line) { throw 'Empreinte officielle Node.js introuvable.' }
+          $expected = ($line.Trim() -split '\s+')[0]
+          $actual = (Get-FileHash "$env:RUNNER_TEMP/$zip" -Algorithm SHA256).Hash
+          if ($actual -ine $expected) { throw 'Empreinte Node.js incorrecte.' }
+          Expand-Archive "$env:RUNNER_TEMP/$zip" "$env:RUNNER_TEMP/frst-node" -Force
+          $runtime = "$env:RUNNER_TEMP/frst-node/node-$nodeVersion-win-x64"
+          Copy-Item "$runtime/node.exe" stage/runtime/node.exe
+          Copy-Item "$runtime/LICENSE" stage/runtime/LICENSE
+
+          @'
+          @echo off
+          setlocal
+          "%~dp0runtime\node.exe" "%~dp0app\bin\frst.js" %*
+          exit /b %errorlevel%
+          '@ | Set-Content stage/frst.cmd -Encoding ascii
+          @'
+          @echo off
+          setlocal
+          "%~dp0runtime\node.exe" "%~dp0app\index.js" %*
+          exit /b %errorlevel%
+          '@ | Set-Content stage/frstcli.cmd -Encoding ascii
+
+          & ./stage/runtime/node.exe --check ./stage/app/bin/frst.js
+          if ($LASTEXITCODE -ne 0) { throw 'Verification syntaxique impossible.' }
+          Push-Location stage/app
+          try {
+            & ../runtime/node.exe -e "require('dotenv'); require('react'); import('ink').then(() => console.log('Dependencies OK')).catch(e => { console.error(e); process.exitCode = 1; });"
+            if ($LASTEXITCODE -ne 0) { throw 'Dependances du package incompletes.' }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Generer la configuration de l'installateur
+        run: |
+          @'
+          #ifndef AppVersion
+            #define AppVersion "0.0.0"
+          #endif
+          [Setup]
+          AppId=FRSTCLI-Windows-CLI
+          AppName=FranceStudent CLI
+          AppVersion={#AppVersion}
+          DefaultDirName={localappdata}\Programs\FranceStudentCLI
+          DefaultGroupName=FranceStudent CLI
+          DisableProgramGroupPage=yes
+          PrivilegesRequired=lowest
+          ArchitecturesAllowed=x64compatible
+          ArchitecturesInstallIn64BitMode=x64compatible
+          MinVersion=10.0
+          OutputDir=output
+          OutputBaseFilename=frst-cli-{#AppVersion}-windows-x64-setup
+          Compression=lzma2
+          SolidCompression=yes
+          WizardStyle=modern
+          UninstallDisplayName=FranceStudent CLI
+          CloseApplications=no
+
+          [Files]
+          Source: "stage\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{group}\FranceStudent CLI"; Filename: "{cmd}"; Parameters: "/K """"{app}\frst.cmd"""""; WorkingDir: "{userdocs}"
+          Name: "{autodesktop}\FranceStudent CLI"; Filename: "{cmd}"; Parameters: "/K """"{app}\frst.cmd"""""; WorkingDir: "{userdocs}"; Tasks: desktopicon
+          Name: "{group}\Desinstaller FranceStudent CLI"; Filename: "{uninstallexe}"
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Creer un raccourci sur le Bureau"; Flags: unchecked
+          '@ | Set-Content windows.iss -Encoding utf8
+
+      - name: Trouver ou installer Inno Setup
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Installation Inno Setup impossible.' }
+          }
+          if (!(Test-Path $iscc)) { throw 'Compilateur ISCC introuvable.' }
+          "ISCC_PATH=$iscc" >> $env:GITHUB_ENV
+
+      - name: Compiler le Setup.exe
+        run: |
+          & $env:ISCC_PATH "/DAppVersion=$env:APP_VERSION" windows.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation de l installateur impossible.' }
+
+      - name: Tester installation et desinstallation silencieuses
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Get-ChildItem output/*-setup.exe | Select-Object -First 1).FullName
+          if (!$setup) { throw 'Setup.exe absent.' }
+          $target = "$env:RUNNER_TEMP/FRSTCLI-install-test"
+          $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$target`"")
+          $install = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installation : code $($install.ExitCode)" }
+          foreach ($file in @('frst.cmd', 'frstcli.cmd', 'app/dist/tui.mjs', 'runtime/node.exe')) {
+            if (!(Test-Path "$target/$file")) { throw "Installation incomplete : $file" }
+          }
+          & "$target/runtime/node.exe" --check "$target/app/bin/frst.js"
+          if ($LASTEXITCODE -ne 0) { throw 'CLI installe invalide.' }
+          $uninstall = Start-Process "$target/unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw 'Desinstallation impossible.' }
+          # Ceci ne teste PAS la connexion au service ou la TUI interactive.
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $([IO.Path]::GetFileName($setup))" | Set-Content output/SHA256SUMS.txt -Encoding ascii
+
+      - name: Rendre l'installateur telechargeable
+        uses: actions/upload-artifact@v4
+        with:
+          name: frst-cli-windows-x64
+          path: |
+            output/*-setup.exe
+            output/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  build-gui:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          architecture: x64
+          cache: npm
+      - name: Verifier la version du tag
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version stable X.Y.Z requise.' }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Le tag doit correspondre a package.json : v$version" }
+      - name: Installer les dependances
+        run: npm ci
+      - name: Construire l installateur graphique
+        run: npm run dist:win
+      - name: Calculer l empreinte
+        shell: pwsh
+        run: |
+          $setup = @(Get-ChildItem release/frst-atelier-*-windows-x64-setup.exe)
+          if ($setup.Count -ne 1) { throw 'Installateur graphique introuvable ou non unique.' }
+          $hash = (Get-FileHash $setup[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($setup[0].Name)" | Set-Content release/SHA256SUMS-GUI.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frst-gui-windows-x64
+          path: |
+            release/frst-atelier-*-windows-x64-setup.exe
+            release/SHA256SUMS-GUI.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, build-gui]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Recuperer l'installateur teste
+        uses: actions/download-artifact@v4
+        with:
+          name: frst-cli-windows-x64
+          path: output
+
+      - name: Recuperer l installateur graphique
+        uses: actions/download-artifact@v4
+        with:
+          name: frst-gui-windows-x64
+          path: output
+
+      - name: Preparer une release en brouillon
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Ne remplace pas silencieusement une release existante.
+          gh release create "$TAG" output/*-setup.exe output/SHA256SUMS.txt output/SHA256SUMS-GUI.txt \
+            --verify-tag \
+            --draft \
+            --title "FranceStudent $TAG - Windows x64" \
+            --notes "Installateurs Windows x64 du CLI (Node.js embarque) et de l application graphique. Non signes. Avant publication : verifier les raccourcis, la TUI, la connexion et la desinstallation sur un PC Windows. Les donnees utilisateur du CLI ne sont pas supprimees par la desinstallation."

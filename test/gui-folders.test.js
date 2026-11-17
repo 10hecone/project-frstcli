@@ -10,7 +10,7 @@ const { createFolders, folderFromArgv } = require("../src/gui/folders");
 
 /** Dossiers avec toutes leurs dépendances simulées ; les dossiers sont de vrais dossiers temporaires. */
 function setup({ known = {}, running = false } = {}) {
-    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "frst-folders-")));
+    const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "frst-folders-")));
     const calls = { opened: [], closed: 0, cleared: 0, refreshed: 0, trusted: [] };
     const state = { contextUsagePercent: 42, contextDetails: {}, pendingFiles: ["f"] };
     const projects = {
