@@ -38,10 +38,11 @@ const CONFIG = {
     maxWriteBytes: 512 * 1024,
     maxWriteChars: 1_000_000,       // longueur max de content / new_string, vérifiée dès la validation
     maxDirectoryEntries: 300,
-    maxSearchResults: 60,
+    maxSearchResults: 200,
     maxSearchFiles: 3000,
 
     // Prompt
+    includeLearnedTopics: process.env.FS_INCLUDE_LEARNED_TOPICS !== "0",
     maxMessageChars: 1_000_000,     // limite de l'API
     messageBudget: 980_000,
 
