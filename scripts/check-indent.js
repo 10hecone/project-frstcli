@@ -6,6 +6,7 @@
 // d'indentation (en multiples de 4 espaces) aux lignes données.
 
 const fs = require("node:fs");
+const path = require("node:path");
 
 const args = process.argv.slice(2);
 const sets = new Map();
@@ -20,7 +21,18 @@ for (const arg of args.filter(a => a.startsWith("--set="))) {
     }
 }
 
-const files = args.filter(a => !a.startsWith("--"));
+// Sans fichier ni --set : tout le code de src, test et scripts (avant, rien n'était vérifié).
+function walk(dir, out = []) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full, out);
+        else if (/\.(c|m)?jsx?$/.test(entry.name)) out.push(full);
+    }
+    return out;
+}
+
+const named = args.filter(a => !a.startsWith("--"));
+const files = named.length || sets.size ? named : ["src", "test", "scripts"].flatMap(dir => walk(dir));
 let bad = 0;
 
 for (const file of new Set([...files, ...sets.keys()])) {
@@ -45,3 +57,4 @@ for (const file of new Set([...files, ...sets.keys()])) {
 }
 
 console.log(`${bad} ligne(s) mal indentée(s).`);
+process.exitCode = bad ? 1 : 0;

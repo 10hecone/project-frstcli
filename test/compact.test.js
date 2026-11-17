@@ -135,7 +135,7 @@ test("après /compact, le premier message de la conversation suivante porte le r
         const message = await chat.buildMessage("on continue");
 
         // La demande d'abord, le résumé ensuite en annexe.
- assert.ok(message.startsWith("on continue\n\n---\n\n"));
+        assert.ok(message.startsWith("on continue\n\n---\n\n"));
         assert.match(message, /\nRÉSUMÉ DE LA SESSION PRÉCÉDENTE \(écrit par \/compact/);
         assert.ok(message.endsWith("1. Objectif\nTester."));
     } finally {

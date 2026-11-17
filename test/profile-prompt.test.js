@@ -42,8 +42,8 @@ test("profil : préférences séparées, sujets facultatifs et provenances conse
 
         // Par défaut (sans FS_INCLUDE_LEARNED_TOPICS=1), les sujets appris ne sont pas envoyés.
         if (process.env.FS_INCLUDE_LEARNED_TOPICS !== "1") {
-     assert.doesNotMatch(profile.buildPreprompt(), /Sujet fréquent/);
- }
+            assert.doesNotMatch(profile.buildPreprompt(), /Sujet fréquent/);
+        }
     } finally {
         CONFIG.dataDir = originalDir;
         memory.projectPath = originalProjectPath;

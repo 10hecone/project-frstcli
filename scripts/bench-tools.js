@@ -55,8 +55,8 @@ const QUESTIONS = [
     },
     {
         id: "readme",
- text: "résume le README du projet en trois points",
- expected: ["read_file", "search_files", "list_directory"]
+        text: "résume le README du projet en trois points",
+        expected: ["read_file", "search_files", "list_directory"]
     },
     { id: "controle-promesse", text: "explique ce qu'est une promesse en JavaScript", expected: [] },
     { id: "controle-traduction", text: "traduis « bonne journée » en anglais", expected: [] }
@@ -77,11 +77,11 @@ const REFUSAL_RE = new RegExp(
         "outil externe",
         "moteur d['’]un",
         "interface de chat",
- "je ne (peux|suis) pas (en mesure d['’])?(exécuter|lancer|accéder|lire|modifier|piloter)",
+        "je ne (peux|suis) pas (en mesure d['’])?(exécuter|lancer|accéder|lire|modifier|piloter)",
         "je n['’]ai pas (accès|la possibilité)",
- "pas (d['’])?accès (à|a) (ta|votre) (machine|ordinateur|dépôt|projet)",
+        "pas (d['’])?accès (à|a) (ta|votre) (machine|ordinateur|dépôt|projet)",
         "ne (peux|suis) pas (capable de )?(exécuter|lancer)",
- "\\bI (can(no|')t|am unable to|don't have access)\\b"
+        "\\bI (can(no|')t|am unable to|don't have access)\\b"
     ].join("|"),
     "i"
 );
@@ -123,27 +123,27 @@ function summarize(rows) {
     const groups = new Map();
     for (const row of rows) {
         const key = `${row.model}\u0000${row.variant}`;
- if (!groups.has(key)) groups.set(key, { model: row.model, variant: row.variant, rows: [] });
+        if (!groups.has(key)) groups.set(key, { model: row.model, variant: row.variant, rows: [] });
         groups.get(key).rows.push(row);
     }
 
     const pct = (n, d) => (d ? Math.round((100 * n) / d) : null);
     return [...groups.values()].map(({ model, variant, rows: list }) => {
- const tasks = list.filter(r => !r.control && r.category !== "erreur");
+        const tasks = list.filter(r => !r.control && r.category !== "erreur");
         const controls = list.filter(r => r.control && r.category !== "erreur");
         const count = (set, category) => set.filter(r => r.category === category).length;
         const withTool = count(tasks, "bon-outil") + count(tasks, "autre-outil");
         return {
-     model,
-     variant,
-     requetes: list.length,
-     erreurs: count(list, "erreur"),
-     outil: pct(withTool, tasks.length),
-     bonOutil: pct(count(tasks, "bon-outil"), tasks.length),
-     refus: pct(count(tasks, "refus"), tasks.length),
-     appelEnTexte: pct(count(tasks, "appel-en-texte"), tasks.length),
-     ambigu: pct(count(tasks, "ambigu"), tasks.length),
-     outilInutile: pct(count(controls, "outil-inutile"), controls.length)
+            model,
+            variant,
+            requetes: list.length,
+            erreurs: count(list, "erreur"),
+            outil: pct(withTool, tasks.length),
+            bonOutil: pct(count(tasks, "bon-outil"), tasks.length),
+            refus: pct(count(tasks, "refus"), tasks.length),
+            appelEnTexte: pct(count(tasks, "appel-en-texte"), tasks.length),
+            ambigu: pct(count(tasks, "ambigu"), tasks.length),
+            outilInutile: pct(count(controls, "outil-inutile"), controls.length)
         };
     });
 }
@@ -155,8 +155,8 @@ function parseArgs(argv) {
         const list = () => value.split(",").map(s => s.trim()).filter(Boolean);
         if (key === "run") args.run = true;
         else if (key === "no-incognito") args.incognito = false;
- else if (key === "repeat") args.repeat = Math.max(1, Number.parseInt(value, 10) || 1);
- else if (key === "delay") args.delay = Math.max(0, Number.parseInt(value, 10) || 0);
+        else if (key === "repeat") args.repeat = Math.max(1, Number.parseInt(value, 10) || 1);
+        else if (key === "delay") args.delay = Math.max(0, Number.parseInt(value, 10) || 0);
         else if (key === "models") args.models = list();
         else if (key === "variants") args.variants = list();
         else if (key === "questions") args.questions = list();
@@ -181,11 +181,11 @@ function printTable(summary) {
     const show = v => (v === null ? "—" : `${v} %`);
     console.log("\nModèle        Variante  Req.  Err.  Outil  Bon outil  Refus  En texte  Ambigu  Outil inutile");
     for (const s of summary) {
- console.log(
-     `${s.model.padEnd(20)} ${s.variant.padEnd(9)} ${String(s.requetes).padStart(4)}  ${String(s.erreurs).padStart(4)}  ` +
-     `${show(s.outil).padStart(5)}  ${show(s.bonOutil).padStart(9)}  ${show(s.refus).padStart(5)}  ` +
-     `${show(s.appelEnTexte).padStart(8)}  ${show(s.ambigu).padStart(6)}  ${show(s.outilInutile).padStart(13)}`
- );
+        console.log(
+            `${s.model.padEnd(20)} ${s.variant.padEnd(9)} ${String(s.requetes).padStart(4)}  ${String(s.erreurs).padStart(4)}  ` +
+            `${show(s.outil).padStart(5)}  ${show(s.bonOutil).padStart(9)}  ${show(s.refus).padStart(5)}  ` +
+            `${show(s.appelEnTexte).padStart(8)}  ${show(s.ambigu).padStart(6)}  ${show(s.outilInutile).padStart(13)}`
+        );
     }
 }
 
@@ -224,10 +224,10 @@ async function main() {
     for (const question of questions) {
         state.chatId = null;
         state.compactSummary = null;
- const actual = await chat.buildMessage(question.text);
+        const actual = await chat.buildMessage(question.text);
         messages.set(`${question.id}:brut`, question.text);
- messages.set(`${question.id}:actuel`, actual);
- messages.set(`${question.id}:repli`, withRepli(actual));
+        messages.set(`${question.id}:actuel`, actual);
+        messages.set(`${question.id}:repli`, withRepli(actual));
     }
 
     const total = models.length * args.variants.length * questions.length * args.repeat;
@@ -237,9 +237,9 @@ async function main() {
 
     if (!args.run) {
         const sample = messages.get(`${questions[0].id}:actuel`);
- console.log(`\nSimulation : aucune requête envoyée. Ajoute --run pour lancer le banc.`);
+        console.log(`\nSimulation : aucune requête envoyée. Ajoute --run pour lancer le banc.`);
         console.log(`Exemple de premier message (variante actuel, ${sample.length} caractères) :\n`);
- console.log(sample.length > 1500 ? `${sample.slice(0, 1500)}\n… [coupé]` : sample);
+        console.log(sample.length > 1500 ? `${sample.slice(0, 1500)}\n… [coupé]` : sample);
         return;
     }
 
@@ -250,38 +250,38 @@ async function main() {
     outer:
     for (const model of models) {
         for (const variant of args.variants) {
-     for (const question of questions) {
-         for (let repeat = 1; repeat <= args.repeat; repeat++) {
-      done++;
-      const row = {
-   model: model.name, modelId: model.id, variant, question: question.id,
-   control: !question.expected.length, repeat
-      };
-      try {
-   const turn = await api.requestTurn(messages.get(`${question.id}:${variant}`), {
-       agentId: model.id,
-       fresh: true,
-       clientTools: registry.CLIENT_TOOLS,
-       onInterrupt: () => null
-          });
-          row.category = classify(question, turn);
-   row.tools = (turn.toolCalls || []).map(call => call.name);
-   row.text = String(turn.text || "").slice(0, 600);
-      } catch (error) {
-          row.category = "erreur";
-   row.error = error.message;
-          // Quota épuisé : inutile de continuer.
-   if (error.status === 429) {
-       rows.push(row);
-       console.log(`\n[${done}/${total}] quota épuisé, arrêt du banc : ${error.message}`);
-       break outer;
-   }
-      }
-      rows.push(row);
-      console.log(`[${done}/${total}] ${model.name} | ${variant} | ${question.id} #${repeat} -> ${row.category}`);
-      if (args.delay) await pause(args.delay);
-  }
-     }
+            for (const question of questions) {
+                for (let repeat = 1; repeat <= args.repeat; repeat++) {
+                    done++;
+                    const row = {
+                        model: model.name, modelId: model.id, variant, question: question.id,
+                        control: !question.expected.length, repeat
+                    };
+                    try {
+                        const turn = await api.requestTurn(messages.get(`${question.id}:${variant}`), {
+                            agentId: model.id,
+                            fresh: true,
+                            clientTools: registry.CLIENT_TOOLS,
+                            onInterrupt: () => null
+                        });
+                        row.category = classify(question, turn);
+                        row.tools = (turn.toolCalls || []).map(call => call.name);
+                        row.text = String(turn.text || "").slice(0, 600);
+                    } catch (error) {
+                        row.category = "erreur";
+                        row.error = error.message;
+                        // Quota épuisé : inutile de continuer.
+                        if (error.status === 429) {
+                            rows.push(row);
+                            console.log(`\n[${done}/${total}] quota épuisé, arrêt du banc : ${error.message}`);
+                            break outer;
+                        }
+                    }
+                    rows.push(row);
+                    console.log(`[${done}/${total}] ${model.name} | ${variant} | ${question.id} #${repeat} -> ${row.category}`);
+                    if (args.delay) await pause(args.delay);
+                }
+            }
         }
     }
 
@@ -299,7 +299,7 @@ async function main() {
 
 if (require.main === module) {
     main()
- .then(() => process.exit(process.exitCode || 0))
+        .then(() => process.exit(process.exitCode || 0))
         .catch(error => {
             console.error("Échec du banc d'essai :", error && error.message ? error.message : error);
             process.exit(1);
