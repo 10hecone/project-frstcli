@@ -12,6 +12,8 @@ Le plafond local est de 200 résultats, avec 50 par défaut et au plus 3 000 fic
 
 `run_command` utilise un analyseur interne, pas un shell généraliste. Le dossier par défaut est la racine du projet ; `cwd` s'applique à l'appel, sans terminal persistant. Les opérateurs `&&`, `||`, `;` et `|` sont gérés, avec huit segments au maximum. Les expansions de variables, substitutions et redirections vers des fichiers ne sont pas prises en charge. Le délai par défaut est de 120 secondes, au plus 600 secondes. Les confirmations restent contrôlées par le client.
 
+Un serveur ou une commande longue (`rojo serve`, `npm run dev`) se lance avec `bg-run <commande>` : pas de délai, réponse après environ 2 secondes avec les premières lignes et l'identifiant du job. `bg-output [<id>]` lit la sortie nouvelle (sans id : liste des jobs), `bg-stop <id>` arrête le job. Ces trois commandes se lancent seules (ni `|`, `&&`, `;`, ni redirection). Quatre jobs au plus ; ils sont arrêtés à la sortie du client et au changement de projet. `start`, `cmd` et `bash` restent indisponibles. PowerShell s'utilise avec `-Command '<script>'` (guillemets simples, `$` refusé entre guillemets doubles) ou `-File script.ps1` ; l'utilisateur confirme chaque appel, sans règle « Toujours ».
+
 ## MCP
 
 Découvrir les outils avec `mcp-call tools <serveur>`, puis consulter leur contrat avec `mcp-call describe <serveur> <outil>`. Une description longue est paginée sans suppression de son schéma : suivre la commande `--offset` indiquée, puis concaténer les portions avant d'interpréter le JSON. Il n'y a pas d'écriture implicite de fichier. La pagination suppose que la description du serveur reste stable entre les appels.

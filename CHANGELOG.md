@@ -15,6 +15,13 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Connexion OAuth (PKCE, retour sur 127.0.0.1) des serveurs http et sse.
 - GUI : panneau « Serveurs MCP » et arrêt des serveurs à la fermeture et au changement de dossier.
 - Documentation : `docs/mcp.md`.
+- Commandes virtuelles `bg-run <commande>`, `bg-output <id>` et `bg-stop <id>` dans `run_command` : serveurs longs (`rojo serve`, `npm run dev`) lancés en arrière-plan sans délai, 4 jobs au plus, sortie plafonnée à 16 000 caractères, arrêtés à la sortie du CLI et au changement de projet. `bg-run` est confirmé (règles « Toujours » de la commande lancée) ; `bg-output` et `bg-stop` ne visent que les jobs lancés par `bg-run`.
+- PowerShell (`powershell`, `pwsh`) autorisé avec `-Command '<script>'` ou `-File script.ps1` : confirmation à chaque fois avec le script complet, sans réponse « Toujours ».
+
+### Corrigé
+
+- Options Windows de 3 à 10 lettres (`/min`, `/wait`) reconnues comme des options et non des chemins, sauf si un fichier de ce nom existe.
+- `start` refusé avec un message clair (commande interne de cmd) qui propose `bg-run`.
 
 ### Sécurité
 
