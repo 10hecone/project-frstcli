@@ -75,8 +75,10 @@ test("folders : un dossier de confiance s'ouvre, vide le transcript et oublie le
 
 test("folders : ouvrir un autre dossier arrête les serveurs MCP du précédent", async () => {
     const { createMcpManager, bindWorkspace } = require("../src/mcp/manager");
-    const first = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "frst-folders-")));
-    const second = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "frst-folders-")));
+    // `.native` comme dans setup() : sur Windows, le dossier temporaire est en chemin court (RUNNER~1)
+    // et folders.open() renvoie le chemin réel long ; les deux doivent être comparables.
+    const first = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "frst-folders-")));
+    const second = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "frst-folders-")));
 
     // Cœur d'espace de travail simulé, même contrat que src/core/workspace.js (open + onChange).
     const listeners = new Set();
