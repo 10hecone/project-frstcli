@@ -28,13 +28,13 @@ function toolContract(hasMcp) {
     return [
         "Notes techniques sur les outils du projet :",
         "- Chemins relatifs au projet ; '.' = racine. list_directory : profondeur 1 à 3.",
-        "- read_file : lignes inclusives à partir de 1. Lire avant modification ; edit_file accepte une lecture partielle, write_file exige une lecture complète pour écraser.",
-        "- search_files : recherche littérale, insensible à la casse par défaut ; query='regex:<motif>' active une regex ; 'literal:<texte>' force le littéral, y compris pour chercher ces préfixes.",
+        "- read_file : lignes inclusives à partir de 1 (alias offset/limit acceptés). Lire avant modification ; edit_file accepte une lecture partielle, write_file exige une lecture complète pour écraser. Les numéros « N<tab> » ajoutés à l'affichage ne font pas partie du fichier. Lignes de plus de 2000 caractères coupées.",
+        "- search_files : regex insensible à la casse par défaut (A|B fonctionne) ; un motif invalide est cherché tel quel ; 'literal:<texte>' force le littéral ; 'files:<motif>' renvoie seulement les fichiers et leur nombre de correspondances.",
         `- search_files : au plus ${CONFIG.maxSearchResults} résultats et ${CONFIG.maxSearchFiles} fichiers parcourus ; réduire avec path/glob si tronqué.`,
         "- edit_file : old_text exact et unique sauf replace_all ; préférer une édition ciblée à write_file.",
         "- Scripts jetables : créer avec write_file dans .frst-tmp/ ; nouveaux fichiers inchangés supprimés en fin de demande, même interrompue. Jamais de livrable dans ce dossier.",
         "- run_command : analyseur interne, pas PowerShell/bash/cmd ; cwd par appel (racine par défaut), pas de terminal persistant. &&, ||, ; et | sont gérés, au plus 8 segments ; pas de substitution ni expansion de variables, pas de redirection vers un fichier.",
-        "- run_command : délai par défaut 120 s, maximum 600 s ; code non nul = échec de la commande, pas preuve d'échec de l'outil. Les confirmations restent gérées par le client.",
+        "- run_command : délai par défaut 120 s, maximum 600 s ; code non nul = échec de la commande, pas preuve d'échec de l'outil. Les confirmations restent gérées par le client. Fichiers modifiés signalés : à relire avant de les modifier. Plusieurs segments : sortie repérée par [n], « Étapes » listées seulement en cas d'échec.",
         ...(hasMcp ? ["- MCP via run_command : mcp-call tools <serveur>, puis describe <serveur> <outil> avant run ; --help décrit la syntaxe. Aucun contenu visuel MCP n'est transmis au modèle."] : [])
     ].join("\n");
 }

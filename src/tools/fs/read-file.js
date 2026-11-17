@@ -8,6 +8,9 @@ const { requireString, optionalInt } = require("../core/args");
 const { readTextFile } = require("../core/freshness");
 const { workspace } = require("../../core/workspace");
 
+// Au-delà, une ligne est coupée (fichier minifié, JSON sur une seule ligne...).
+const MAX_LINE_CHARS = 2000;
+
 function countLines(text) {
     let count = 1;
     let i = -1;
@@ -54,6 +57,19 @@ async function readFile(args = {}) {
     let truncated = false;
     let nextLine = null;
     let message = "Fichier lu.";
+
+    // Lignes très longues (fichier minifié, JSON sur une ligne) : coupées pour ne pas remplir le contexte.
+    let longLines = 0;
+    content = content.split("\n").map(line => {
+        if (line.length <= MAX_LINE_CHARS) return line;
+        longLines++;
+        return `${line.slice(0, MAX_LINE_CHARS)} [ligne coupée : ${line.length} caractères]`;
+    }).join("\n");
+    if (longLines) {
+        // Vue incomplète : write_file ne doit pas écraser le fichier sur cette base.
+        partial = true;
+        message = `${longLines} ligne(s) de plus de ${MAX_LINE_CHARS} caractères coupée(s).`;
+    }
 
     if (content.length > CONFIG.maxReadChars) {
         const cut = content.lastIndexOf("\n", CONFIG.maxReadChars - 1);

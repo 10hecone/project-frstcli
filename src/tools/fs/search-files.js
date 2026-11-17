@@ -201,6 +201,7 @@ async function searchFiles(args = {}) {
         query,
         ...(regex ? { regex: true } : {}),
         ...(glob ? { glob } : {}),
+        ...(args.files_only === true ? { files_only: true } : {}),
         matches,
         truncated: full(),
         message: `${matches.length} résultat(s) dans ${scanned} fichier(s).`

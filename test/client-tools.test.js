@@ -9,7 +9,8 @@ const {
     normalizeArgs,
     describeClientCall,
     runClientTool,
-    validateToolCall
+    validateToolCall,
+    formatClientResult
 } = require("../src/tools/registry");
 
 test("CLIENT_TOOLS suit le catalogue de l'API, dans un ordre fixe", () => {
@@ -63,18 +64,59 @@ test("normalizeArgs : read_file accepte les numéros de ligne en chaîne", () =>
     );
 });
 
-test("normalizeArgs : recherche littérale par défaut, regex explicite et max_results", () => {
+test("normalizeArgs : recherche regex par défaut, repli littéral et max_results", () => {
     assert.deepEqual(
         normalizeArgs("search_files", { query: "regex:function\\s+run", glob: "*.js", max_results: 5 }),
         { query: "function\\s+run", glob: "*.js", regex: true, max_results: 5 }
     );
-    for (const query of ["TODO", "foo(", "package.json", "function\\s+run"]) {
-        assert.deepEqual(normalizeArgs("search_files", { query }), { query, regex: false, max_results: 50 });
+    for (const query of ["TODO", "A|B", "function\\s+run"]) {
+        assert.deepEqual(normalizeArgs("search_files", { query }), { query, regex: true, max_results: 50 });
     }
-    assert.deepEqual(normalizeArgs("search_files", { query: "literal:regex:foo" }), {
-        query: "regex:foo", regex: false, max_results: 50
+    // Motif invalide : cherché tel quel, sans erreur.
+    assert.deepEqual(normalizeArgs("search_files", { query: "foo(" }), { query: "foo(", regex: false, max_results: 50 });
+    assert.deepEqual(normalizeArgs("search_files", { query: "regex:foo(" }), { query: "foo(", regex: false, max_results: 50 });
+    assert.deepEqual(normalizeArgs("search_files", { query: "literal:a|b" }), {
+        query: "a|b", regex: false, max_results: 50
     });
-    assert.throws(() => validateToolCall({ name: "search_files", args: normalizeArgs("search_files", { query: "regex:foo(" }) }), /regex valide/);
+});
+
+test("normalizeArgs : search_files « files: » ne renvoie que les fichiers", () => {
+    const args = normalizeArgs("search_files", { query: "files:TODO|FIXME" });
+    assert.deepEqual(args, { query: "TODO|FIXME", regex: true, files_only: true, max_results: 50 });
+    validateToolCall({ name: "search_files", args });
+});
+
+test("normalizeArgs : read_file accepte offset/limit", () => {
+    assert.deepEqual(normalizeArgs("read_file", { path: "a.js", offset: 10, limit: 5 }), {
+        path: "a.js", start_line: 10, end_line: 14
+    });
+    assert.deepEqual(normalizeArgs("read_file", { path: "a.js", start_line: 3, limit: 2 }), {
+        path: "a.js", start_line: 3, end_line: 4
+    });
+});
+
+test("formatClientResult : run_command sans doublon ni étapes inutiles", () => {
+    const ok = formatClientResult("run_command", {
+        command: "a && b", cwd: ".", exit_code: 0, message: "Terminé (code 0) en 0,1 s.", output: "x",
+        segments: [{ exit_code: 0 }, { exit_code: 0 }]
+    });
+    assert.equal(ok, "$ a && b\nTerminé (code 0) en 0,1 s.\nSortie :\nx");
+
+    const failed = formatClientResult("run_command", {
+        command: "a && b", cwd: "web", message: "Échec (code 1).", output: "x",
+        segments: [{ exit_code: 1 }, { skipped: true }]
+    });
+    assert.match(failed, /^Dossier : web$/m);
+    assert.match(failed, /^Étapes : \[1\] code 1, \[2\] non lancée$/m);
+});
+
+test("formatClientResult : search_files en mode fichiers", () => {
+    const text = formatClientResult("search_files", {
+        files_only: true,
+        message: "3 résultat(s) dans 2 fichier(s).",
+        matches: [{ path: "a.js", line: 1, text: "x" }, { path: "a.js", line: 4, text: "y" }, { path: "b.js", line: 2, text: "z" }]
+    });
+    assert.equal(text, "3 résultat(s) dans 2 fichier(s).\na.js (2)\nb.js (1)");
 });
 
 test("normalizeArgs : outil inconnu", () => {

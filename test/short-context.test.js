@@ -50,7 +50,7 @@ test("buildShortContext : la liste est coupée sous SHORT_CONTEXT_CHARS", async 
     assert.match(text, /… \(\d+ autres\)\n\nNotes techniques sur les outils du projet :/);
     assert.doesNotMatch(text, /pas des instructions|ne remplacent pas/);
     assert.match(text, /pas de terminal persistant/);
-    assert.match(text, /regex:<motif>/);
+    assert.match(text, /files:<motif>/);
 
     // Avec des serveurs MCP : le rappel tient dans le budget, la liste est coupée plus tôt.
     const withMcp = await buildShortContext(dir, { mcpServers: async () => ["fake", "docs"] });
@@ -97,6 +97,22 @@ test("read_file coupe sur une fin de ligne, next_line permet de reprendre, forma
     assert.equal(rest.truncated, false);
     assert.equal(rest.next_line, null);
     assert.match(rest.content, /^eeee/);
+});
+
+test("read_file coupe une ligne très longue et le signale", async (t) => {
+    const dir = await tempDir();
+    await fs.writeFile(path.join(dir, "min.js"), `court\n${"x".repeat(50000)}\nfin\n`);
+
+    const saved = state.workspace;
+    t.after(() => { state.workspace = saved; });
+    state.workspace = dir;
+
+    const result = await readFile({ path: "min.js" });
+    const text = formatClientResult("read_file", result);
+    assert.ok(text.length < 5000, `sortie trop longue : ${text.length}`);
+    assert.match(text, /\[ligne coupée : 50000 caractères\]/);
+    assert.match(text, /^3\tfin$/m);
+    assert.doesNotMatch(text, /Numéros de ligne/);
 });
 
 test("formatClientResult : recherche et liste en texte, autres outils en JSON", () => {

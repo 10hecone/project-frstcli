@@ -42,15 +42,22 @@ function toBool(value) {
     return value;
 }
 
-/** Regex uniquement sur demande explicite ; aucun caractère n'active une heuristique. */
+/**
+ * Regex par défaut (comme ripgrep) : « A|B » fonctionne sans préfixe. Un motif invalide
+ * (« foo( ») est cherché tel quel. Préfixes : « literal: » force le littéral, « regex: »
+ * reste accepté, « files: » ne renvoie que les fichiers et leur nombre de correspondances.
+ */
 function searchQuery(query) {
-    if (typeof query === "string" && query.startsWith(REGEX_PREFIX)) {
-        return { query: query.slice(REGEX_PREFIX.length), regex: true };
+    if (typeof query !== "string") return { query, regex: false };
+    if (query.startsWith("files:")) return { ...searchQuery(query.slice("files:".length)), files_only: true };
+    if (query.startsWith("literal:")) return { query: query.slice("literal:".length), regex: false };
+    const text = query.startsWith(REGEX_PREFIX) ? query.slice(REGEX_PREFIX.length) : query;
+    try {
+        new RegExp(text, "i");
+        return { query: text, regex: true };
+    } catch {
+        return { query: text, regex: false };
     }
-    if (typeof query === "string" && query.startsWith("literal:")) {
-        return { query: query.slice("literal:".length), regex: false };
-    }
-    return { query, regex: false };
 }
 
 function secondsToMs(value) {
@@ -80,12 +87,14 @@ function normalizeArgs(name, raw) {
                 depth: Number.isInteger(depth) ? Math.min(3, Math.max(1, depth)) : depth
             });
         }
-        case "read_file":
-            return compact({
-                path: a.path,
-                start_line: toInt(a.start_line),
-                end_line: toInt(a.end_line)
-            });
+        case "read_file": {
+            // offset/limit (habitude de certains modèles) : alias de start_line/end_line.
+            const offset = toInt(a.offset);
+            const limit = toInt(a.limit);
+            const start = toInt(a.start_line) ?? offset;
+            const end = toInt(a.end_line) ?? (Number.isInteger(start) && Number.isInteger(limit) ? start + limit - 1 : undefined);
+            return compact({ path: a.path, start_line: start, end_line: end });
+        }
         case "search_files":
             return compact({
                 ...searchQuery(a.query),
@@ -247,7 +256,7 @@ function formatReadFile(r) {
     ];
 
     if (!empty) {
-        out.push("Numéros de ligne ajoutés pour la lecture : ne pas les recopier dans edit_file.");
+        // Rappel « ne pas recopier les numéros » : dans les notes techniques, une seule fois.
         lines.forEach((line, i) => out.push(`${first + i}\t${line}`));
     }
 
@@ -260,6 +269,13 @@ function formatReadFile(r) {
 function formatSearch(r) {
     const head = r.message || `${r.matches.length} résultat(s).`;
     const out = [r.truncated ? `${head} Liste incomplète : affine la recherche (path, glob).` : head];
+
+    if (r.files_only) {
+        const counts = new Map();
+        for (const m of r.matches) counts.set(m.path, (counts.get(m.path) || 0) + 1);
+        for (const [file, n] of counts) out.push(`${file} (${n})`);
+        return out.join("\n");
+    }
 
     for (const m of r.matches) out.push(`${m.path}:${m.line}: ${m.text}`);
 
@@ -282,18 +298,19 @@ function formatCommandResult(r) {
     if (r.background) return `$ ${r.command}\n${r.message ?? ""}`.trimEnd();
 
     const out = [`$ ${r.command}`];
-    if (r.cwd) out.push(`Dossier : ${r.cwd}`);
+    // Dossier affiché seulement s'il diffère de la racine du projet.
+    if (r.cwd && r.cwd !== ".") out.push(`Dossier : ${r.cwd}`);
     if (r.message && r.message !== r.output) out.push(r.message);
 
     if (Array.isArray(r.files_changed) && r.files_changed.length) {
-        out.push(`Fichiers modifiés : ${r.files_changed.join(", ")} (à relire avant de les modifier).`);
+        out.push(`Fichiers modifiés : ${r.files_changed.join(", ")}.`);
     }
 
-    if (Array.isArray(r.segments) && r.segments.length > 1) {
-        out.push("Étapes :");
-        for (const s of r.segments) {
-            out.push(s.skipped ? `- ${s.command} : non lancée` : `- ${s.command} : code ${s.exit_code ?? "?"}`);
-        }
+    // Étapes listées seulement si l'une a échoué ou n'a pas été lancée (numéros, sans recopier les commandes).
+    const segments = Array.isArray(r.segments) && r.segments.length > 1 ? r.segments : [];
+    if (segments.some(s => s.skipped || (s.exit_code ?? 0) !== 0)) {
+        const steps = segments.map((s, i) => `[${i + 1}] ${s.skipped ? "non lancée" : `code ${s.exit_code ?? "?"}`}`);
+        out.push(`Étapes : ${steps.join(", ")}`);
     }
 
     if (r.truncated) out.push("Sortie tronquée : début et fin conservés. Des données intermédiaires peuvent manquer ; ne pas traiter ce résultat comme complet.");
