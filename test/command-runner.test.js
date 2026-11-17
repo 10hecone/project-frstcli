@@ -3,7 +3,29 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { runProcess, filterEnv } = require("../src/tools/command/runner");
+const { runProcess, filterEnv, createCollector } = require("../src/tools/command/runner");
+
+test("collecteur : les lignes d'erreur du milieu omis sont conservées", () => {
+    const collector = createCollector();
+    const filler = (n) => Array.from({ length: n }, (_, i) => `compilation du module ${i}`).join("\n") + "\n";
+    collector.push(filler(1000));
+    collector.push("src/a.ts(12,5): error TS2322: Type 'string' is not assignable\n");
+    collector.push(filler(1000));
+    collector.push("Terminé.\n");
+
+    const { output, truncated } = collector.render();
+    assert.equal(truncated, true);
+    assert.match(output, /lignes d'erreur de cette partie :\]\nsrc\/a\.ts\(12,5\): error TS2322/);
+    assert.match(output, /Terminé\.\n?$/);
+});
+
+test("collecteur : sans erreur au milieu, marqueur simple", () => {
+    const collector = createCollector();
+    collector.push(Array.from({ length: 3000 }, (_, i) => `ligne ${i}`).join("\n"));
+    const { output } = collector.render();
+    assert.match(output, /\[\.\.\. \d+ caractères omis \.\.\.\]/);
+    assert.doesNotMatch(output, /lignes d'erreur/);
+});
 
 const NODE = process.execPath;
 

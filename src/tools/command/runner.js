@@ -4,6 +4,7 @@ const { spawn } = require("node:child_process");
 
 const { IS_WINDOWS, filterEnv, killTree, resolveProgram } = require("./program");
 const { createTapDigest } = require("./tap-digest");
+const { isErrorLine, stripAnsi } = require("./output");
 
 /*
  * Lance un programme sans shell et collecte sa sortie de façon bornée.
@@ -21,6 +22,9 @@ const MAX_OUTPUT_CHARS = HEAD_CHARS + TAIL_CHARS;
 const MAX_LIVE_LINES = 200;
 const MAX_PENDING_LINE = 4000;
 const FORCE_FINISH_MS = 5000;
+// Lignes d'erreur relevées dans la partie qui sera omise (milieu d'un long build).
+const MAX_MIDDLE_ERRORS = 20;
+const MAX_ERROR_LINE_CHARS = 300;
 
 const LIVE_SUSPENDED = "[affichage direct suspendu, sortie complète renvoyée au modèle]";
 
@@ -34,6 +38,33 @@ function createCollector(onLine) {
     let live = typeof onLine === "function";
     // Sortie de node --test : seuls les échecs et le bilan sont renvoyés au modèle.
     const tap = createTapDigest();
+    // Relevé des lignes d'erreur hors du début gardé : { offset, text }.
+    const middleErrors = [];
+    let scan = "";
+    let scanOffset = 0;
+
+    function scanErrors(text) {
+        scan += text;
+        let start = 0;
+        let end;
+        while ((end = scan.indexOf("\n", start)) !== -1) {
+            const offset = scanOffset + start;
+            if (offset >= HEAD_CHARS && middleErrors.length < MAX_MIDDLE_ERRORS) {
+                const line = stripAnsi(scan.slice(start, end)).replace(/\r$/, "").trim();
+                if (line && isErrorLine(line) && !middleErrors.some(e => e.text === line)) {
+                    middleErrors.push({ offset, text: line.slice(0, MAX_ERROR_LINE_CHARS) });
+                }
+            }
+            start = end + 1;
+        }
+        scanOffset += start;
+        scan = scan.slice(start);
+        // Ligne sans fin démesurée : abandonnée pour le relevé.
+        if (scan.length > MAX_PENDING_LINE) {
+            scanOffset += scan.length;
+            scan = "";
+        }
+    }
 
     function emit(line) {
         if (!live) return;
@@ -53,6 +84,7 @@ function createCollector(onLine) {
         push(text) {
             total += text.length;
             tap.push(text);
+            scanErrors(text);
 
             if (head.length < HEAD_CHARS) head += text.slice(0, HEAD_CHARS - head.length);
 
@@ -89,9 +121,14 @@ function createCollector(onLine) {
             }
 
             const omitted = total - head.length - tail.length;
+            const tailStart = total - tail.length;
+            const lost = middleErrors.filter(e => e.offset < tailStart).map(e => e.text);
+            const marker = lost.length
+                ? `[... ${omitted} caractères omis ; lignes d'erreur de cette partie :]\n${lost.join("\n")}\n[... fin des lignes d'erreur omises ...]`
+                : `[... ${omitted} caractères omis ...]`;
 
             return {
-                output: `${head}\n[... ${omitted} caractères omis ...]\n${tail}`,
+                output: `${head}\n${marker}\n${tail}`,
                 truncated: true
             };
         }
