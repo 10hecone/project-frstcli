@@ -501,7 +501,8 @@ const ui = {
      * N'utilise jamais l'auto-approbation.
      */
     async askCommand(question, prefixText) {
-        const hint = `[o/N | t = toujours « ${prefixText} »]`;
+        // Sans préfixe (PowerShell), pas de « toujours » : confirmation à chaque fois.
+        const hint = prefixText ? `[o/N | t = toujours « ${prefixText} »]` : "[o/N]";
         return ask(`\n${c.bold(question)} ${c.dim(hint)} `);
     },
 

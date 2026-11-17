@@ -8,7 +8,8 @@ export function confirmOptions({ kind = "confirm", prefix = "" } = {}) {
         { value: "o", label: "Oui (une fois)", key: "o" },
         { value: "n", label: "Non", key: "n" }
     ];
-    if (kind === "command") options.push({ value: "t", label: `Toujours « ${prefix} »`, key: "t" });
+    // Sans préfixe (PowerShell), pas de « toujours » : confirmation à chaque fois.
+    if (kind === "command" && prefix) options.push({ value: "t", label: `Toujours « ${prefix} »`, key: "t" });
     return options;
 }
 
