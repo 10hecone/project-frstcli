@@ -42,7 +42,8 @@ const CONFIG = {
     maxSearchFiles: 3000,
 
     // Prompt
-    includeLearnedTopics: process.env.FS_INCLUDE_LEARNED_TOPICS !== "0",
+    // Désactivé par défaut : les sujets appris alourdissent le premier message sans aider l'outil.
+    includeLearnedTopics: process.env.FS_INCLUDE_LEARNED_TOPICS === "1",
     maxMessageChars: 1_000_000,     // limite de l'API
     messageBudget: 980_000,
 

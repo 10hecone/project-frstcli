@@ -39,6 +39,11 @@ test("profil : préférences séparées, sujets facultatifs et provenances conse
         assert.match(withoutTopics, /Garder les changements ciblés/);
         assert.equal(profile.listFacts("user").length, 2);
         assert.equal(profile.listFacts("project").length, 2);
+
+        // Par défaut (sans FS_INCLUDE_LEARNED_TOPICS=1), les sujets appris ne sont pas envoyés.
+        if (process.env.FS_INCLUDE_LEARNED_TOPICS !== "1") {
+     assert.doesNotMatch(profile.buildPreprompt(), /Sujet fréquent/);
+ }
     } finally {
         CONFIG.dataDir = originalDir;
         memory.projectPath = originalProjectPath;
