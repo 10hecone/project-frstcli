@@ -125,7 +125,7 @@ function explainClientToolsError(error) {
         error.message =
             "Ce modèle ne prend pas en charge les outils client (Gemini). " +
             `Choisissez un modèle OpenAI ou Claude. ${text}`;
-    } else if (error.status === 400 && /missing:|unknown:/i.test(text)) {
+    } else if (error.status === 400 && /missing:|unknown:|pending call/i.test(text)) {
         error.message = `Résultats d'outils incohérents avec les appels en attente (bug du client). ${text}`;
     }
     return error;
@@ -375,6 +375,7 @@ async function streamOnce(request, options) {
     let output = "";
     let toolCalls = [];
     let completed = false;
+    let accepted = false;
 
     function rememberChatId(id) {
         if (!id) return;
@@ -442,6 +443,7 @@ async function streamOnce(request, options) {
             error.status = response.status;
             throw error;
         }
+        accepted = true;
 
         // POST /chats/{chatId} n'est pas confirmé en SSE : une réponse JSON est aussi acceptée.
         const contentType = response.headers?.get?.("content-type") ?? "";
@@ -473,6 +475,13 @@ async function streamOnce(request, options) {
             const interrupted = new Error("Génération annulée (Ctrl+C).");
             interrupted.cancelled = true;
             throw interrupted;
+        }
+        // Résultats déjà acceptés par l'API : un nouvel envoi répondrait à des appels
+        // qui ne sont plus en attente (« toolResults must answer every pending call »).
+        if (isResults && accepted) {
+            error.retryable = false;
+            error.message = "Flux coupé après l'envoi des résultats d'outils (déjà reçus par l'API, pas de nouvel envoi). " +
+                `Renvoyez un message pour continuer. ${error.message}`;
         }
         throw error;
     } finally {

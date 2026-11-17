@@ -173,6 +173,37 @@ test("sendToolResults : 400 missing n'est pas relancé et est expliqué", { conc
     assert.equal(calls.length, 1);
 });
 
+test("sendToolResults : flux coupé après acceptation, pas de nouvel envoi", { concurrency: false }, async () => {
+    prepareAuth();
+    const calls = mockFetch(() => new Response(
+        new ReadableStream({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode("event: response.output_text.delta\ndata: {\"delta\":\"Je\"}\n\n"));
+                controller.error(new Error("socket hang up"));
+            }
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } }
+    ));
+    await assert.rejects(
+        sendToolResults("c-7", [{ callId: "a", output: "x" }]),
+        /pas de nouvel envoi/
+    );
+    assert.equal(calls.length, 1);
+});
+
+test("sendToolResults : erreur réseau avant acceptation, nouvel essai", { concurrency: false }, async () => {
+    prepareAuth();
+    const calls = mockFetch((n) => {
+        if (n === 1) throw new TypeError("fetch failed");
+        return new Response(JSON.stringify({ chat_id: "c-8", message: { content: "ok" } }), {
+            status: 200, headers: { "content-type": "application/json" }
+        });
+    });
+    const turn = await sendToolResults("c-8", [{ callId: "a", output: "x" }]);
+    assert.equal(turn.text, "ok");
+    assert.equal(calls.length, 2);
+});
+
 test("requestTurn : 403 et modèle Gemini donnent un message clair", { concurrency: false }, async () => {
     prepareAuth();
     mockFetch(() => new Response("forbidden", { status: 403 }));
