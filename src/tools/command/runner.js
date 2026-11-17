@@ -3,6 +3,7 @@
 const { spawn } = require("node:child_process");
 
 const { IS_WINDOWS, filterEnv, killTree, resolveProgram } = require("./program");
+const { createTapDigest } = require("./tap-digest");
 
 /*
  * Lance un programme sans shell et collecte sa sortie de façon bornée.
@@ -31,6 +32,8 @@ function createCollector(onLine) {
     let pending = "";
     let shown = 0;
     let live = typeof onLine === "function";
+    // Sortie de node --test : seuls les échecs et le bilan sont renvoyés au modèle.
+    const tap = createTapDigest();
 
     function emit(line) {
         if (!live) return;
@@ -49,6 +52,7 @@ function createCollector(onLine) {
     return {
         push(text) {
             total += text.length;
+            tap.push(text);
 
             if (head.length < HEAD_CHARS) head += text.slice(0, HEAD_CHARS - head.length);
 
@@ -76,6 +80,9 @@ function createCollector(onLine) {
         },
 
         render() {
+            const condensed = tap.render();
+            if (condensed !== null) return { output: condensed, truncated: false, condensed: true };
+
             if (total <= MAX_OUTPUT_CHARS) {
                 const rest = total - head.length;
                 return { output: head + (rest > 0 ? tail.slice(-rest) : ""), truncated: false };
