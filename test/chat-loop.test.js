@@ -151,7 +151,7 @@ test("une ronde : un résultat par callId, dans l'ordre, en un seul envoi", asyn
         assert.equal(newChatId, "chat-1");
         assert.deepEqual(deltas, ["Je regarde.", "Fini."]);
         assert.deepEqual(state.history.map((e) => e.content), ["analyse", "Je regarde.\n\nFini."]);
-        assert.equal(env.log.requestTurn[0].message, "CONTEXTE\n\nQUESTION : analyse");
+        assert.equal(env.log.requestTurn[0].message, "analyse\n\n---\n\nCONTEXTE");
     } finally {
         env.restore();
     }
@@ -323,7 +323,7 @@ test("résumé de /compact : joint au premier message puis oublié", async () =>
         await chat.send("on reprend");
         assert.match(
             env.log.requestTurn[0].message,
-            /^RÉSUMÉ DE LA SESSION PRÉCÉDENTE[^\n]*\nObjectif : finir la refonte\.\n\nCONTEXTE\n\nQUESTION : on reprend$/,
+            /^on reprend\n\n---\n\nRÉSUMÉ DE LA SESSION PRÉCÉDENTE[^\n]*\nObjectif : finir la refonte\.\n\nCONTEXTE$/,
         );
         assert.equal(state.compactSummary, null);
 

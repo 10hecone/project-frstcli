@@ -8,7 +8,7 @@ const MAX_INSTRUCTIONS_CHARS = 8_000;
 
 function template({ testCommand } = {}) {
     return [
-        "# Instructions du projet pour FranceStudent Code",
+        "# Instructions du projet",
         "",
         "Ce fichier est lu au début de chaque conversation (et après /compact) et transmis au modèle.",
         "Garde-le court : seulement ce qui doit être respecté à chaque fois.",
@@ -50,7 +50,7 @@ async function loadInstructions(workspace, maxChars = MAX_INSTRUCTIONS_CHARS) {
 async function instructionsBlock(workspace) {
     const text = await loadInstructions(workspace);
     return text
-        ? `INSTRUCTIONS DU PROJET (${INSTRUCTIONS_NAME}, écrites par l'utilisateur ; à respecter pendant toute la conversation)\n${text}`
+        ? `Conventions du dépôt (${INSTRUCTIONS_NAME}, à appliquer aux tâches concernant ce projet) :\n${text}`
         : "";
 }
 

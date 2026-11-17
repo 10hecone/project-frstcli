@@ -34,9 +34,9 @@ function toolsFor({ readOnly = false } = {}) {
 }
 
 /**
- * Premier message d'une conversation : pré-prompt, FRSTCLI.md, résumé laissé par /compact
- * et contexte court du projet (premier niveau, système, git, tests ; quelques milliers
- * de caractères). Le modèle lit le reste lui-même avec les outils.
+ * Premier message d'une conversation : la demande, puis en annexe le pré-prompt, FRSTCLI.md,
+ * le résumé laissé par /compact et le contexte court du projet (premier niveau, système,
+ * git, tests ; quelques milliers de caractères). Le modèle lit le reste avec les outils.
  * Ensuite : le message seul (le début de la conversation ne change plus et reste
  * dans le cache de prompt).
  */
@@ -58,8 +58,12 @@ async function buildMessage(input) {
           state.compactSummary
         : "";
 
-    const body = context ? `${context}\n\nQUESTION : ${input}` : input;
-    return [preprompt, instructions, summary, body].filter(Boolean).join("\n\n");
+    // La demande vient en premier, le contexte suit en annexe : un long bloc placé avant la
+    // demande ressemble à un prompt injecté. Pas de démenti du type « tu n'es pas un agent » :
+    // dans un message utilisateur, il pousse certains modèles (GPT) à refuser les outils.
+    const annexes = [preprompt, instructions, summary, context].filter(Boolean);
+    if (!annexes.length) return input;
+    return `${input}\n\n---\n\n${annexes.join("\n\n")}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -134,9 +134,10 @@ test("après /compact, le premier message de la conversation suivante porte le r
         await compactSession();
         const message = await chat.buildMessage("on continue");
 
-        assert.match(message, /^RÉSUMÉ DE LA SESSION PRÉCÉDENTE \(écrit par \/compact/);
-        assert.ok(message.indexOf("1. Objectif") < message.indexOf("on continue"));
-        assert.ok(message.endsWith("on continue"));
+        // La demande d'abord, le résumé ensuite en annexe.
+ assert.ok(message.startsWith("on continue\n\n---\n\n"));
+        assert.match(message, /\nRÉSUMÉ DE LA SESSION PRÉCÉDENTE \(écrit par \/compact/);
+        assert.ok(message.endsWith("1. Objectif\nTester."));
     } finally {
         restoreState(saved);
     }

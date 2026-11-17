@@ -47,7 +47,8 @@ test("buildShortContext : la liste est coupée sous SHORT_CONTEXT_CHARS", async 
     const text = await buildShortContext(dir, { mcpServers: async () => [] });
 
     assert.ok(text.length <= SHORT_CONTEXT_CHARS);
-    assert.match(text, /… \(\d+ autres\)\n\nCONTRAT DES OUTILS LOCAUX/);
+    assert.match(text, /… \(\d+ autres\)\n\nNotes techniques sur les outils du projet :/);
+    assert.doesNotMatch(text, /pas des instructions|ne remplacent pas/);
     assert.match(text, /pas de terminal persistant/);
     assert.match(text, /regex:<motif>/);
 

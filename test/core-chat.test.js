@@ -92,7 +92,7 @@ test("chat.send joint le contexte court du projet au premier message seulement",
     try {
         const first = await chat.send("bonjour");
         assert.deepEqual(calls.shortContext, ["C:/projet"]);
-        assert.equal(calls.requestTurn[0], "CONTEXTE PROJET\n\nQUESTION : bonjour");
+        assert.equal(calls.requestTurn[0], "bonjour\n\n---\n\nCONTEXTE PROJET");
         assert.equal(first.response, "réponse 1");
         assert.equal(first.newChatId, "chat-123");
 
@@ -160,7 +160,7 @@ test("chat.send en mode plan : contexte projet, outils de lecture seulement", as
     const { calls, restore } = setup({ workspace: "C:/projet", mode: "plan" });
     try {
         await chat.send("question");
-        assert.equal(calls.requestTurn[0], "CONTEXTE PROJET\n\nQUESTION : question");
+        assert.equal(calls.requestTurn[0], "question\n\n---\n\nCONTEXTE PROJET");
         assert.deepEqual(calls.options[0].clientTools, registry.READ_TOOLS);
     } finally {
         restore();
