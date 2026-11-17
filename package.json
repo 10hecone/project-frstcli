@@ -1,6 +1,6 @@
 {
   "name": "project-frstcli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "FranceStudent Code : agent de programmation en ligne de commande",
   "main": "index.js",
   "bin": {
