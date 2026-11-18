@@ -12,10 +12,16 @@ const args = process.argv.slice(2);
 const sets = new Map();
 
 for (const arg of args.filter(a => a.startsWith("--set="))) {
-    const [file, ...specs] = arg.slice(6).split("@");
-    const pairs = specs.join(":").split(",");
-    for (const pair of pairs) {
-        const [line, level] = pair.split("-").map(Number);
+    // Chaque élément peut répéter le fichier : « a.js@3-1,a.js@7-2 » vaut « a.js@3-1,7-2 ».
+    let file = null;
+    for (const item of arg.slice(6).split(",")) {
+        const at = item.lastIndexOf("@");
+        if (at >= 0) file = item.slice(0, at);
+        const [line, level] = item.slice(at + 1).split("-").map(Number);
+        if (!file || !Number.isInteger(line) || !Number.isInteger(level)) {
+            console.error(`Option --set invalide : ${item}`);
+            process.exit(2);
+        }
         if (!sets.has(file)) sets.set(file, new Map());
         sets.get(file).set(line, level);
     }
