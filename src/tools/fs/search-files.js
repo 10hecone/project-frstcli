@@ -16,6 +16,8 @@ const READ_CONCURRENCY = 8;
 
 // Longueur maximale d'une regex ou d'un glob.
 const MAX_PATTERN_LENGTH = 500;
+// Mode fichiers : correspondances comptées par fichier au plus.
+const MAX_COUNT_PER_FILE = 10000;
 
 function compileRegex(query) {
     if (query.length > MAX_PATTERN_LENGTH) {
@@ -137,6 +139,8 @@ function makeMatcher(query, regex, timeoutMs = REGEX_TIMEOUT_MS) {
 async function searchFiles(args = {}) {
     const query = requireString(args.query, "query");
     const regex = args.regex === true;
+    // files_only : une entrée par fichier avec son nombre réel de correspondances.
+    const filesOnly = args.files_only === true;
     const glob = typeof args.glob === "string" && args.glob.trim() ? args.glob : null;
 
     const matcher = makeMatcher(query, regex);
@@ -181,7 +185,12 @@ async function searchFiles(args = {}) {
             if (text === null || !matcher.quick(text)) continue;
 
             const lines = text.split("\n");
-            const found = matcher.find(text, CONFIG.maxSearchResults - matches.length);
+            const found = matcher.find(text, filesOnly ? MAX_COUNT_PER_FILE : CONFIG.maxSearchResults - matches.length);
+
+            if (filesOnly) {
+                if (found.length) matches.push({ path: batch[j].rel, line: found[0] + 1, text: "", count: found.length });
+                continue;
+            }
 
             for (const k of found) {
                 const line = lines[k].replace(/\r$/, "");
@@ -201,10 +210,13 @@ async function searchFiles(args = {}) {
         query,
         ...(regex ? { regex: true } : {}),
         ...(glob ? { glob } : {}),
-        ...(args.files_only === true ? { files_only: true } : {}),
+        ...(filesOnly ? { files_only: true } : {}),
         matches,
         truncated: full(),
-        message: `${matches.length} résultat(s) dans ${scanned} fichier(s).`
+        message: (filesOnly
+            ? `${matches.length} fichier(s) avec correspondance, ${scanned} examiné(s).`
+            : `${matches.length} résultat(s), ${scanned} fichier(s) examiné(s).`) +
+            (args.literal_fallback === true ? " Motif invalide en regex : cherché en texte littéral." : "")
     };
 }
 

@@ -49,9 +49,21 @@ async function editFile(args = {}) {
     }
 
     let count = previous.split(needle).length - 1;
+    let wanted = args.old_string;
+
+    // Numéros de ligne de read_file recopiés (« 12\t... ») : on les retire.
+    if (count === 0) {
+        const bare = stripLineNumbers(needle);
+        if (bare !== null) {
+            needle = bare;
+            wanted = stripLineNumbers(wanted) ?? wanted;
+            replacement = stripLineNumbers(replacement) ?? replacement;
+            count = previous.split(needle).length - 1;
+        }
+    }
 
     if (count === 0) {
-        const loose = findLoose(previous, args.old_string);
+        const loose = findLoose(previous, wanted);
         if (loose) {
             needle = loose;
             count = previous.split(needle).length - 1;
@@ -149,6 +161,25 @@ function findLoose(text, needle) {
     return /\n$/.test(needle) && end < lines.length ? `${span}\n` : span.replace(/\r$/, "");
 }
 
+/**
+ * Retire les préfixes « 12\t » de read_file si toutes les lignes non vides en ont un,
+ * avec des numéros croissants. Sinon null (texte laissé tel quel).
+ */
+function stripLineNumbers(text) {
+    const prefix = /^[ \t]*(\d+)\t/;
+    const lines = text.split("\n");
+    let last = -1;
+
+    for (const line of lines) {
+        if (!line.trim()) continue;
+        const m = prefix.exec(line);
+        if (!m || Number(m[1]) <= last) return null;
+        last = Number(m[1]);
+    }
+
+    return last < 0 ? null : lines.map((l) => l.replace(prefix, "")).join("\n");
+}
+
 function check(args) {
     requireString(args.path, "path");
 
@@ -176,4 +207,4 @@ function describe(a) {
     return `${a.path} : \"${short(a.old_string, 40)}\" -> \"${short(a.new_string, 40)}\"`;
 }
 
-module.exports = { name: "edit_file", run: editFile, check, describe, findLoose };
+module.exports = { name: "edit_file", run: editFile, check, describe, findLoose, stripLineNumbers };

@@ -56,7 +56,7 @@ function searchQuery(query) {
         new RegExp(text, "i");
         return { query: text, regex: true };
     } catch {
-        return { query: text, regex: false };
+        return { query: text, regex: false, literal_fallback: true };
     }
 }
 
@@ -272,7 +272,7 @@ function formatSearch(r) {
 
     if (r.files_only) {
         const counts = new Map();
-        for (const m of r.matches) counts.set(m.path, (counts.get(m.path) || 0) + 1);
+        for (const m of r.matches) counts.set(m.path, (counts.get(m.path) || 0) + (m.count ?? 1));
         for (const [file, n] of counts) out.push(`${file} (${n})`);
         return out.join("\n");
     }

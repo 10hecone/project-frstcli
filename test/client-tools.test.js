@@ -73,8 +73,10 @@ test("normalizeArgs : recherche regex par défaut, repli littéral et max_result
         assert.deepEqual(normalizeArgs("search_files", { query }), { query, regex: true, max_results: 50 });
     }
     // Motif invalide : cherché tel quel, sans erreur.
-    assert.deepEqual(normalizeArgs("search_files", { query: "foo(" }), { query: "foo(", regex: false, max_results: 50 });
-    assert.deepEqual(normalizeArgs("search_files", { query: "regex:foo(" }), { query: "foo(", regex: false, max_results: 50 });
+    const fallback = { query: "foo(", regex: false, literal_fallback: true, max_results: 50 };
+    assert.deepEqual(normalizeArgs("search_files", { query: "foo(" }), fallback);
+    assert.deepEqual(normalizeArgs("search_files", { query: "regex:foo(" }), fallback);
+    validateToolCall({ name: "search_files", args: fallback });
     assert.deepEqual(normalizeArgs("search_files", { query: "literal:a|b" }), {
         query: "a|b", regex: false, max_results: 50
     });
@@ -117,6 +119,14 @@ test("formatClientResult : search_files en mode fichiers", () => {
         matches: [{ path: "a.js", line: 1, text: "x" }, { path: "a.js", line: 4, text: "y" }, { path: "b.js", line: 2, text: "z" }]
     });
     assert.equal(text, "3 résultat(s) dans 2 fichier(s).\na.js (2)\nb.js (1)");
+
+    // Une entrée par fichier avec son nombre réel de correspondances.
+    const counted = formatClientResult("search_files", {
+        files_only: true,
+        message: "2 fichier(s) avec correspondance, 9 examiné(s).",
+        matches: [{ path: "a.js", line: 1, text: "", count: 37 }, { path: "b.js", line: 2, text: "", count: 1 }]
+    });
+    assert.equal(counted, "2 fichier(s) avec correspondance, 9 examiné(s).\na.js (37)\nb.js (1)");
 });
 
 test("normalizeArgs : outil inconnu", () => {

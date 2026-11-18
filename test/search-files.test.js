@@ -128,6 +128,28 @@ test("searchFiles glob avec « / » : filtre sur le chemin", async () => {
     });
 });
 
+test("searchFiles files_only : une entrée par fichier avec le nombre réel", async () => {
+    await withWorkspace(async (dir) => {
+        await fill(dir);
+        // 30 lignes trouvées dans un même fichier : le nombre n'est pas plafonné.
+        await fs.writeFile(path.join(dir, "many.txt"), "hello\n".repeat(30), "utf8");
+        const result = await searchFiles({ query: "hello", path: ".", files_only: true });
+        const counts = Object.fromEntries(result.matches.map(m => [m.path, m.count]));
+        assert.deepEqual(counts, { "a.txt": 2, "many.txt": 30, "sub/c.txt": 1 });
+        assert.equal(result.files_only, true);
+        assert.match(result.message, /^3 fichier\(s\) avec correspondance, \d+ examiné\(s\)\.$/);
+    });
+});
+
+test("searchFiles : le repli littéral est signalé", async () => {
+    await withWorkspace(async (dir) => {
+        await fs.writeFile(path.join(dir, "a.js"), "call foo(1)\n", "utf8");
+        const result = await searchFiles({ query: "foo(", path: ".", literal_fallback: true });
+        assert.deepEqual(keys(result), ["a.js:1"]);
+        assert.match(result.message, /Motif invalide en regex : cherché en texte littéral\./);
+    });
+});
+
 test("globToRegExp gère *, **, ? et {a,b}", () => {
     assert.ok(globToRegExp("*.{js,ts}").test("x.ts"));
     assert.ok(!globToRegExp("*.{js,ts}").test("x.md"));

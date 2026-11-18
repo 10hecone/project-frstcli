@@ -165,3 +165,30 @@ test("runCommand : cd puis commande, champs cwd, segments et pipe_status", async
         state.cwd = saved.cwd;
     }
 });
+
+test("runCommand + formatClientResult : 3 étapes, en-tête unique et Étapes seulement en cas d'échec", async () => {
+    const { formatClientResult } = require("../src/tools/registry");
+    const saved = { workspace: state.workspace, cwd: state.cwd };
+    // « node inexistant.js » demande une confirmation : réponse « o » sans attendre le clavier.
+    setUiBackend({ ...getUiBackend(), commandLine() {}, onInterrupt: () => () => {}, askCommand: async () => "o" });
+    state.workspace = workspace;
+    state.cwd = undefined;
+    try {
+        const command = "node --version && node --version && node --version";
+        const ok = formatClientResult("run_command", await runCommand({ command }));
+        assert.doesNotMatch(ok, /^Étapes/m);
+        // La commande n'apparaît qu'une fois : dans l'en-tête « $ ».
+        assert.equal(ok.split("node --version && node").length - 1, 1);
+        assert.match(ok, /^\$ node --version && node --version && node --version$/m);
+        for (const n of [1, 2, 3]) assert.match(ok, new RegExp(`\\[${n}\\]`));
+
+        const failed = formatClientResult("run_command", await runCommand({
+            command: "node --version && node inexistant.js && node --version"
+        }));
+        assert.match(failed, /^Étapes : \[1\] code 0, \[2\] code 1, \[3\] non lancée$/m);
+    } finally {
+        setUiBackend(null);
+        state.workspace = saved.workspace;
+        state.cwd = saved.cwd;
+    }
+});
