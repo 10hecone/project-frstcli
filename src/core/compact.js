@@ -130,9 +130,77 @@ async function compactSession({ instruction = "" } = {}) {
     return { summary, chars: summary.length, previousChatId };
 }
 
+/* ---------- Changement de modèle ---------- */
+
+// Consigne ajoutée à la demande de résumé : le lecteur est un autre modèle.
+const SWITCH_INSTRUCTION =
+    "Ce résumé sera lu par un autre modèle qui reprend la conversation sans rien connaître d'elle : " +
+    "inclus le contexte nécessaire pour continuer sans reposer de questions.";
+
+// Taille maximale d'un message repris dans le résumé de secours.
+const FALLBACK_MESSAGE_CHARS = 800;
+
+/** Résumé de secours : derniers échanges de la session, sans appel au modèle. "" si rien. */
+function localSummary(history) {
+    const lines = (Array.isArray(history) ? history : [])
+        .filter(entry => entry && typeof entry.content === "string" && entry.content.trim())
+        .map(entry => {
+            const who = entry.role === "user" ? "Utilisateur" : "Assistant";
+            return `${who} : ${clip(entry.content.trim(), FALLBACK_MESSAGE_CHARS)}`;
+        });
+    if (!lines.length) return "";
+    return clip(
+        "(Résumé automatique indisponible : voici les derniers échanges de la conversation.)\n" + lines.join("\n\n"),
+        COMPACT_MAX_SUMMARY_CHARS
+    );
+}
+
+/**
+ * Change de modèle en gardant le fil de la conversation : le modèle actuel résume la
+ * conversation (comme /compact), puis le nouveau modèle la reprend dans une conversation
+ * neuve, le résumé étant joint à son premier message. Si le résumé échoue, les derniers
+ * échanges locaux servent de résumé de secours.
+ * Sans conversation en cours, seul le modèle change (un résumé /compact en attente est conservé).
+ * Renvoie { changed, summarized, fallback, chars, previousChatId }.
+ */
+async function switchModel(agent) {
+    const result = { changed: false, summarized: false, fallback: false, chars: 0, previousChatId: null };
+    if (!agent || state.model === agent.id) return result;
+
+    result.changed = true;
+    const previousChatId = state.chatIds.chat;
+
+    if (previousChatId) {
+        result.previousChatId = previousChatId;
+        let summary = "";
+        try {
+            ({ summary } = await compactSession({ instruction: SWITCH_INSTRUCTION }));
+        } catch {
+            // Le résumé a échoué (conversation conservée) : repli sur les derniers échanges locaux.
+            summary = localSummary(state.history);
+            result.fallback = true;
+            resetConversation();
+            if (summary) {
+                state.compactSummary = summary;
+                record("assistant", `Résumé de la session précédente :\n${summary}`);
+            }
+        }
+        result.summarized = Boolean(summary);
+        result.chars = summary.length;
+    }
+
+    state.model = agent.id;
+    // Les réglages gardés par compactSession portent l'ancien modèle : activateConversation le remettrait.
+    if (state.conversationSettings.chat) state.conversationSettings.chat.model = agent.id;
+    state.contextUsagePercent = state.contextDetails = null;
+    return result;
+}
+
 module.exports = {
     refreshContextUsage,
     compactSession,
+    switchModel,
+    localSummary,
     buildCompactPrompt,
     extractSummary,
     COMPACT_MAX_SUMMARY_CHARS

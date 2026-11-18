@@ -10,6 +10,8 @@ const chat = require("../src/core/chat");
 const { state } = require("../src/state");
 const {
     compactSession,
+    switchModel,
+    localSummary,
     buildCompactPrompt,
     extractSummary,
     COMPACT_MAX_SUMMARY_CHARS

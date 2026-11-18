@@ -618,10 +618,30 @@ async function handleCommand(input) {
         break;
       }
 
-      state.model = agent.id;
-      resetConversation();
-      state.contextUsagePercent = state.contextDetails = null;
+      if (agent.id === state.model) {
+        ui.info(`Agent déjà sélectionné : ${agent.name}`);
+        break;
+      }
+
+      const { switchModel } = require("../core/compact");
+      const spin = state.chatIds.chat ? ui.spinner("Résumé de la conversation pour le nouvel agent") : null;
+      let switched;
+      try {
+        switched = await switchModel(agent);
+      } finally {
+        if (spin) spin.stop();
+      }
+
       ui.info(`Agent sélectionné : ${agent.name}`);
+      if (switched.summarized) {
+        ui.info(
+          (switched.fallback
+            ? "Résumé automatique indisponible : les derniers échanges seront transmis"
+            : `Conversation résumée (${switched.chars} caractères) : le résumé sera transmis`) +
+            " à ce nouvel agent avec ton prochain message (nouvelle conversation).",
+        );
+        ui.info(`Ancienne conversation : ${switched.previousChatId} (/chat-id ${switched.previousChatId} pour y revenir).`);
+      }
       break;
     }
 

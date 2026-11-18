@@ -117,6 +117,7 @@ function createWorkspace({
     agents = null,
     projects = null,
     stateModule = null,
+    compact = null,
     detectEnvironment = null,
     sessionUsage = null,
     permissions = null,
@@ -126,6 +127,7 @@ function createWorkspace({
     const agentsApi = () => agents || require("../api/agents");
     const projectsApi = () => projects || require("../api/fr-projects");
     const st = () => stateModule || require("../state");
+    const compactApi = () => compact || require("../core/compact");
     const detect = () => detectEnvironment || require("../project/short-context").detectEnvironment;
     const usageSource = () => sessionUsage || require("../api/api").usage;
 
@@ -306,14 +308,19 @@ function createWorkspace({
         const { agents: list = [] } = await agentsApi().listAgents();
         const agent = list.find((item) => item.id === Number(id));
         if (!agent) throw new Error("Modèle introuvable.");
-        const { state, resetConversation } = st();
+        const { state } = st();
         if (state.model === agent.id) return { ok: true, changed: false, name: agent.name };
-        state.model = agent.id;
-        resetConversation();
-        state.contextUsagePercent = state.contextDetails = null;
+        // Le modèle actuel résume la conversation : le nouveau la reprend avec ce résumé.
+        const switched = await compactApi().switchModel(agent);
+        let detail = "nouvelle conversation";
+        if (switched.summarized) {
+            detail = switched.fallback
+                ? "nouvelle conversation, derniers échanges transmis"
+                : "nouvelle conversation, résumé transmis";
+        }
         backend.store.dispatch({
             type: "append",
-            entry: { type: "info", text: `Modèle : ${agent.name} (nouvelle conversation).` }
+            entry: { type: "info", text: `Modèle : ${agent.name} (${detail}).` }
         });
         refresh();
         return { ok: true, changed: true, name: agent.name };

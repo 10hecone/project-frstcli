@@ -12,7 +12,7 @@ const { CHANNELS } = require("../src/gui/channels");
 
 /** Workspace avec toutes ses dépendances simulées : aucun réseau, aucun Electron. */
 function setup({ routes = () => ({}), running = false, uploads = null } = {}) {
-    const calls = { requests: [], dispatched: [], cleared: 0, refreshed: 0, resets: 0, conversations: [], saved: undefined };
+    const calls = { requests: [], dispatched: [], cleared: 0, refreshed: 0, resets: 0, conversations: [], switched: [], saved: undefined };
     const state = { workspace: path.join("dev", "projet"), model: 7, chatIds: {}, frProject: null, pendingFiles: ["ancien"] };
     const stateModule = {
         state,
@@ -70,6 +70,15 @@ function setup({ routes = () => ({}), running = false, uploads = null } = {}) {
         agents,
         projects,
         stateModule,
+        compact: {
+            // Même effet que l'ancien comportement, sans appel au modèle : on observe seulement l'appel.
+            async switchModel(agent) {
+                calls.switched.push(agent.id);
+                state.model = agent.id;
+                stateModule.resetConversation();
+                return { changed: true, summarized: false };
+            }
+        },
         detectEnvironment: async () => ({ git: { branch: "main" } }),
         sessionUsage: { requests: 2, inputTokens: 100 },
         workspaceCore: { root: state.workspace }
@@ -210,6 +219,7 @@ test("workspace : setModel change de modèle et ouvre une nouvelle conversation"
 
     assert.deepEqual(await workspace.setModel("9"), { ok: true, changed: true, name: "Expert" });
     assert.equal(state.model, 9);
+    assert.deepEqual(calls.switched, [9]);
     assert.equal(calls.resets, 1);
     assert.match(calls.dispatched[0].entry.text, /Expert/);
     assert.equal(calls.refreshed, 1);
