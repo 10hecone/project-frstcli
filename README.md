@@ -1,15 +1,15 @@
 # FranceStudent CLI
 
-Interface en ligne de commande pour utiliser ia.francestudent depuis un terminal. Sans projet sélectionné, le CLI fonctionne en chat normal.
+Interface en ligne de commande pour utiliser ia.francestudent depuis un terminal. Lancé dans un dossier (`frst`), il y travaille avec ses outils ; `frst --no-project` donne un chat normal sans outils.
 
 ## Fonctionnalités
 
 - Chat avec les agents disponibles (`/model`)
-- Mode projet : le modèle explore, cherche, lit, crée et modifie des fichiers et lance des commandes, avec les outils client natifs de l'API France Student
-- Confirmation avant chaque écriture et chaque commande non sûre (`/auto on` la désactive pour la session)
+- Dossier ouvert au lancement : le modèle explore, cherche, lit, crée et modifie des fichiers et lance des commandes, avec les outils client natifs de l'API France Student
+- Modes de permission (`/mode` ou Shift+Tab) : `default` confirme chaque écriture et chaque commande non sûre, `acceptEdits` accepte les écritures, `plan` reste en lecture seule
 - Annulation de la dernière modification avec `/undo` (sauvegardes et corbeille du CLI)
 - Notes persistantes par projet (`/remember`, `/memory`)
-- Une conversation persistante par projet, reprise automatiquement
+- Plusieurs sessions par dossier : nouvelle session à chaque lancement, reprise avec `frst -c`, `frst --resume` ou `/resume`
 - Saisie multi-ligne : `\` en fin de ligne pour continuer, ou bloc entre deux lignes `"""`
 - Pré-prompt personnalisé, commun à tous les projets ou propre à un projet (`/preprompt`)
 - Mémoire de profil qui se renforce avec l'usage : faits appris sur l'utilisateur et le projet, ajoutés au pré-prompt (`/profil`)
@@ -73,9 +73,22 @@ Lancement :
 
 | Commande | Interface |
 | -------- | --------- |
-| `frst` (ou `npm start`) | Interface plein terminal (TUI Ink) |
+| `frst` (ou `npm start`) | Interface plein terminal (TUI Ink), dans le dossier courant |
+| `frst <dossier>` | Idem, dans le dossier indiqué |
 | `frst mcp <commande>` | Gère les serveurs MCP hors session (voir [Serveurs MCP locaux](#serveurs-mcp-locaux)) |
 | `npm run app` | Application de bureau (Electron) ; construit l'interface avant de la lancer |
+
+Comme Claude Code, `frst` travaille dans le dossier où il est lancé : il n'y a plus de `/project` ni de `/unproject`. Pour changer de dossier, quitte et relance `frst` ailleurs. Au premier lancement dans un dossier, le CLI demande si tu lui fais confiance ; s'il est refusé, rien n'est ouvert.
+
+| Option | Effet |
+| ------ | ----- |
+| `-c`, `--continue` | Reprend la dernière session du dossier |
+| `-r`, `--resume` | Ouvre la liste des sessions du dossier (↑/↓, Entrée ; Échap = nouvelle session) |
+| `--no-project` | Chat sans dossier ni outils locaux |
+| `-h`, `--help` | Affiche l'aide de lancement |
+| `-v`, `--version` | Affiche la version |
+
+Sans option, chaque lancement démarre une nouvelle session. Les fichiers `FRSTCLI.md` du dossier et de ses parents sont lus comme instructions (le plus proche en dernier, il prime).
 
 `frst` exige un terminal interactif et le bundle `dist/tui.mjs` ; sinon il affiche un message d'erreur et quitte.
 
@@ -87,6 +100,7 @@ Lancement :
 | `\` + Entrée, Ctrl+J, Alt+Entrée | Nouvelle ligne |
 | ↑ / ↓ | Changer de ligne, puis parcourir l'historique (conservé entre les sessions) |
 | Tab | Compléter une commande slash |
+| Shift+Tab | Changer de mode de permission (`default` → `acceptEdits` → `plan`) |
 | Échap | Effacer la saisie |
 | Ctrl+A / Ctrl+E | Début / fin de ligne |
 | Ctrl+U / Ctrl+K | Couper jusqu'au début / jusqu'à la fin |
@@ -102,7 +116,8 @@ Confirmations : `o` = oui, `n` = non, `t` = toujours, Échap = non. `NO_COLOR=1`
 Exemple de session :
 
 ```text
-› /project ./mon-projet
+$ cd mon-projet && frst
+› /status
 › /tree
 › Explique le rôle de src/config.js
 › Ajoute une fonction de formatage de date dans src/utils/date.js
@@ -123,53 +138,53 @@ Exemple de session :
 
 ## Commandes principales
 
-| Commande                  | Rôle                                                  |
-| ------------------------- | ----------------------------------------------------- |
-| `/help`                   | Affiche l'aide                                        |
-| `/project <dossier>`      | Sélectionne un projet local                           |
-| `/unproject`              | Quitte le mode projet                                 |
-| `/tree [dossier]`         | Liste un dossier sur deux niveaux                     |
-| `/read <fichier>`         | Affiche un fichier                                    |
-| `/index`                  | Résume le projet avec l'IA et enregistre `RESUME.md` (`/index force` refait tout) |
-| `/resume` | Affiche le résumé enregistré (`RESUME.md`) |
-| `/plan <demande>` | Propose un plan en lecture seule, sans modification            |
-| `/undo`                   | Annule la dernière modification                       |
-| `/changes`                | Liste les modifications annulables                    |
-| `/chat-id [numéro\|id]`   | Affiche les IDs ou reprend une conversation |
-| `/history [all]`          | Liste les dernières conversations (id, titre, date)   |
-| `/messages`               | Affiche les messages de la session                    |
-| `/memory`                 | Affiche les notes et les dernières actions            |
-| `/remember <texte>`       | Ajoute une note au projet                             |
+| Commande | Rôle |
+| -------- | ---- |
+| `/help` | Affiche l'aide : dossier ouvert, commandes, modes, sessions et options de lancement |
+| `/status` | Dossier, confiance, session, branche Git, mode de permission, agent et `FRSTCLI.md` chargés |
+| `/pwd` | Affiche le dossier ouvert |
+| `/resume [n\|id]` | Reprend une session du dossier (sans argument : sélecteur au clavier) |
+| `/mode default\|acceptEdits\|plan` | Mode de permission (aussi Shift+Tab) : tout confirmer, accepter les écritures, lecture seule |
+| `/tree [dossier]` | Liste un dossier sur deux niveaux |
+| `/read <fichier>` | Affiche un fichier |
+| `/index [force\|show]` | Résume le projet avec l'IA et enregistre `RESUME.md` (`force` refait tout, `show` l'affiche) |
+| `/init` | Crée `FRSTCLI.md` (instructions du projet), sans écraser un fichier existant |
+| `/memory [open]` | `FRSTCLI.md` chargés, notes et dernières actions ; `open` ouvre `FRSTCLI.md` |
+| `/remember <texte>` | Ajoute une note au projet |
+| `/forget <n\|all>` | Supprime une note du projet (ou toutes) |
+| `/plan <demande>` | Propose un plan en lecture seule, sans modification |
+| `/undo` | Annule la dernière modification |
+| `/changes` | Liste les modifications annulables |
+| `/permissions [remove <n\|préfixe>\|clear]` | Liste ou supprime les règles des commandes autorisées (projet) |
+| `/jobs [stop <id>\|stop-all]` | Liste ou arrête les commandes en arrière-plan |
+| `/new` | Démarre une nouvelle conversation |
+| `/compact [consigne]` | Résume la session et repart d'une nouvelle conversation |
+| `/context` | Affiche le contexte utilisé, le chat ID et les tours |
+| `/chat-id [numéro\|id]` | Affiche les IDs ou reprend une conversation |
+| `/history [all]` | Liste les dernières conversations (id, titre, date) |
+| `/messages` | Affiche les messages de la session |
+| `/usage` | Consommation : session, conversation, limites du compte |
+| `/model [nom]` | Liste ou change d'agent |
+| `/web on\|off` | Recherche web côté serveur (chat normal) |
+| `/fr-project <nom>\|off` | Rattache les nouvelles conversations à un projet FranceStudent (créé s'il n'existe pas) |
 | `/preprompt [user\|projet] [texte\|clear]` | Affiche, définit ou efface le pré-prompt (utilisateur par défaut) |
 | `/profil [user\|projet] [learn <fait>\|forget <n>]` | Liste, ajoute ou oublie les faits appris (poids renforcés) |
-| `/permissions [remove <n\|préfixe>\|clear]` | Liste ou supprime les règles des commandes autorisées (projet) |
-| `/jobs [stop <id>\|stop-all]` | Liste ou arrête les commandes en arrière-plan        |
-| `/login`                  | Se connecter avec e-mail et mot de passe              |
-| `/mode auto\|chat` | `auto` : outils actifs avec `/project` ; `chat` : aucun outil            |
-| `/model [nom]`             | Liste ou change d'agent                               |
-| `/new`                    | Démarre une nouvelle conversation                     |
-| `/compact [consigne]`     | Résume la session et repart d'une nouvelle conversation |
-| `/context`                | Affiche le contexte utilisé, le chat ID et les tours |
-| `/exit`                   | Quitte le CLI                                         |
-| `/pwd` | Affiche le projet sélectionné |
-| `/fr-project <nom>\|off` | Rattache les nouvelles conversations à un projet FranceStudent (créé s'il n'existe pas) |
-| `/init` | Crée `FRSTCLI.md` (instructions du projet), sans écraser un fichier existant |
-| `/forget <n\|all>` | Supprime une note du projet (ou toutes) |
-| `/auto on\|off` | Désactive ou rétablit les confirmations pour la session |
-| `/web on\|off` | Recherche web côté serveur (chat normal) |
-| `/usage` | Consommation : session, conversation, limites du compte |
 | `/auth [refresh]` | État de la connexion, ou renouvellement du jeton |
-| `/clear` | Efface le terminal (`/quit` est un alias de `/exit`) |
+| `/login` | Se connecter avec e-mail et mot de passe |
+| `/clear` | Efface le terminal |
+| `/exit` | Quitte le CLI (alias : `/quit`) |
 | `/mcp [list\|get\|add\|add-json\|remove]` | Liste, détaille, ajoute ou supprime des serveurs MCP |
 | `/mcp enable\|disable\|reconnect <nom>` | Active, désactive ou reconnecte un serveur MCP |
 | `/mcp allow <serveur>` | Autorise tous les appels d'un serveur MCP dans le projet |
 | `/mcp login\|logout <nom>` | Connexion OAuth à un serveur MCP http ou sse |
 | `/mcp reset-project-choices` | Oublie les approbations des serveurs de `.mcp.json` |
 
+Sans dossier (`frst --no-project`), les commandes liées au projet (`/tree`, `/read`, `/index`, `/init`, `/plan`, `/resume`, `/remember`…) indiquent qu'il faut relancer `frst` dans un dossier.
+
 ### Contexte envoyé au modèle
 
-- Au premier message d'une conversation avec un projet ouvert, le CLI joint un contexte court (3 000 caractères au maximum) : nom du projet, système, branche Git, gestionnaire de paquets, commande de test et premier niveau de l'arborescence. Le contenu des fichiers n'est jamais joint : le modèle le lit avec les outils. `FRSTCLI.md` (instructions du projet, voir `/init`) et le pré-prompt sont joints aussi. Les messages suivants partent seuls.
-- `RESUME.md` n'est plus généré à l'ouverture du projet ni envoyé au modèle. `/index` le génère à la demande (seuls les fichiers modifiés depuis le dernier résumé sont renvoyés à l'IA, `/index force` refait tout) et `/resume` l'affiche.
+- Au premier message d'une conversation avec un projet ouvert, le CLI joint un contexte court (3 000 caractères au maximum) : nom du projet, système, branche Git, gestionnaire de paquets, commande de test et premier niveau de l'arborescence. Le contenu des fichiers n'est jamais joint : le modèle le lit avec les outils. Les `FRSTCLI.md` du dossier et de ses parents (instructions du projet, voir `/init` ; le plus proche en dernier) et le pré-prompt sont joints aussi. Les messages suivants partent seuls.
+- `RESUME.md` n'est plus généré à l'ouverture du projet ni envoyé au modèle. `/index` le génère à la demande (seuls les fichiers modifiés depuis le dernier résumé sont renvoyés à l'IA, `/index force` refait tout) et `/index show` l'affiche.
 - Pas de limite de rondes d'outils par défaut. Avec `FS_MAX_AGENT_TURNS=N` (N > 0), le CLI demande toutes les N rondes s'il faut continuer.
 
 ### Contexte et compaction
@@ -188,9 +203,9 @@ Le CLI utilise les outils client natifs de l'API France Student (voir [docs/sdka
 - `read_file` renvoie au plus 30 000 caractères, coupés sur une fin de ligne : le résultat indique la ligne où reprendre (`start_line`).
 - La sortie de `run_command` est limitée à 16 000 caractères : le début et la fin sont gardés. La même limite s'applique aux résultats de `mcp-call`.
 - L'API accepte 32 résultats au maximum par envoi : si le modèle demande plus d'appels en une fois, seuls les 32 premiers sont exécutés et un avertissement s'affiche.
-- Les écritures (`edit_file`, `write_file`) et les commandes non sûres demandent une confirmation, sauf avec `/auto on`.
+- Les écritures (`edit_file`, `write_file`) et les commandes non sûres demandent une confirmation en mode `default` ; en mode `acceptEdits`, seules les commandes non sûres en demandent une.
 - Les anciens outils (`glob`, `multi_edit`, `web_search`, `web_fetch`, `delegate`, `todo_write`…) et leurs variables (`FS_WEB`, `FS_SEARCH_*`, `FS_SUBAGENT_*`, `FS_AUTO_COMPACT`, `FS_COMPACT_THRESHOLD`) n'existent plus. La recherche web reste disponible en chat normal avec `/web on`.
-- Le mode agent séparé a été retiré : il n'y a plus qu'une conversation par projet, et le modèle décide lui-même d'appeler ses outils. `/mode agent` reste accepté comme alias de `/mode auto`. Une ancienne conversation « agent » reprise avec `/chat-id` continue comme une conversation normale.
+- Le mode agent séparé a été retiré : le modèle décide lui-même d'appeler ses outils. Une ancienne conversation « agent » reprise avec `/chat-id` continue comme une conversation normale.
 
 ## Serveurs MCP locaux
 

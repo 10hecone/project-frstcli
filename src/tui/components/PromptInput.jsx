@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
 import inputModel from "../input-model.js";
+import commandList from "../../cli/command-list.js";
 import { useTerminalColumns, usableWidth } from "./LiveMessage.jsx";
 
 const {
@@ -28,13 +29,13 @@ const {
     slashSuggestions
 } = inputModel;
 
-/** Commandes slash proposées par Tab (même liste que /help). */
-export const SLASH_COMMANDS = [
-    "/help", "/project", "/unproject", "/pwd", "/tree", "/read", "/index", "/init", "/plan",
-    "/resume", "/undo", "/changes", "/memory", "/remember", "/forget", "/permissions", "/mcp", "/jobs",
-    "/mode", "/new", "/compact", "/context", "/chat-id", "/history", "/messages", "/usage", "/model", "/web",
-        "/auth", "/login", "/profil", "/preprompt", "/clear", "/exit", "/quit"
-];
+/** Commandes slash proposées par Tab : même liste que /help (command-list), plus l'alias /quit. */
+export const SLASH_COMMANDS = [...commandList.COMMAND_LIST.map((command) => command.name), "/quit"];
+
+/** Shift+Tab : Ink le signale par key.shift + key.tab, certains terminaux par la séquence brute. */
+export function isShiftTab(input, key = {}) {
+    return Boolean((key.shift && key.tab) || input === "\u001b[Z" || input === "[Z");
+}
 
 const HOME_SEQUENCES = new Set(["\u001b[H", "\u001b[1~", "\u001bOH", "[H", "[1~"]);
 const END_SEQUENCES = new Set(["\u001b[F", "\u001b[4~", "\u001bOF", "[F", "[4~"]);
@@ -55,7 +56,7 @@ function resetNav(nav) {
  * - ↑/↓ changent de ligne, puis parcourent l'historique. Tab complète les commandes slash.
  * - Échap efface. Ctrl+U/K coupent. Ctrl+L appelle onClear. Ctrl+V colle le presse-papiers.
  * - Ctrl+C appelle onInterrupt(); s'il ne renvoie pas true, la saisie est effacée, et un second appui appelle onExit().
- * - Ctrl+D sur une saisie vide appelle onExit().
+ * - Ctrl+D sur une saisie vide appelle onExit(). Shift+Tab appelle onCycleMode() (mode suivant).
  */
 export function PromptInput({
     label = "> ",
@@ -69,6 +70,7 @@ export function PromptInput({
     onEscape,
     onExit,
     onClear,
+    onCycleMode,
     clipboard,
     color = true
 }) {
@@ -124,6 +126,12 @@ export function PromptInput({
         }
         if (key.ctrl && input === "d") {
             if (isEmpty(model) && onExit) onExit();
+            return;
+        }
+
+        // Shift+Tab : mode de permission suivant (avant le menu et la complétion par Tab).
+        if (isShiftTab(input, key)) {
+            if (onCycleMode) onCycleMode();
             return;
         }
 

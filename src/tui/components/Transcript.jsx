@@ -8,7 +8,7 @@ import { Plan } from "./Plan.jsx";
 export function Entry({ entry, version, cwd, color }) {
     switch (entry.type) {
         case "welcome":
-            return <Welcome version={version} model={entry.model} workspace={entry.workspace} cwd={cwd} color={color} />;
+            return <Welcome version={version} model={entry.model} workspace={entry.workspace} cwd={cwd} session={entry.session} color={color} />;
         case "user":
             return <UserMessage text={entry.text} color={color} />;
         case "assistant":

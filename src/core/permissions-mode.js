@@ -23,6 +23,12 @@ function set(value) {
     return mode;
 }
 
+/** Passe au mode suivant (default → acceptEdits → plan → default), comme Shift+Tab. Renvoie le nouveau mode. */
+function cycle() {
+    current = MODES[(MODES.indexOf(current) + 1) % MODES.length];
+    return current;
+}
+
 /** Vrai si les écritures de fichiers passent sans confirmation. */
 function acceptsEdits() {
     return current === "acceptEdits";
@@ -33,4 +39,4 @@ function readOnly() {
     return current === "plan";
 }
 
-module.exports = { MODES, get, set, acceptsEdits, readOnly };
+module.exports = { MODES, get, set, cycle, acceptsEdits, readOnly };

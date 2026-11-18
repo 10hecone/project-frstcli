@@ -54,6 +54,7 @@ export function StatusBar({
     usage = null,
     context = null,
     branch = null,
+    modeHint = false,
     color = true
 }) {
     // Hooks avant tout retour anticipé : largeur fixe (colonnes - 1), suivie au redimensionnement.
@@ -61,7 +62,8 @@ export function StatusBar({
     const width = usableWidth(useTerminalColumns(stdout));
 
     const parts = [];
-    if (mode) parts.push({ key: "mode", text: mode, color: "cyan" });
+    // modeHint : rappelle le raccourci qui change de mode (seulement si la saisie le gère).
+    if (mode) parts.push({ key: "mode", text: modeHint ? `${mode} (Shift+Tab)` : mode, color: "cyan" });
     if (model) parts.push({ key: "model", text: String(model) });
     const project = projectName(workspace);
     if (project) parts.push({ key: "project", text: project });

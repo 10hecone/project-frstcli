@@ -158,7 +158,7 @@ function parseOptions(args, allowed) {
 function scopeOption(options, root) {
     if (options.scope === undefined) return root ? "local" : "user";
     if (!config.SCOPES.includes(options.scope)) fail(`scope inconnu : « ${options.scope} » (local, project ou user)`);
-    if (options.scope !== "user" && !root) fail(`le scope « ${options.scope} » demande un dossier ouvert (/project <dossier>)`);
+    if (options.scope !== "user" && !root) fail(`le scope « ${options.scope} » demande un dossier ouvert (lance frst dans le dossier, sans --no-project)`);
     return options.scope;
 }
 
@@ -483,7 +483,7 @@ async function cmdReconnect(ctx, [name]) {
 async function cmdAllow(ctx, [name]) {
     await findServer(ctx, name);
     const store = ctx.permissionStore();
-    if (!store) fail("ouvre un projet (/project <dossier>) : les règles sont enregistrées par projet");
+    if (!store) fail("aucun dossier ouvert (lance frst dans le dossier, sans --no-project) : les règles sont enregistrées par dossier");
 
     const added = await store.add(["mcp-call", "run", name]);
     ctx.ui.info(added
@@ -493,7 +493,7 @@ async function cmdAllow(ctx, [name]) {
 }
 
 async function cmdResetProjectChoices(ctx) {
-    if (!ctx.root) fail("aucun dossier ouvert (/project <dossier>)");
+    if (!ctx.root) fail("aucun dossier ouvert (lance frst dans le dossier, sans --no-project)");
     const count = await ctx.resetProjectChoices(ctx.root);
     ctx.ui.info(count
         ? `${count} choix effacé(s) : les serveurs de .mcp.json seront redemandés au prochain usage.`

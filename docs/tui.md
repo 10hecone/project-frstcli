@@ -4,7 +4,13 @@ La TUI est l'interface plein terminal de FranceStudent Code, construite avec Rea
 
 ## Lancement
 
-- `frst` (ou `npm start`) : lance la TUI si le terminal est interactif et que `dist/tui.mjs` existe.
+- `frst` (ou `npm start`) : lance la TUI dans le dossier courant, si le terminal est interactif et que `dist/tui.mjs` existe.
+- `frst <dossier>` : idem dans le dossier indiqué. Le dossier est fixé pour toute la session (plus de `/project`) : pour en changer, on relance `frst`.
+- `-c` / `--continue` reprend la dernière session du dossier, `-r` / `--resume` ouvre le sélecteur de sessions, `--no-project` lance le chat sans dossier ni outils. `-h` / `--help` et `-v` / `--version` s'affichent sans lancer la TUI.
+
+Les arguments sont lus par `src/cli/launch-args.js` (`parseLaunchArgs`, `USAGE`) : `bin/frst.js` (`launchInfo`) traite l'aide, la version et les erreurs, puis `index.jsx` (`launchOptions`, `bootstrapOptions`) passe le dossier (`process.cwd()` par défaut) à `session.bootstrap`.
+
+Démarrage : l'`App` est affichée tout de suite avec `status.booting` ; pendant l'amorçage (connexion, confiance du dossier, choix de session), seuls les derniers messages et le dialogue en cours sont visibles. Ensuite l'accueil (`Welcome`) est placé en tête du transcript (`banner({ session, first: true })`, action `prepend` du store) avec la session : « nouvelle session », « reprise : titre » ou « aucun dossier ». Les saisies sont ignorées tant que l'amorçage n'est pas fini.
 
 `bin/frst.js` (`checkTui`) refuse de démarrer (code de sortie 1, message explicite) si l'entrée ou la sortie ne sont pas des TTY ou si le bundle est absent. Si le chargement de la TUI échoue, il restaure le terminal (`restoreTerminal`) et quitte avec une erreur.
 
@@ -36,7 +42,7 @@ Le store est en CommonJS et testé sans Ink.
 
 ## Adaptateur
 
-`createTuiBackend(store, options)` expose toutes les méthodes de `UI_METHODS`. Les sorties (`info`, `assistant`, `tool`, `diff`, etc.) ajoutent des entrées au transcript. `stream` alimente `live`, puis transfère les lignes terminées dans le transcript. `spinner(label)` renvoie un contrôleur (`update`, `stop`). `confirm`, `askCommand`, `ask` et `askSecret` mettent une question dans la file et renvoient une promesse, résolue par la réponse de l'utilisateur. `clear()` efface l'écran (`onClearScreen`), vide le store puis réaffiche l'accueil. `refreshStatus` met à jour la barre d'état.
+`createTuiBackend(store, options)` expose toutes les méthodes de `UI_METHODS`. Les sorties (`info`, `assistant`, `tool`, `diff`, etc.) ajoutent des entrées au transcript. `stream` alimente `live`, puis transfère les lignes terminées dans le transcript. `spinner(label)` renvoie un contrôleur (`update`, `stop`). `confirm`, `askCommand`, `ask` et `askSecret` mettent une question dans la file et renvoient une promesse, résolue par la réponse de l'utilisateur. `clear()` efface l'écran (`onClearScreen`), vide le store puis réaffiche l'accueil. `refreshStatus` met à jour la barre d'état. `banner({ session, first })` mémorise la session affichée dans l'accueil (reprise par `/clear`) ; `chooseSession(sessions)` (capacité optionnelle, hors `UI_METHODS`) ouvre le `SessionPicker` et renvoie l'id choisi ou `null`.
 
 ## Composants
 
@@ -46,8 +52,10 @@ Ordre d'affichage dans `App` :
 2. `CommandOutput` : sortie de la commande en cours.
 3. `LiveMessage` : dernières lignes du message en streaming, selon la hauteur du terminal.
 4. `Spinner` : libellé, durée écoulée, rappel « Ctrl+C pour interrompre ».
-5. `ConfirmDialog` / `TextPrompt` s'il y a une question en attente, sinon `PromptInput`.
-6. `StatusBar` : mode, modèle, projet, branche git, auto-approbation, jobs, tokens.
+5. `ConfirmDialog` / `TextPrompt` / `SessionPicker` s'il y a une question en attente, sinon `PromptInput`.
+6. `StatusBar` : mode de permission (« Shift+Tab » rappelé), modèle, dossier, branche git, jobs, contexte.
+
+L'en-tête (`Header`) affiche le dossier en chemin court (`shortPath` : `~` pour le dossier personnel, `premier/…/dernier` au-delà de 3 segments) et la branche Git. `Welcome` affiche le modèle, le dossier, le mode, la session et l'astuce « /help · Shift+Tab ». `SessionPicker` liste les sessions du dossier (`n. titre  date`, 8 lignes visibles qui défilent avec `pickerWindow`) : ↑/↓ ou Tab pour choisir, Entrée pour reprendre, Échap ou Ctrl+C pour annuler (nouvelle session).
 
 `PromptInput` est encadrée par une ligne horizontale discrète au-dessus et une en dessous, comme dans Claude Code (bordure Ink limitée au haut et au bas).
 
@@ -58,7 +66,8 @@ Ordre d'affichage dans `App` :
 | Entrée | Envoyer |
 | `\` + Entrée, Ctrl+J, Alt+Entrée | Nouvelle ligne |
 | ↑ / ↓ | Changer de ligne, puis parcourir l'historique |
-| Tab | Compléter une commande slash |
+| Tab | Compléter une commande slash (liste de `src/cli/command-list.js`, comme `/help`) |
+| Shift+Tab | Mode de permission suivant : `default` → `acceptEdits` → `plan` (`isShiftTab`) |
 | Échap | Effacer la saisie |
 | Ctrl+A / Ctrl+E (ou Début / Fin) | Début / fin de ligne |
 | Ctrl+U / Ctrl+K | Couper jusqu'au début / jusqu'à la fin |

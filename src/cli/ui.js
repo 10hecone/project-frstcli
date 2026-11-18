@@ -344,7 +344,7 @@ const ui = {
     banner() {
         const plain = [
             "✻ FranceStudent CLI",
-            "/help pour l'aide | /project <dossier> pour coder",
+            "/help pour l'aide | Shift+Tab : mode",
             `agent ${require("../api/agents").agentName(state.model)} | web ${state.webSearch ? "on" : "off"} | mode ${require("../core/permissions-mode").get()}`
         ];
         const styled = [

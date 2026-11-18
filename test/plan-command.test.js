@@ -86,7 +86,7 @@ test("/plan sans projet : aucun appel au modèle", async () => {
     try {
         await commands.handleCommand("/plan quelque chose");
         assert.equal(env.log.send.length, 0);
-        assert.ok(env.log.ui.some(([method, text]) => method === "info" && /Aucun projet sélectionné/.test(text)));
+        assert.ok(env.log.ui.some(([method, text]) => method === "info" && /Aucun dossier ouvert/.test(text)));
     } finally {
         env.restore();
     }

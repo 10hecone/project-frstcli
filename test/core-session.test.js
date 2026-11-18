@@ -8,7 +8,8 @@ const { setUiBackend, UI_METHODS } = require("../src/ui-bridge");
 const auth = require("../src/api/auth");
 const login = require("../src/api/login");
 const commands = require("../src/cli/commands");
-const conversations = require("../src/project/conversations");
+const sessions = require("../src/core/sessions");
+const { workspace: workspaceObject } = require("../src/core/workspace");
 const router = require("../src/cli/router");
 const chat = require("../src/core/chat");
 const session = require("../src/core/session");
@@ -17,16 +18,15 @@ function setup({
     workspace = null,
     keepGoing = true,
     workspaceQuestion = false,
-    localFiles = false,
 } = {}) {
     const original = {
         handleCommand: commands.handleCommand,
         send: chat.send,
         isWorkspaceQuestion: router.isWorkspaceQuestion,
-        seemsToRequestLocalFiles: router.seemsToRequestLocalFiles,
         initAuth: auth.initAuth,
         promptAndLogin: login.promptAndLogin,
-        findForWorkspace: conversations.findForWorkspace,
+        open: workspaceObject.open,
+        sessions: { ...sessions },
         workspace: state.workspace,
     };
 
@@ -50,7 +50,6 @@ function setup({
         return { response: "ok", newChatId: null };
     };
     router.isWorkspaceQuestion = () => workspaceQuestion;
-    router.seemsToRequestLocalFiles = () => localFiles;
 
     resetConversation();
     state.workspace = workspace;
@@ -59,10 +58,10 @@ function setup({
         Object.assign(commands, { handleCommand: original.handleCommand });
         chat.send = original.send;
         router.isWorkspaceQuestion = original.isWorkspaceQuestion;
-        router.seemsToRequestLocalFiles = original.seemsToRequestLocalFiles;
         auth.initAuth = original.initAuth;
         login.promptAndLogin = original.promptAndLogin;
-        conversations.findForWorkspace = original.findForWorkspace;
+        workspaceObject.open = original.open;
+        Object.assign(sessions, original.sessions);
         state.workspace = original.workspace;
         resetConversation();
         setUiBackend(null);
@@ -110,39 +109,36 @@ test("handleInput : question sur le projet actuel", async () => {
         assert.deepEqual(await session.handleInput("quel projet ?"), { exit: false });
         const shown = calls.ui.find((call) => call.name === "assistant");
         assert.ok(shown);
-        assert.equal(shown.args[0], "Projet actuel : C:/projet");
+        assert.equal(shown.args[0], "Dossier actuel : C:/projet");
         assert.equal(calls.chat.length, 0);
     } finally {
         restore();
     }
 });
 
-test("handleInput : question projet sans projet sélectionné", async () => {
+test("handleInput : question projet sans dossier ouvert (--no-project)", async () => {
     const { calls, restore } = setup({ workspaceQuestion: true });
     try {
         await session.handleInput("quel projet ?");
         const shown = calls.ui.find((call) => call.name === "assistant");
-        assert.equal(shown.args[0], "Projet actuel : aucun projet sélectionné.");
+        assert.equal(shown.args[0], "Dossier actuel : aucun (chat sans outils, frst --no-project).");
     } finally {
         restore();
     }
 });
 
-test("handleInput : fichiers locaux demandés sans projet → message d'aide", async () => {
-    const { calls, restore } = setup({ localFiles: true });
+test("handleInput : sans dossier, une demande sur des fichiers va quand même au chat", async () => {
+    const { calls, restore } = setup();
     try {
         await session.handleInput("lis le fichier index.js");
-        const info = calls.ui.find((call) => call.name === "info");
-        assert.ok(info);
-        assert.match(info.args[0], /\/project <dossier>/);
-        assert.equal(calls.chat.length, 0);
+        assert.equal(calls.chat.length, 1);
     } finally {
         restore();
     }
 });
 
 test("handleInput : avec un projet, une demande d'action va au chat (le modèle choisit ses outils)", async () => {
-    const { calls, restore } = setup({ workspace: "C:/projet", localFiles: true });
+    const { calls, restore } = setup({ workspace: "C:/projet" });
     try {
         assert.deepEqual(await session.handleInput("corrige le bug"), { exit: false });
         assert.equal(calls.chat.length, 1);
@@ -191,20 +187,120 @@ test("handleInput : les erreurs de chat.send remontent à l'appelant", async () 
 
 // ---- bootstrap ----
 
-test("bootstrap : session valide, la conversation chat est restaurée", async () => {
+test("bootstrap : session valide, nouvelle conversation (aucune restauration automatique)", async () => {
     const { calls, restore } = setup();
     try {
         auth.initAuth = async () => {};
-        const asked = [];
-        conversations.findForWorkspace = async (workspace, mode) => {
-            asked.push(mode);
-            return mode === "chat" ? { id: "c-1", settings: { model: "m" } } : { id: "a-1", settings: null };
+        sessions.listSessions = async () => {
+            throw new Error("ne doit pas lister les sessions");
         };
 
-        assert.deepEqual(await session.bootstrap(), { ok: true });
-        assert.equal(state.chatIds.chat, "c-1");
-        assert.deepEqual(asked, ["chat"]);
+        assert.deepEqual(await session.bootstrap(), { ok: true, session: { kind: "new" } });
+        assert.equal(state.chatIds.chat, null);
         assert.ok(calls.ui.some((call) => call.name === "info"));
+    } finally {
+        restore();
+    }
+});
+
+test("bootstrap : --no-project n'ouvre aucun dossier", async () => {
+    const { restore } = setup();
+    try {
+        auth.initAuth = async () => {};
+        const opened = [];
+        workspaceObject.open = async (dir) => opened.push(dir);
+
+        const result = await session.bootstrap({ dir: "C:/projet", noProject: true });
+        assert.deepEqual(result, { ok: true, session: { kind: "none" } });
+        assert.deepEqual(opened, []);
+    } finally {
+        restore();
+    }
+});
+
+test("bootstrap : le dossier demandé est ouvert", async () => {
+    const { restore } = setup();
+    try {
+        auth.initAuth = async () => {};
+        const opened = [];
+        workspaceObject.open = async (dir) => {
+            opened.push(dir);
+            return true;
+        };
+
+        assert.deepEqual(await session.bootstrap({ dir: "C:/projet" }), { ok: true, session: { kind: "new" } });
+        assert.deepEqual(opened, ["C:/projet"]);
+    } finally {
+        restore();
+    }
+});
+
+test("bootstrap : dossier non approuvé → échec explicite", async () => {
+    const { restore } = setup();
+    try {
+        auth.initAuth = async () => {};
+        workspaceObject.open = async () => false;
+
+        const result = await session.bootstrap({ dir: "C:/projet" });
+        assert.equal(result.ok, false);
+        assert.match(result.reason, /non approuvé/);
+    } finally {
+        restore();
+    }
+});
+
+test("bootstrap : --continue reprend la session la plus récente", async () => {
+    const { restore } = setup();
+    try {
+        auth.initAuth = async () => {};
+        workspaceObject.open = async () => true;
+        const recent = { id: "s-2" };
+        const resumed = [];
+        sessions.listSessions = async () => [recent, { id: "s-1" }];
+        sessions.chooseSession = async () => {
+            throw new Error("pas de sélecteur avec --continue");
+        };
+        sessions.resumeSession = (entry) => resumed.push(entry);
+        sessions.describeSession = () => ({ title: "Récente" });
+
+        const result = await session.bootstrap({ dir: "C:/projet", continue: true });
+        assert.deepEqual(result, { ok: true, session: { kind: "resumed", title: "Récente" } });
+        assert.deepEqual(resumed, [recent]);
+    } finally {
+        restore();
+    }
+});
+
+test("bootstrap : --resume sans session précédente → nouvelle session", async () => {
+    const { calls, restore } = setup();
+    try {
+        auth.initAuth = async () => {};
+        workspaceObject.open = async () => true;
+        sessions.listSessions = async () => [];
+
+        const result = await session.bootstrap({ dir: "C:/projet", resume: true });
+        assert.deepEqual(result, { ok: true, session: { kind: "new" } });
+        assert.ok(calls.ui.some((call) => call.name === "info" && /Aucune session précédente/.test(call.args[0])));
+    } finally {
+        restore();
+    }
+});
+
+test("bootstrap : --resume annulé (Échap) → nouvelle session", async () => {
+    const { restore } = setup();
+    try {
+        auth.initAuth = async () => {};
+        workspaceObject.open = async () => true;
+        sessions.listSessions = async () => [{ id: "s-1" }];
+        sessions.chooseSession = async () => null;
+        sessions.resumeSession = () => {
+            throw new Error("rien ne doit être repris");
+        };
+
+        assert.deepEqual(await session.bootstrap({ dir: "C:/projet", resume: true }), {
+            ok: true,
+            session: { kind: "new" },
+        });
     } finally {
         restore();
     }
@@ -250,9 +346,7 @@ test("bootstrap : connexion demandée puis réussie", async () => {
             options = opts;
             return true;
         };
-        conversations.findForWorkspace = async () => null;
-
-        assert.deepEqual(await session.bootstrap(), { ok: true });
+        assert.deepEqual(await session.bootstrap(), { ok: true, session: { kind: "new" } });
         assert.deepEqual(options, { useEnv: true });
         assert.equal(state.chatIds.chat, null);
     } finally {

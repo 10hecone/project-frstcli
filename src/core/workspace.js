@@ -97,9 +97,7 @@ async function open(directory) {
 
     ui.info(`Projet : ${real}`);
     if (created) ui.info("Nouveau projet enregistré dans projects.json.");
-    ui.info(previous
-        ? `Nouvelle session (${previous} session(s) précédente(s) dans ce dossier : /history et /chat-id pour en reprendre une).`
-        : "Nouvelle session.");
+    if (previous) ui.info(`${previous} session(s) précédente(s) dans ce dossier : /resume pour en reprendre une.`);
 
     const notes = memory.listNotes().length;
     const undo = memory.listUndo().length;

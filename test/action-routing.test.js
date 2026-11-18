@@ -1,7 +1,7 @@
 "use strict";
 
 // Depuis la phase 4, il n'y a plus de routage chat/agent : le modèle choisit ses outils.
-// Le routeur sert seulement à conseiller /project quand aucun projet n'est ouvert.
+// Le dossier est fixé au lancement : le routeur ne sert plus qu'à répondre à « quel dossier est ouvert ? ».
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -10,20 +10,8 @@ const router = require("../src/cli/router");
 
 test("routeur : l'ancien routage agent n'existe plus", () => {
     assert.equal(router.shouldUseAgent, undefined);
-    assert.deepEqual(Object.keys(router).sort(), ["isWorkspaceQuestion", "seemsToRequestLocalFiles"]);
-});
-
-test("seemsToRequestLocalFiles : les demandes sur des fichiers ou le projet sont reconnues", () => {
-    assert.equal(router.seemsToRequestLocalFiles("lis package.json"), true);
-    assert.equal(router.seemsToRequestLocalFiles("corrige le bug dans app.js"), true);
-    assert.equal(router.seemsToRequestLocalFiles("commence la mission 4"), true);
-    assert.equal(router.seemsToRequestLocalFiles("lance les tests"), true);
-    assert.equal(router.seemsToRequestLocalFiles("liste les fichiers du dossier"), true);
-});
-
-test("seemsToRequestLocalFiles : une simple conversation n'est pas concernée", () => {
-    assert.equal(router.seemsToRequestLocalFiles("bonjour, comment vas-tu ?"), false);
-    assert.equal(router.seemsToRequestLocalFiles("quelle est la capitale de la France ?"), false);
+    assert.equal(router.seemsToRequestLocalFiles, undefined);
+    assert.deepEqual(Object.keys(router).sort(), ["isWorkspaceQuestion"]);
 });
 
 test("isWorkspaceQuestion : question sur le projet ouvert, pas une demande d'action", () => {

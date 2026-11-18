@@ -4,6 +4,30 @@ Toutes les modifications notables de FranceStudent Code sont listées ici.
 
 Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Le dépôt n'a encore aucun tag git : `package.json` indique la version 1.0.0 et les sections sont découpées par période. Les hash entre parenthèses renvoient aux commits de la branche `dev`.
 
+## [Non publié] — dossier ouvert au lancement (TUI)
+
+### Ajouté
+
+- `frst [dossier]` : la TUI ouvre le dossier courant (ou celui indiqué) dès le lancement, avec la demande de confiance au premier lancement.
+- Options `-c`/`--continue` (dernière session du dossier), `-r`/`--resume` (sélecteur de sessions), `--no-project` (chat sans outils), `-h`/`--help` et `-v`/`--version`.
+- Sélecteur de session au clavier (`SessionPicker`) pour `--resume` et `/resume` sans argument ; `/resume [n|id]` reprend directement une session.
+- `/status` : dossier, confiance, session, branche, mode de permission, agent et `FRSTCLI.md` chargés.
+- `/memory open` ouvre `FRSTCLI.md` ; `/index show` affiche `RESUME.md`.
+- Shift+Tab change de mode de permission (`default` → `acceptEdits` → `plan`), rappelé dans la barre d'état.
+- En-tête : chemin court (`~/…/dossier`) et branche Git ; accueil : « nouvelle session », « reprise : titre » ou « aucun dossier ».
+- Les `FRSTCLI.md` des dossiers parents sont lus aussi (le plus proche en dernier).
+
+### Modifié
+
+- Chaque lancement démarre une nouvelle session : la dernière conversation n'est plus restaurée automatiquement.
+- `/help` décrit le dossier ouvert, les modes, les sessions et les options de lancement ; la complétion Tab utilise la même liste de commandes.
+- `/resume` reprend une session (l'affichage de `RESUME.md` passe à `/index show`).
+
+### Supprimé
+
+- `/project` et `/unproject` : on change de dossier en relançant `frst`.
+- Le message « sélectionne d'abord un dossier » et `router.seemsToRequestLocalFiles`.
+
 ## [Non publié] — serveurs MCP locaux (branche `main`)
 
 ### Ajouté

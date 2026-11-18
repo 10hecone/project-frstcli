@@ -26,19 +26,45 @@ function template({ testCommand } = {}) {
     ].join("\n");
 }
 
-/** Texte de FRSTCLI.md à la racine du projet, ou "" s'il n'existe pas. */
-async function loadInstructions(workspace, maxChars = MAX_INSTRUCTIONS_CHARS) {
-    if (!workspace) return "";
-
-    let text;
-
+async function readInstructions(file) {
     try {
-        text = await fs.readFile(path.join(workspace, INSTRUCTIONS_NAME), "utf8");
+        return (await fs.readFile(file, "utf8")).replace(/^\uFEFF/, "").trim();
     } catch {
         return "";
     }
+}
 
-    const value = text.replace(/^\uFEFF/, "").trim();
+/**
+ * FRSTCLI.md non vides du dossier et de ses parents : [{ path, text }],
+ * le plus éloigné en premier, le plus proche (celui du dossier) en dernier.
+ */
+async function instructionFiles(workspace) {
+    if (!workspace) return [];
+
+    const found = [];
+    let dir = path.resolve(workspace);
+    for (;;) {
+        const file = path.join(dir, INSTRUCTIONS_NAME);
+        const text = await readInstructions(file);
+        if (text) found.unshift({ path: file, text });
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+    }
+    return found;
+}
+
+/**
+ * Texte des FRSTCLI.md (dossier et parents, le plus proche en dernier pour primer), ou "" s'il n'y en a pas.
+ * Un seul fichier : son texte tel quel ; plusieurs : chacun précédé de son chemin.
+ */
+async function loadInstructions(workspace, maxChars = MAX_INSTRUCTIONS_CHARS) {
+    const files = await instructionFiles(workspace);
+    if (!files.length) return "";
+
+    const value = files.length === 1
+        ? files[0].text
+        : files.map((file) => `[${file.path}]\n${file.text}`).join("\n\n");
 
     return value.length <= maxChars ? value : `${value.slice(0, maxChars)}\n... [tronqué]`;
 }
@@ -72,6 +98,7 @@ async function initInstructions(workspace, options = {}) {
 module.exports = {
     INSTRUCTIONS_NAME,
     MAX_INSTRUCTIONS_CHARS,
+    instructionFiles,
     loadInstructions,
     instructionsBlock,
     initInstructions,

@@ -26,7 +26,7 @@ export function ConfirmDialog({ question = "", kind = "confirm", prefix = "", is
     const selectedRef = useRef(Math.max(0, options.findIndex((option) => option.value === "n")));
     const doneRef = useRef(false);
     const [, setTick] = useState(0);
-const hasAlways = options.some((option) => option.value === "t");
+    const hasAlways = options.some((option) => option.value === "t");
 
     const select = (index) => {
         selectedRef.current = (index + options.length) % options.length;

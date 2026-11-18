@@ -26,9 +26,8 @@ const FILE_VERB_RE = wordRegex(
 );
 
 /**
- * Le message semble viser des fichiers locaux ? Sert seulement à conseiller /project
- * quand aucun projet n'est ouvert : avec un projet, le modèle décide lui-même
- * d'appeler ses outils.
+ * Le message semble viser des fichiers locaux ? Interne : évite de répondre « Dossier actuel : … »
+ * à une demande de travail sur le dossier (le modèle décide lui-même d'appeler ses outils).
  */
 function seemsToRequestLocalFiles(input) {
     return FILE_NAME_RE.test(input) || (FILE_VERB_RE.test(input) && FILE_NOUN_RE.test(input));
@@ -42,4 +41,4 @@ function isWorkspaceQuestion(input) {
     );
 }
 
-module.exports = { seemsToRequestLocalFiles, isWorkspaceQuestion };
+module.exports = { isWorkspaceQuestion };

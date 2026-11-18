@@ -99,7 +99,7 @@ function normalizeRelative(relativePath) {
  */
 async function resolveInWorkspace(workspace, relativePath) {
     if (!workspace) {
-        throw new Error("Aucun projet sélectionné. Utilise /project <dossier>.");
+        throw new Error("Aucun dossier ouvert : relance frst dans un dossier (sans --no-project).");
     }
 
     const rel = normalizeRelative(relativePath);

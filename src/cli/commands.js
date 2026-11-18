@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const { state, resetConversation, setConversation } = require("../state");
 const { c } = require("./ui");
 const { COMMANDS } = require("./command-list");
@@ -26,28 +28,119 @@ function showHelp() {
   }
 
   ui.print(
-    `\n${c.dim("Projet :")} ${workspace.root || "aucun"}  ` +
+    `\n${c.dim("Dossier :")} ${workspace.root || "aucun (--no-project)"}  ` +
       `${c.dim("Agent :")} ${require("../api/agents").agentName(state.model)}  ${c.dim("Mode :")} ${require("../core/permissions-mode").get()}`,
   );
-  ui.print(
-    c.dim(
-      "Sans /project : chat normal. Avec /project (mode auto) : le modèle lit, cherche, édite, " +
-        "écrit et lance des commandes dans le projet. Les écritures et les commandes non sûres sont confirmées.",
-    ),
-  );
+  for (const line of HELP_NOTES) ui.print(c.dim(line));
 }
+
+// Explications affichées sous la liste des commandes (/help).
+const HELP_NOTES = [
+  "",
+  "Dossier : frst travaille dans le dossier où il est lancé (ou `frst <dossier>`). Le modèle y lit, cherche,",
+  "édite et lance des commandes ; pour changer de dossier, quitte et relance frst ailleurs.",
+  "Modes (Shift+Tab ou /mode) : default confirme écritures et commandes non sûres ; acceptEdits applique",
+  "les écritures sans confirmer (/undo reste possible) ; plan explore en lecture seule, sans rien modifier.",
+  "Sessions : chaque lancement ouvre une nouvelle session ; /resume en reprend une du dossier.",
+  "Lancement : frst -c (reprendre la dernière session) · frst --resume (choisir) · frst --no-project",
+  "(chat sans outils, aucun dossier) · frst --help (toutes les options).",
+];
 
 const unquote = (value) =>
   value.length > 1 && value.startsWith('"') && value.endsWith('"')
     ? value.slice(1, -1)
     : value;
 
-function requireProject() {
+// Sans dossier (lancement avec --no-project), les commandes de projet sont indisponibles.
+function requireFolder() {
   if (!workspace.root) {
-    ui.info("Aucun projet sélectionné. Utilise /project <dossier>.");
+    ui.info("Aucun dossier ouvert (lancé avec --no-project) : relance frst dans un dossier.");
     return false;
   }
   return true;
+}
+
+// Ouvre un fichier avec l'application par défaut du système, sans attendre sa fermeture.
+function openWithDefaultApp(file) {
+  const { spawn } = require("child_process");
+  const [command, args] =
+    process.platform === "win32"
+      ? ["cmd", ["/c", "start", "", file]]
+      : [process.platform === "darwin" ? "open" : "xdg-open", [file]];
+  const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
+  child.on("error", () => ui.warn(`Impossible d'ouvrir ${file} : ouvre-le dans ton éditeur.`));
+  child.unref();
+}
+
+// /status : état du dossier et de la session en cours.
+async function showStatus() {
+  const root = workspace.root;
+  const sessions = require("../core/sessions");
+  const chatId = state.chatIds.chat;
+  const rows = [["Dossier", root || "aucun (lancé avec --no-project)"]];
+
+  if (root) {
+    const project = await require("../project/projects").get(root);
+    rows.push(["Confiance", project && project.trusted ? "dossier approuvé" : "non approuvé"]);
+  }
+
+  let title = null;
+  if (chatId) {
+    const known = (await sessions.listSessions(root)).find((session) => session.id === chatId);
+    title = known ? known.title : (await conversations.find(chatId))?.title;
+  }
+  rows.push([
+    "Session",
+    chatId ? `${chatId}${title ? ` | "${title}"` : ""}` : "nouvelle (l'id est attribué au premier message)",
+  ]);
+
+  if (root) rows.push(["Branche", require("../project/git-branch").gitBranch(root) || "aucune (pas un dépôt git)"]);
+  rows.push(["Mode", `${require("../core/permissions-mode").get()} (Shift+Tab ou /mode pour changer)`]);
+  rows.push(["Agent", require("../api/agents").agentName(state.model)]);
+
+  if (root) {
+    const files = await require("../project/instructions").instructionFiles(root);
+    rows.push(["FRSTCLI.md", files.length ? files.map((file) => file.path).join(", ") : "aucun (/init pour en créer un)"]);
+  }
+
+  for (const [label, text] of rows) ui.print(`  ${c.dim(`${label} :`.padEnd(13))} ${text}`);
+}
+
+// /resume [n|id] : reprend une session du dossier (sélecteur, ou liste numérotée sans sélecteur).
+async function resumeCommand(ref) {
+  const sessions = require("../core/sessions");
+  const list = await sessions.listSessions();
+  if (!list.length) {
+    ui.info("Aucune session précédente dans ce dossier.");
+    return;
+  }
+
+  let target = null;
+  if (ref) {
+    target = sessions.findSession(list, ref);
+    if (!target) {
+      ui.info(`Session inconnue : ${ref}. /resume sans argument liste les sessions du dossier.`);
+      return;
+    }
+  } else {
+    target = await sessions.chooseSession(list);
+    if (target === null) {
+      ui.info("Reprise annulée.");
+      return;
+    }
+    if (target === undefined) {
+      ui.print(c.bold("Sessions du dossier (la plus récente en premier)"));
+      list.forEach((session, i) => {
+        const { title, date } = sessions.describeSession(session);
+        ui.print(`  ${c.gray(String(i + 1).padStart(2))} ${title} ${c.dim(date)}`);
+      });
+      ui.info("Pour en reprendre une : /resume <numéro|id>");
+      return;
+    }
+  }
+
+  sessions.resumeSession(target);
+  ui.info(`Session reprise : "${sessions.describeSession(target).title}" (${target.id}).`);
 }
 
 async function handleCommand(input) {
@@ -60,21 +153,6 @@ async function handleCommand(input) {
   switch (command) {
     case "/help":
       showHelp();
-      break;
-
-    case "/project":
-      if (!value) {
-        ui.info(`Projet : ${workspace.root || "aucun"}`);
-        break;
-      }
-
-      // Refuser la confiance ferme l'outil.
-      if (!(await workspace.open(unquote(value)))) return false;
-      break;
-
-    case "/unproject":
-      workspace.close();
-      ui.info("Projet désélectionné. Retour au chat normal.");
       break;
 
     case "/fr-project": {
@@ -113,11 +191,15 @@ async function handleCommand(input) {
     }
 
     case "/pwd":
-      ui.info(`Projet : ${workspace.root || "aucun projet sélectionné"}`);
+      ui.info(`Dossier : ${workspace.root || "aucun (lancé avec --no-project)"}`);
+      break;
+
+    case "/status":
+      await showStatus();
       break;
 
     case "/tree": {
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
       const result = await listDirectory({
         path: unquote(value) || ".",
@@ -145,7 +227,7 @@ async function handleCommand(input) {
     }
 
     case "/read":
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
       if (!value) {
         ui.info("Usage : /read <fichier>");
@@ -156,9 +238,16 @@ async function handleCommand(input) {
       break;
 
     case "/index": {
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
-      // Le résumé n'est plus joint aux messages : il sert à /resume.
+      // /index show : affiche le résumé existant (RESUME.md) sans relancer l'analyse.
+      if (value === "show") {
+        const text = projectContext.resumeText() ?? (await projectContext.storedResume());
+        ui.print(text ?? "Aucun résumé : /index analyse le projet avec l'IA et génère RESUME.md.");
+        break;
+      }
+
+      // Le résumé n'est pas joint aux messages : il se consulte avec /index show.
       // Seuls les fichiers modifiés depuis le dernier /index sont renvoyés à l'IA.
       const report = await projectContext.load(workspace.root, {
         force: value === "force",
@@ -170,7 +259,7 @@ async function handleCommand(input) {
     }
 
     case "/init": {
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
       const { initInstructions } = require("../project/instructions");
       const { detectPackageInfo } = require("../project/package-info");
@@ -185,7 +274,7 @@ async function handleCommand(input) {
     }
 
     case "/plan": {
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
       if (!value) {
         ui.info("Usage : /plan <demande>. Explore le projet en lecture seule et propose un plan, sans rien modifier.");
@@ -212,20 +301,18 @@ async function handleCommand(input) {
     }
 
     case "/resume": {
-      if (!requireProject()) break;
-
-      const text = projectContext.resumeText() ?? (await projectContext.storedResume());
-      ui.print(text ?? "Aucun résumé : /index analyse le projet avec l'IA et génère RESUME.md.");
+      if (!requireFolder()) break;
+      await resumeCommand(unquote(value));
       break;
     }
 
     case "/undo":
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
       ui.info(await undoLast());
       break;
 
     case "/changes": {
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
       const list = memory.listUndo();
 
@@ -246,7 +333,26 @@ async function handleCommand(input) {
     }
 
     case "/memory": {
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
+
+      const instructions = require("../project/instructions");
+      if (value === "open") {
+        // Ouvre le FRSTCLI.md du dossier (il faut d'abord le créer avec /init).
+        const file = path.join(workspace.root, "FRSTCLI.md");
+        if (!fs.existsSync(file)) {
+          ui.info("Pas encore de FRSTCLI.md dans ce dossier : /init le crée.");
+          break;
+        }
+        openWithDefaultApp(file);
+        ui.info(`Ouverture de ${file}. Les changements seront lus au prochain message.`);
+        break;
+      }
+
+      const files = await instructions.instructionFiles(workspace.root);
+      ui.print(c.bold("Instructions (FRSTCLI.md)"));
+      if (!files.length) ui.print(c.dim("  aucune : /init crée FRSTCLI.md"));
+      files.forEach((file) => ui.print(`  ${file.path} ${c.dim(`(${file.text.length} caractères)`)}`));
+      ui.print("");
 
       const notes = memory.listNotes();
       const actions = memory.listActions().slice(-10);
@@ -270,7 +376,7 @@ async function handleCommand(input) {
     }
 
     case "/remember":
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
       if (!value) {
         ui.info("Usage : /remember <texte>");
@@ -283,7 +389,7 @@ async function handleCommand(input) {
       break;
 
     case "/forget":
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
       if (value === "all") {
         memory.clearNotes();
@@ -298,7 +404,7 @@ async function handleCommand(input) {
       break;
 
     case "/permissions": {
-      if (!requireProject()) break;
+      if (!requireFolder()) break;
 
       const { getPermissionStore } = require("../tools/command/index");
       const store = getPermissionStore();

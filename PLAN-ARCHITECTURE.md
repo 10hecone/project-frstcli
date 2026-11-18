@@ -71,13 +71,13 @@ Règle : aucune interface n'écrit `state.workspace` directement. Tout passe par
 
 ## Phase 2 : CLI et TUI
 
-- [ ] **6. Ouvrir le dossier au lancement**
+- [x] **6. Ouvrir le dossier au lancement**
   - `frst` utilise `process.cwd()` et `frst <dossier>` le dossier indiqué.
   - `-c` reprend la dernière session, `--resume` ouvre la liste, `--no-project` lance le chat sans outils.
   - `FRSTCLI.md` est lu dans le dossier et ses parents (le plus proche en dernier).
   - Supprimer la restauration de la conversation « chat » globale dans `session.bootstrap`.
 
-- [ ] **7. Mettre à jour les commandes**
+- [x] **7. Mettre à jour les commandes**
   - Supprimer `/project`, `/unproject`, `requireProject()`, `router.seemsToRequestLocalFiles` et le message « sélectionne d'abord un dossier » (`session.js`).
   - Ajouter :
     - `/status` : dossier, confiance, session, branche, mode de permission, agent ;
@@ -87,12 +87,12 @@ Règle : aucune interface n'écrit `state.workspace` directement. Tout passe par
   - Remplacer `/mode auto|chat` par `/mode default|acceptEdits|plan`.
   - Mettre à jour `command-list.js`, `showHelp()` et le texte d'accueil de `ui.js` (ligne 346).
 
-- [ ] **8. Mettre à jour l'interface de la TUI**
+- [x] **8. Mettre à jour l'interface de la TUI**
   - `Header.jsx` : chemin court (`~/…/dossier`) et branche Git.
   - `Welcome.jsx` : demande de confiance au premier lancement, sinon « Nouvelle session » ou « Session reprise ».
   - Nouveau `SessionPicker.jsx` (`/resume`, `--resume`) : liste au clavier (titre, date).
   - Barre d'état : dossier, mode de permission (Shift+Tab pour changer), pourcentage de contexte.
-  - CLI classique : mêmes informations en texte simple.
+  - ~~CLI classique : mêmes informations en texte simple.~~ Sans objet : le CLI classique a été supprimé (seule la TUI reste).
 
 ## Phase 3 : la GUI Electron
 

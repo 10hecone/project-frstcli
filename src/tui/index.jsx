@@ -9,7 +9,10 @@ import { Diff } from "./components/Diff.jsx";
 import { Plan } from "./components/Plan.jsx";
 import { TodoList, TODO_MAX_ROWS, TODO_SYMBOLS, todosVisible, visibleTodos, todoRows } from "./components/TodoList.jsx";
 import { SubagentList, SUBAGENT_TASK_CHARS, SUBAGENT_LABELS, shortTask, subagentsVisible, subagentRows } from "./components/SubagentList.jsx";
-import { PromptInput, SLASH_COMMANDS } from "./components/PromptInput.jsx";
+import { PromptInput, SLASH_COMMANDS, isShiftTab } from "./components/PromptInput.jsx";
+import { SessionPicker, pickerWindow } from "./components/SessionPicker.jsx";
+import { Header, shortPath } from "./components/Header.jsx";
+import { Welcome, sessionLabel } from "./components/Welcome.jsx";
 import { ConfirmDialog, confirmOptions } from "./components/ConfirmDialog.jsx";
 import { TextPrompt } from "./components/TextPrompt.jsx";
 import { Spinner, SPINNER_FRAMES, formatElapsed } from "./components/Spinner.jsx";
@@ -45,6 +48,13 @@ export {
     subagentRows,
     PromptInput,
     SLASH_COMMANDS,
+    isShiftTab,
+    SessionPicker,
+    pickerWindow,
+    Header,
+    shortPath,
+    Welcome,
+    sessionLabel,
     ConfirmDialog,
     confirmOptions,
     TextPrompt,
@@ -100,31 +110,7 @@ export async function submitInput(raw, { store, backend, session } = {}) {
  * dossiers parents ; gère le fichier .git des worktrees. null si inconnue.
  */
 export function gitBranch(dir = process.cwd()) {
-    const fs = requireCjs("node:fs");
-    const path = requireCjs("node:path");
-    try {
-        let current = path.resolve(String(dir || process.cwd()));
-        for (;;) {
-            const dotGit = path.join(current, ".git");
-            if (fs.existsSync(dotGit)) {
-                let gitDir = dotGit;
-                if (fs.statSync(dotGit).isFile()) {
-                    const match = /^gitdir:\s*(.+)$/m.exec(fs.readFileSync(dotGit, "utf8"));
-                    if (!match) return null;
-                    gitDir = path.resolve(current, match[1].trim());
-                }
-                const head = fs.readFileSync(path.join(gitDir, "HEAD"), "utf8").trim();
-                const ref = /^ref:\s*refs\/heads\/(.+)$/.exec(head);
-                if (ref) return ref[1];
-                return head ? head.slice(0, 7) : null;
-            }
-            const parent = path.dirname(current);
-            if (parent === current) return null;
-            current = parent;
-        }
-    } catch {
-        return null;
-    }
+    return requireCjs("../src/project/git-branch.js").gitBranch(dir);
 }
 
 /** Séquence ANSI qui réaffiche le curseur. */
@@ -172,7 +158,23 @@ export function cleanExit({
     return done;
 }
 
-export async function start() {
+/** Options de lancement lues dans la ligne de commande (frst [dossier] [-c|--resume|--no-project]). */
+export function launchOptions(argv = process.argv.slice(2)) {
+    return requireCjs("../src/cli/launch-args.js").parseLaunchArgs(argv);
+}
+
+/** Options de session.bootstrap : dossier courant par défaut, aucun avec --no-project. */
+export function bootstrapOptions(options = {}, cwd = process.cwd()) {
+    const noProject = Boolean(options.noProject);
+    return {
+        dir: noProject ? null : options.dir || cwd,
+        continue: Boolean(options.continue),
+        resume: Boolean(options.resume),
+        noProject
+    };
+}
+
+export async function start(options = launchOptions()) {
     const { setUiBackend } = requireCjs("../src/ui-bridge.js");
     const { createStore } = requireCjs("../src/tui/store.js");
     const { createTuiBackend } = requireCjs("../src/tui/adapter.js");
@@ -220,7 +222,8 @@ export async function start() {
     };
 
     const onSubmit = async (value) => {
-        if (running) return;
+        // Pendant l'amorçage, seule la réponse aux dialogues (confiance, connexion, session) compte.
+        if (running || (store.getState().status || {}).booting) return;
         running = true;
         try {
             const outcome = await submitInput(value, { store, backend, session });
@@ -245,6 +248,11 @@ export async function start() {
     const onExit = () => shutdown();
     // Ctrl+L : efface seulement l'écran (le transcript reste dans le store).
     const onClear = () => clearScreen();
+    // Shift+Tab : mode de permission suivant (default → acceptEdits → plan), visible dans la barre d'état.
+    const onCycleMode = () => {
+        requireCjs("../src/core/permissions-mode.js").cycle();
+        if (typeof backend.refreshStatus === "function") backend.refreshStatus();
+    };
     const color = colorEnabled(process.env);
 
     const historyFile = requireCjs("../src/tui/history-file.js");
@@ -253,15 +261,6 @@ export async function start() {
     const onHistoryAdd = (text) => {
         historyFile.add(text).catch(() => {});
     };
-
-    backend.banner();
-
-    let result;
-    try {
-        result = await session.bootstrap();
-    } catch (error) {
-        result = { ok: false, reason: error && error.message ? error.message : String(error) };
-    }
 
     // Erreur fatale : on restaure le terminal avant de quitter.
     const onFatal = (error) => {
@@ -305,12 +304,52 @@ export async function start() {
     };
     if (process.stdout.isTTY) process.stdout.on("resize", onResize);
 
+    // L'App est rendue avant l'amorçage : confiance du dossier, connexion et choix de la
+    // session (--resume) passent par ses dialogues. L'accueil est ajouté en tête ensuite.
+    store.dispatch({ type: "status", status: { booting: true } });
+    if (fullscreen) {
+        // Écran alternatif : l'en-tête reste en haut, seule la conversation défile.
+        process.stdout.write("\u001b[?1049h\u001b[H\u001b[?1000h\u001b[?1006h");
+        altScreen = true;
+    }
+    instance = render(
+        <App
+            store={store}
+            version={version}
+            cwd={process.cwd()}
+            onSubmit={onSubmit}
+            onAnswer={onAnswer}
+            onInterrupt={onInterrupt}
+            onEscape={onEscape}
+            onExit={onExit}
+            onClear={onClear}
+            onCycleMode={onCycleMode}
+            history={history}
+            onHistoryAdd={onHistoryAdd}
+            clipboard={readClipboard}
+            color={color}
+            fullscreen={fullscreen}
+        />,
+        renderOptions
+    );
+
+    let result;
+    try {
+        result = await session.bootstrap(bootstrapOptions(options));
+    } catch (error) {
+        result = { ok: false, reason: error && error.message ? error.message : String(error) };
+    }
+
     if (!result.ok) {
-        instance = render(<App store={store} version={version} cwd={process.cwd()} color={color} />, renderOptions);
         backend.error(result.reason);
         process.exitCode = 1;
+        const usedAltScreen = altScreen;
         shutdown();
+        // L'écran alternatif a été quitté : le message doit rester visible dans le terminal.
+        if (usedAltScreen) process.stderr.write(`${result.reason}\n`);
     } else {
+        backend.banner({ session: result.session, first: true });
+        store.dispatch({ type: "status", status: { booting: false } });
         const agentsApi = requireCjs("../src/api/agents.js");
         const branch = gitBranch(workspaceCore.root || process.cwd());
         backend.info(`Modèle : ${agentsApi.agentName(state.model)}.`);
@@ -319,30 +358,6 @@ export async function start() {
         agentsApi.listAgents().then(({ source }) => {
             if (source === "api") backend.refreshStatus({ branch });
         }).catch(() => {});
-        if (fullscreen) {
-            // Écran alternatif : l'en-tête reste en haut, seule la conversation défile.
-            process.stdout.write("\u001b[?1049h\u001b[H\u001b[?1000h\u001b[?1006h");
-            altScreen = true;
-        }
-        instance = render(
-            <App
-                store={store}
-                version={version}
-                cwd={process.cwd()}
-                onSubmit={onSubmit}
-                onAnswer={onAnswer}
-                onInterrupt={onInterrupt}
-                onEscape={onEscape}
-                onExit={onExit}
-                onClear={onClear}
-                history={history}
-                onHistoryAdd={onHistoryAdd}
-                clipboard={readClipboard}
-                color={color}
-                fullscreen={fullscreen}
-            />,
-            renderOptions
-        );
     }
 
     try {

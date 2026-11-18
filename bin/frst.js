@@ -39,6 +39,17 @@ async function runMcp(argv = [], { run, stop } = {}) {
     return code;
 }
 
+// `frst --help`, `frst --version` ou arguments invalides : { code, message } à afficher sans lancer la TUI ;
+// null quand la TUI doit démarrer (elle relit les arguments elle-même).
+function launchInfo(argv = []) {
+    const { parseLaunchArgs, USAGE } = require("../src/cli/launch-args");
+    const options = parseLaunchArgs(argv);
+    if (options.help) return { code: 0, message: USAGE };
+    if (options.version) return { code: 0, message: `frst ${require("../package.json").version}` };
+    if (options.error) return { code: 1, message: options.error };
+    return null;
+}
+
 // Restaure le terminal après un plantage de la TUI : mode brut désactivé, curseur visible.
 function restoreTerminal({ stdin = process.stdin, stdout = process.stdout } = {}) {
     try {
@@ -61,6 +72,15 @@ async function main() {
     if (isMcpCommand(args)) {
         // Sortie explicite : un serveur stdio ou readline ne doit pas garder le processus en vie.
         process.exit(await runMcp(args));
+    }
+
+    // Aide, version et erreurs d'arguments : réponse immédiate, sans terminal interactif ni connexion.
+    const early = launchInfo(args);
+    if (early) {
+        if (early.code === 0) console.log(early.message);
+        else console.error(early.message);
+        process.exitCode = early.code;
+        return;
     }
 
     const check = checkTui({
@@ -90,4 +110,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { checkTui, restoreTerminal, isMcpCommand, runMcp, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE, NOT_TTY_MESSAGE };
+module.exports = { checkTui, restoreTerminal, isMcpCommand, runMcp, launchInfo, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE, NOT_TTY_MESSAGE };

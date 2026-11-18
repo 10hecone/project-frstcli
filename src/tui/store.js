@@ -77,6 +77,20 @@ function reducer(state, action) {
             };
         }
 
+        case "prepend": {
+            // Accueil affiché après l'amorçage (connexion, confiance, choix de session) mais placé
+            // en tête : utilisé seulement avant le premier affichage du transcript (<Static>).
+            const entry = action.entry || {};
+            if (!ENTRY_TYPES.includes(entry.type)) {
+                throw new TypeError(`Store : type d'entrée inconnu « ${entry.type} ».`);
+            }
+            return {
+                ...state,
+                transcript: [{ ...entry, id: state.nextId }, ...state.transcript],
+                nextId: state.nextId + 1
+            };
+        }
+
         case "commandLine": {
             const text = String(action.text ?? "");
             const previous = state.command || { lines: [], total: 0 };

@@ -50,15 +50,37 @@ function createTuiBackend(store, {
         });
     }
 
+    // Session affichée dans l'accueil ({ kind: "new"|"resumed"|"none", title }), gardée pour /clear.
+    let bannerSession = null;
+
     const backend = {
-        banner() {
-            append({
+        /**
+         * Accueil. options.session (résultat de session.bootstrap) est mémorisé pour les accueils suivants ;
+         * options.first place l'accueil en tête du transcript (fin de l'amorçage).
+         */
+        banner(options = {}) {
+            if (options && options.session !== undefined) bannerSession = options.session || null;
+            const entry = {
                 type: "welcome",
                 model: require("../api/agents").agentName(state.model),
                 workspace: workspaceCore.root,
                 mode: require("../core/permissions-mode").get(),
-                webSearch: state.webSearch
-            });
+                webSearch: state.webSearch,
+                session: bannerSession
+            };
+            if (options && options.first) store.dispatch({ type: "prepend", entry });
+            else append(entry);
+        },
+
+        /**
+         * Choix d'une session (frst --resume, /resume) : sessions = [{ id, title, date }].
+         * Renvoie l'id choisi, ou null si annulé. Capacité optionnelle (hors port d'interface).
+         */
+        async chooseSession(sessions) {
+            const list = Array.isArray(sessions) ? sessions : [];
+            if (!list.length) return null;
+            const value = await openPrompt("session", "Reprendre une session", { sessions: list });
+            return list.some((session) => session.id === value) ? value : null;
         },
 
         prompt() {
