@@ -127,8 +127,30 @@ async function editFile(args = {}) {
         changed: true,
         replacements: replaceAll ? count : 1,
         message: "Modification enregistrée.",
-        ...withIndentWarning(rel, previous, updated)
+        ...withIndentWarning(rel, previous, updated),
+        ...(CONFIG.optim ? withExcerpt(previous, updated, needle, replacement) : {})
     };
+}
+
+// Au-delà, pas d'extrait : le modèle relira la plage s'il en a besoin.
+const MAX_EXCERPT_LINES = 40;
+const EXCERPT_CONTEXT = 2;
+
+/**
+ * Extrait numéroté (« N<tab>texte ») autour du premier remplacement, dans le fichier modifié :
+ * le modèle vérifie son édition sans relire le fichier. { excerpt } ou {} si trop long.
+ */
+function withExcerpt(previous, updated, needle, replacement) {
+    const index = previous.indexOf(needle);
+    if (index < 0) return {};
+    const start = previous.slice(0, index).split("\n").length;
+    const span = replacement.split("\n").length;
+    const lines = updated.split("\n");
+    const first = Math.max(1, start - EXCERPT_CONTEXT);
+    const last = Math.min(lines.length, start + span - 1 + EXCERPT_CONTEXT);
+    if (last - first + 1 > MAX_EXCERPT_LINES) return {};
+    const text = lines.slice(first - 1, last).map((line, i) => `${first + i}\t${line.replace(/\r$/, "")}`).join("\n");
+    return { excerpt: { first, last, text } };
 }
 
 function withIndentWarning(rel, before, after) {
@@ -207,4 +229,4 @@ function describe(a) {
     return `${a.path} : \"${short(a.old_string, 40)}\" -> \"${short(a.new_string, 40)}\"`;
 }
 
-module.exports = { name: "edit_file", run: editFile, check, describe, findLoose, stripLineNumbers };
+module.exports = { name: "edit_file", run: editFile, check, describe, findLoose, stripLineNumbers, withExcerpt };

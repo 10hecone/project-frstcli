@@ -11,6 +11,9 @@ const { workspace } = require("../../core/workspace");
 // Au-delà, une ligne est coupée (fichier minifié, JSON sur une seule ligne...).
 const MAX_LINE_CHARS = 2000;
 
+/** Dernière lecture complète renvoyée au modèle, par fichier : { chatId, hash }. */
+const sentReads = new Map();
+
 function countLines(text) {
     let count = 1;
     let i = -1;
@@ -97,6 +100,28 @@ async function readFile(args = {}) {
     // L'empreinte porte toujours sur le fichier COMPLET présent sur le disque.
     memory.rememberFile(rel, text, { partial });
 
+    // Fichier déjà renvoyé en entier dans cette conversation et inchangé : contenu non renvoyé.
+    // Une lecture avec start_line/end_line renvoie toujours le texte (échappatoire du modèle).
+    const chatId = state.chatIds?.chat ?? null;
+    if (CONFIG.optim && chatId && !partial && !truncated) {
+        const hash = memory.hash(text);
+        const last = sentReads.get(rel);
+        if (range === null && last?.chatId === chatId && last.hash === hash) {
+            return {
+                path: rel,
+                total_lines: total,
+                range: null,
+                truncated: false,
+                next_line: null,
+                content: "",
+                unchanged: true,
+                message: "Fichier inchangé depuis ta dernière lecture complète dans cette conversation : contenu non renvoyé. " +
+                    "Relis une plage (start_line/end_line) si tu ne l'as plus."
+            };
+        }
+        sentReads.set(rel, { chatId, hash });
+    }
+
     return {
         path: rel,
         total_lines: total,
@@ -120,4 +145,4 @@ function describe(a) {
         : a.path;
 }
 
-module.exports = { name: "read_file", run: readFile, check, describe, readFile };
+module.exports = { name: "read_file", run: readFile, check, describe, readFile, sentReads };

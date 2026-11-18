@@ -1,5 +1,6 @@
 "use strict";
 
+const { CONFIG } = require("../config");
 const { requireString, optionalInt } = require("./core/args");
 const { runCommand } = require("./command/index");
 
@@ -249,6 +250,8 @@ function formatReadFile(r) {
     const first = Array.isArray(r.range) ? r.range[0] : 1;
     const last = first + lines.length - 1;
 
+    if (r.unchanged) return `Fichier : ${r.path} (${r.total_lines} ligne(s)) — ${r.message}`;
+
     const out = [
         empty
             ? `Fichier : ${r.path} (vide)`
@@ -277,18 +280,50 @@ function formatSearch(r) {
         return out.join("\n");
     }
 
+    if (CONFIG.optim) {
+        // Groupé par fichier : le chemin n'est écrit qu'une fois.
+        let current = null;
+        for (const m of r.matches) {
+            if (m.path !== current) {
+                current = m.path;
+                out.push(`${m.path}`);
+            }
+            out.push(`  ${m.line}: ${m.text}`);
+        }
+        return out.join("\n");
+    }
+
     for (const m of r.matches) out.push(`${m.path}:${m.line}: ${m.text}`);
 
     return out.join("\n");
 }
 
-/** list_directory : une entrée par ligne, dossiers terminés par « / ». */
+/** list_directory : une entrée par ligne, dossiers terminés par « / » (arbre indenté si optim). */
 function formatList(r) {
     const head = `Dossier : ${r.path}${r.entries.length ? "" : " (vide)"}`;
     const out = [r.truncated ? `${head} (liste tronquée à ${r.entries.length} éléments)` : head];
 
-    for (const e of r.entries) out.push(e.type === "directory" ? `${e.path}/` : e.path);
+    // Arbre : nom seul, indenté de 2 espaces par niveau sous le dossier listé.
+    const base = r.path === "." ? 0 : r.path.split("/").length;
+    for (const e of r.entries) {
+        const name = e.type === "directory" ? `${e.path}/` : e.path;
+        if (!CONFIG.optim) {
+            out.push(name);
+            continue;
+        }
+        const parts = e.path.split("/");
+        const depth = parts.length - base - 1;
+        out.push(`${"  ".repeat(Math.max(0, depth))}${parts[parts.length - 1]}${e.type === "directory" ? "/" : ""}`);
+    }
 
+    return out.join("\n");
+}
+
+/** edit_file : statut puis extrait numéroté de la zone modifiée. */
+function formatEdit(r) {
+    const out = [`${r.message} ${r.path} (${r.replacements} remplacement(s)).`];
+    if (r.warning) out.push(`Avertissement : ${r.warning}`);
+    out.push(`Extrait après modification (lignes ${r.excerpt.first} à ${r.excerpt.last}) :`, r.excerpt.text);
     return out.join("\n");
 }
 
@@ -335,6 +370,7 @@ function formatClientResult(name, result) {
         if (name === "search_files" && Array.isArray(result.matches)) return formatSearch(result);
         if (name === "list_directory" && Array.isArray(result.entries)) return formatList(result);
         if (name === "run_command" && typeof result.command === "string") return formatCommandResult(result);
+        if (name === "edit_file" && result.excerpt && !result.denied) return formatEdit(result);
         if (result.denied && typeof result.message === "string") return `Refusé : ${result.message}`;
     } catch {
         // forme inattendue : JSON ci-dessous

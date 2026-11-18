@@ -115,7 +115,11 @@ test("read_file coupe une ligne très longue et le signale", async (t) => {
     assert.doesNotMatch(text, /Numéros de ligne/);
 });
 
-test("formatClientResult : recherche et liste en texte, autres outils en JSON", () => {
+test("formatClientResult : recherche et liste en texte, autres outils en JSON (sans optim)", (t) => {
+    const saved = CONFIG.optim;
+    t.after(() => { CONFIG.optim = saved; });
+    CONFIG.optim = false;
+
     assert.equal(
         formatClientResult("search_files", { matches: [{ path: "a.js", line: 3, text: "x" }], truncated: false }),
         "1 résultat(s).\na.js:3: x"
@@ -125,4 +129,30 @@ test("formatClientResult : recherche et liste en texte, autres outils en JSON", 
         "Dossier : .\nsrc/\na.js"
     );
     assert.equal(formatClientResult("edit_file", { ok: true }), '{"ok":true}');
+});
+
+test("formatClientResult : recherche groupée par fichier et liste en arbre (optim)", (t) => {
+    const saved = CONFIG.optim;
+    t.after(() => { CONFIG.optim = saved; });
+    CONFIG.optim = true;
+
+    const matches = [
+        { path: "a.js", line: 3, text: "x" },
+        { path: "a.js", line: 9, text: "y" },
+        { path: "b.js", line: 1, text: "z" }
+    ];
+    assert.equal(
+        formatClientResult("search_files", { matches, truncated: false }),
+        "3 résultat(s).\na.js\n  3: x\n  9: y\nb.js\n  1: z"
+    );
+    const entries = [
+        { path: "src", type: "directory" },
+        { path: "src/tools", type: "directory" },
+        { path: "src/tools/a.js", type: "file" },
+        { path: "b.js", type: "file" }
+    ];
+    assert.equal(
+        formatClientResult("list_directory", { path: ".", entries }),
+        "Dossier : .\nsrc/\n  tools/\n    a.js\nb.js"
+    );
 });

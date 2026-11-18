@@ -28,6 +28,11 @@ function toolContract(hasMcp) {
     return [
         "Notes techniques sur les outils du projet :",
         "- Chemins relatifs au projet ; '.' = racine. list_directory : profondeur 1 à 3.",
+        ...(CONFIG.optim ? [
+            "- Appels indépendants (lectures, recherches, listes) : les regrouper dans un même tour plutôt qu'un appel par réponse.",
+            "- read_file complet d'un fichier déjà lu en entier dans cette conversation et inchangé depuis : contenu non renvoyé (relire une plage start_line/end_line si nécessaire).",
+            "- edit_file renvoie un extrait numéroté de la zone modifiée : pas besoin de relire le fichier pour vérifier."
+        ] : []),
         "- read_file : lignes inclusives à partir de 1 (alias offset/limit acceptés). Lire avant modification ; edit_file accepte une lecture partielle, write_file exige une lecture complète pour écraser. Les numéros « N<tab> » ajoutés à l'affichage ne font pas partie du fichier. Lignes de plus de 2000 caractères coupées.",
         "- search_files : regex insensible à la casse par défaut (A|B fonctionne) ; un motif invalide est cherché tel quel ; 'literal:<texte>' force le littéral ; 'files:<motif>' renvoie seulement les fichiers et leur nombre de correspondances.",
         `- search_files : au plus ${CONFIG.maxSearchResults} résultats et ${CONFIG.maxSearchFiles} fichiers parcourus ; réduire avec path/glob si tronqué.`,
