@@ -163,7 +163,9 @@ async function withRetry(attempt, { noRetry = new Set() } = {}) {
                 throw error;
             }
             // Budget de chat épuisé : inutile de relancer avant la réinitialisation.
-            if (status === 429 && /budget exhausted/i.test(String(error.message))) {
+            // Limite quotidienne de nouvelles conversations : même cas, la relance échouerait aussi.
+            const quotaPattern = CONFIG.optim ? /budget exhausted|limit reached/i : /budget exhausted/i;
+            if (status === 429 && quotaPattern.test(String(error.message))) {
                 const reset = /Reset at (\S+?Z)/.exec(String(error.message))?.[1];
                 const when = reset ? new Date(reset) : null;
                 const label = when && !Number.isNaN(when.getTime())
@@ -481,6 +483,13 @@ async function streamOnce(request, options) {
         if (isResults && accepted) {
             error.retryable = false;
             error.message = "Flux coupé après l'envoi des résultats d'outils (déjà reçus par l'API, pas de nouvel envoi). " +
+                `Renvoyez un message pour continuer. ${error.message}`;
+        } else if (!isResults && accepted && CONFIG.optim && error.retryable !== true) {
+            // Message déjà accepté : le renvoyer le doublerait dans la conversation
+            // (ou ouvrirait une seconde conversation, décomptée du quota quotidien).
+            // Une erreur que le serveur déclare explicitement relançable reste relancée.
+            error.retryable = false;
+            error.message = "Flux coupé après l'envoi du message (déjà reçu par l'API, pas de nouvel envoi). " +
                 `Renvoyez un message pour continuer. ${error.message}`;
         }
         throw error;

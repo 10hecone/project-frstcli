@@ -59,6 +59,9 @@ const CONFIG = {
     // Persistance (mémoire, corbeille, sauvegardes, session)
     dataDir: process.env.FS_DATA_DIR || path.join(os.homedir(), ".francestudent-cli"),
 
+    // Optimisations de consommation (FS_OPTIM=0 les désactive : banc de comparaison avant/après).
+    optim: process.env.FS_OPTIM !== "0",
+
     debug: process.env.FS_DEBUG === "1"
 };
 
