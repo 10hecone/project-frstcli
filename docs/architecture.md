@@ -25,12 +25,12 @@ Le CLI est un outil en ligne de commande (Node.js) qui relie un terminal à l'as
 
 ## Port d'interface (src/ui-bridge.js)
 Les modules métier n'écrivent jamais directement dans le terminal : ils appellent le port `ui` (`ui.info`, `ui.stream`, `ui.confirm`, `ui.diff`, `ui.clear`, etc., liste dans `UI_METHODS`). Chaque appel est délégué au backend actif au moment de l'appel :
-- par défaut, `src/cli/ui.js` (ancien CLI readline), chargé à la demande ;
+- par défaut, `src/cli/ui.js` (rendu terminal de base : couleurs, Markdown), chargé à la demande ;
 - dans la TUI, l'adaptateur `src/tui/adapter.js`, branché avec `setUiBackend`.
 Pour ajouter une méthode au port, il faut l'ajouter à `UI_METHODS` et l'implémenter dans les deux backends.
 
 ## Cœur partagé (src/core/)
-- `core/session.js` et `core/chat.js` : logique de session et de chat extraite de `main.js`, utilisée à la fois par l'ancien CLI et par la TUI.
+- `core/session.js` et `core/chat.js` : logique de session et de chat, utilisée par la TUI et l'application de bureau.
 
 ## TUI (src/tui/)
 - `index.jsx` : point d'entrée du bundle (store, adaptateur, rendu Ink, sortie propre).
@@ -41,14 +41,13 @@ Pour ajouter une méthode au port, il faut l'ajouter à `UI_METHODS` et l'implé
 Détails : `docs/tui.md`.
 
 ## Build (esbuild)
-`scripts/build-tui.js` construit `src/tui/index.jsx` en un seul fichier ESM, `dist/tui.mjs` (Node 22, JSX automatique, dépendances npm externes). Les modules CommonJS de `src/` situés hors de `src/tui` restent externes et sont chargés avec `require` : la TUI partage ainsi les mêmes singletons (`state`, mémoire, jobs) que l'ancien CLI. Le bundle est construit par `npm run build:tui`, par `prepare` (au `npm install`) et par `pretest` (avant `npm test`). `dist/` n'est pas versionné.
+`scripts/build-tui.js` construit `src/tui/index.jsx` en un seul fichier ESM, `dist/tui.mjs` (Node 22, JSX automatique, dépendances npm externes). Les modules CommonJS de `src/` situés hors de `src/tui` restent externes et sont chargés avec `require` : la TUI partage ainsi les mêmes singletons (`state`, mémoire, jobs) que le reste de l'application. Le bundle est construit par `npm run build:tui`, par `prepare` (au `npm install`) et par `pretest` (avant `npm test`). `dist/` n'est pas versionné.
 
-## Points d'entrée
-- `bin/frst.js` (`frst`) : choisit la TUI ou l'ancien CLI (`--classic`, `FRST_UI=classic`, absence de TTY ou de bundle), puis importe `dist/tui.mjs`. En cas d'échec, il revient à l'ancien CLI après avoir restauré le terminal.
-- `index.js` (`frstcli`) : ancien CLI.
+## Point d'entrée
+- `bin/frst.js` (`frst`) : vérifie que le terminal est interactif et que `dist/tui.mjs` existe (`checkTui`), puis importe le bundle. En cas d'échec, il restaure le terminal et quitte avec un code d'erreur. `frst mcp …` gère les serveurs MCP sans lancer la TUI.
 
 ## Flux principal
-1. `index.js` charge l'environnement puis appelle `run()` de `src/main.js`.
-2. `main.js` route la saisie : commande, chat normal ou agent.
+1. `bin/frst.js` charge l'environnement puis importe `dist/tui.mjs`.
+2. La TUI route la saisie via `core/session.js` : commande, chat normal ou agent.
 3. L'agent envoie le contexte au modèle à chaque tour dans sa conversation persistante, exécute un outil, puis enregistre le résultat.
 4. Chaque écriture passe par une confirmation et laisse une entrée annulable avec `/undo`.

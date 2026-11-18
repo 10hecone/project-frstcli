@@ -72,7 +72,7 @@ jobs:
           tar -xzf $archive -C stage/app --strip-components=1
           if ($LASTEXITCODE -ne 0) { throw 'Extraction du package impossible.' }
           Copy-Item node_modules stage/app/node_modules -Recurse
-          foreach ($file in @('bin/frst.js', 'index.js', 'dist/tui.mjs', 'src/main.js')) {
+          foreach ($file in @('bin/frst.js', 'dist/tui.mjs')) {
             if (!(Test-Path "stage/app/$file")) { throw "Fichier requis absent : $file" }
           }
 
@@ -101,12 +101,6 @@ jobs:
           "%~dp0runtime\node.exe" "%~dp0app\bin\frst.js" %*
           exit /b %errorlevel%
           '@ | Set-Content stage/frst.cmd -Encoding ascii
-          @'
-          @echo off
-          setlocal
-          "%~dp0runtime\node.exe" "%~dp0app\index.js" %*
-          exit /b %errorlevel%
-          '@ | Set-Content stage/frstcli.cmd -Encoding ascii
 
           & ./stage/runtime/node.exe --check ./stage/app/bin/frst.js
           if ($LASTEXITCODE -ne 0) { throw 'Verification syntaxique impossible.' }
@@ -180,7 +174,7 @@ jobs:
           $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$target`"")
           $install = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installation : code $($install.ExitCode)" }
-          foreach ($file in @('frst.cmd', 'frstcli.cmd', 'app/dist/tui.mjs', 'runtime/node.exe')) {
+          foreach ($file in @('frst.cmd', 'app/dist/tui.mjs', 'runtime/node.exe')) {
             if (!(Test-Path "$target/$file")) { throw "Installation incomplete : $file" }
           }
           & "$target/runtime/node.exe" --check "$target/app/bin/frst.js"

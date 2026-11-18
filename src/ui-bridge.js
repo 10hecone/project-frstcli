@@ -2,7 +2,7 @@
  * Port d'interface (étape 1 du plan).
  *
  * Les modules métier appellent `ui.xxx()` sans savoir quel rendu est actif :
- * la CLI readline (par défaut) ou la TUI Ink (branchée via setUiBackend).
+ * le rendu terminal de base (src/cli/ui.js, par défaut) ou la TUI Ink (branchée via setUiBackend).
  * Chaque méthode délègue au backend actif au moment de l'appel.
  */
 

@@ -6,18 +6,14 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const BUNDLE_PATH = path.join(__dirname, "..", "dist", "tui.mjs");
-const MISSING_BUNDLE_MESSAGE = "TUI indisponible : dist/tui.mjs est absent (lance npm run build:tui). Ouverture de l'interface classique.";
+const MISSING_BUNDLE_MESSAGE = "TUI indisponible : dist/tui.mjs est absent (lance npm run build:tui).";
+const NOT_TTY_MESSAGE = "La TUI demande un terminal interactif (entrée et sortie standard attachées à un terminal).";
 
-// Décide quelle interface lancer : "classic" (ancien CLI) ou "tui" (Ink).
-function chooseInterface({ argv = [], env = {}, isTTY = false, hasBundle = false, warn } = {}) {
-    if (argv.includes("--classic")) return "classic";
-    if (String(env.FRST_UI || "").trim().toLowerCase() === "classic") return "classic";
-    if (!isTTY) return "classic";
-    if (!hasBundle) {
-        if (typeof warn === "function") warn(MISSING_BUNDLE_MESSAGE);
-        return "classic";
-    }
-    return "tui";
+// Vérifie que la TUI peut démarrer : renvoie { ok: true } ou { ok: false, message }.
+function checkTui({ isTTY = false, hasBundle = false } = {}) {
+    if (!isTTY) return { ok: false, message: NOT_TTY_MESSAGE };
+    if (!hasBundle) return { ok: false, message: MISSING_BUNDLE_MESSAGE };
+    return { ok: true };
 }
 
 // `frst mcp …` : gestion des serveurs MCP hors session (ni TUI ni connexion France Student).
@@ -41,13 +37,6 @@ async function runMcp(argv = [], { run, stop } = {}) {
         }
     }
     return code;
-}
-
-function runClassic() {
-    const index = process.argv.indexOf("--classic");
-    if (index !== -1) process.argv.splice(index, 1);
-    const { run } = require("../src/main");
-    return run();
 }
 
 // Restaure le terminal après un plantage de la TUI : mode brut désactivé, curseur visible.
@@ -74,23 +63,22 @@ async function main() {
         process.exit(await runMcp(args));
     }
 
-    const choice = chooseInterface({
-        argv: process.argv.slice(2),
-        env: process.env,
+    const check = checkTui({
         isTTY: Boolean(process.stdin.isTTY && process.stdout.isTTY),
         hasBundle: fs.existsSync(BUNDLE_PATH),
-        warn: (message) => console.error(message),
     });
-
-    if (choice === "classic") return runClassic();
+    if (!check.ok) {
+        console.error(check.message);
+        process.exitCode = 1;
+        return;
+    }
 
     try {
         await import(pathToFileURL(BUNDLE_PATH).href);
     } catch (error) {
         restoreTerminal();
         console.error(`Impossible de lancer la TUI : ${error && error.message ? error.message : error}`);
-        console.error("Ouverture de l'interface classique.");
-        return runClassic();
+        process.exitCode = 1;
     }
 }
 
@@ -102,4 +90,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { chooseInterface, restoreTerminal, isMcpCommand, runMcp, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE };
+module.exports = { checkTui, restoreTerminal, isMcpCommand, runMcp, BUNDLE_PATH, MISSING_BUNDLE_MESSAGE, NOT_TTY_MESSAGE };

@@ -1,6 +1,6 @@
 # Serveurs MCP locaux
 
-Le CLI (TUI, ancien CLI et GUI) peut utiliser des serveurs [MCP](https://modelcontextprotocol.io) déclarés sur la machine : transports `stdio`, `http` (Streamable HTTP) et `sse`. Le service distant `/mcp/servers` décrit dans [sdkapi.md](sdkapi.md) n'est volontairement pas utilisé : tout se passe en local.
+Le CLI (TUI et GUI) peut utiliser des serveurs [MCP](https://modelcontextprotocol.io) déclarés sur la machine : transports `stdio`, `http` (Streamable HTTP) et `sse`. Le service distant `/mcp/servers` décrit dans [sdkapi.md](sdkapi.md) n'est volontairement pas utilisé : tout se passe en local.
 
 ## Principe : une seule commande, `mcp-call`
 

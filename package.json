@@ -2,13 +2,11 @@
   "name": "project-frstcli",
   "version": "1.0.1",
   "description": "FranceStudent Code : agent de programmation en ligne de commande",
-  "main": "index.js",
+  "main": "bin/frst.js",
   "bin": {
-    "frstcli": "index.js",
     "frst": "bin/frst.js"
   },
   "files": [
-    "index.js",
     "src",
     "bin",
     "dist"
@@ -17,7 +15,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node index.js",
+    "start": "npm run build:tui && node bin/frst.js",
     "start:tui": "npm run build:tui && node bin/frst.js",
     "build:tui": "node scripts/build-tui.js",
     "build:gui": "node scripts/build-gui.js",

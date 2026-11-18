@@ -11,7 +11,7 @@ const OUT_FILE = path.join(ROOT, "dist", "tui.mjs");
 const OUT_DIR = path.dirname(OUT_FILE);
 
 // Les modules CommonJS de src/ (hors src/tui) sont chargés par Node viace require,
-// pour partager les mêmes singletons (state, mémoire...) que l'ancien CLI.
+// pour partager les mêmes singletons (state, mémoire...) avec le reste de l'application.
 const BANNER = [
     "import { createRequire as __frstCreateRequire } from \"node:module\";",
     "const require = __frstCreateRequire(import.meta.url);",

@@ -49,7 +49,7 @@ Variantes : `FS_EMAIL` et `FS_PASSWORD` (variables d'environnement) pour une con
 
 `npm install` lance aussi le script `prepare`, qui construit le bundle de la TUI (`dist/tui.mjs`, via esbuild). Pour le reconstruire à la main : `npm run build:tui`.
 
-Pour disposer des commandes `frst` et `frstcli` partout :
+Pour disposer de la commande `frst` partout :
 
 ```bash
 npm link
@@ -73,13 +73,11 @@ Lancement :
 
 | Commande | Interface |
 | -------- | --------- |
-| `frst` (ou `npm run start:tui`) | Nouvelle interface plein terminal (TUI Ink) |
-| `frst --classic` (ou `FRST_UI=classic frst`) | Ancien CLI readline |
-| `frstcli` (ou `npm start`, `node index.js`) | Ancien CLI readline, directement |
+| `frst` (ou `npm start`) | Interface plein terminal (TUI Ink) |
 | `frst mcp <commande>` | Gère les serveurs MCP hors session (voir [Serveurs MCP locaux](#serveurs-mcp-locaux)) |
 | `npm run app` | Application de bureau (Electron) ; construit l'interface avant de la lancer |
 
-`frst` ouvre automatiquement l'ancien CLI si le terminal n'est pas interactif, si `dist/tui.mjs` est absent ou si la TUI ne peut pas démarrer.
+`frst` exige un terminal interactif et le bundle `dist/tui.mjs` ; sinon il affiche un message d'erreur et quitte.
 
 ### Raccourcis clavier de la TUI
 
@@ -106,7 +104,7 @@ Exemple de session :
 ```text
 › /project ./mon-projet
 › /tree
-› Explique le rôle de src/main.js
+› Explique le rôle de src/config.js
 › Ajoute une fonction de formatage de date dans src/utils/date.js
 ```
 
@@ -230,7 +228,6 @@ Toutes sont facultatives. Un fichier `.env` à la racine est lu au démarrage.
 | `FS_MCP_TIMEOUT_MS` | Délai max de démarrage d'un serveur MCP | `30000` |
 | `FS_MCP_TOOL_TIMEOUT_MS` | Délai max d'un appel MCP (10 min au plus) | `120000` |
 | `FS_DEBUG` | `1` : journaux de débogage | — |
-| `FRST_UI` | `classic` : lance l'ancien CLI avec `frst` | — |
 | `FRST_TUI_FULLSCREEN` | `1` : TUI en plein écran (en-tête fixe, défilement) | — |
 | `NO_COLOR` | Désactive les couleurs | — |
 

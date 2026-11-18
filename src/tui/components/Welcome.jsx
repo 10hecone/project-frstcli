@@ -20,7 +20,7 @@ export function Welcome({ version, model, workspace, cwd, color = true }) {
                 <Text>{directory}</Text>
             </Text>
             <Text> </Text>
-            <Text dimColor={color}>Astuces : /help pour les commandes, frst --classic pour l'ancienne interface.</Text>
+            <Text dimColor={color}>Astuces : /help pour afficher les commandes.</Text>
         </Box>
     );
 }

@@ -40,7 +40,7 @@ test("rendu TUI : le Welcome affiche le cadre, le modèle et le dossier", async 
         assert.match(frame, /modele-test/);
         assert.match(frame, /C:\/projets\/demo/);
         assert.match(frame, /\/help/);
-        assert.match(frame, /frst --classic/);
+        assert.doesNotMatch(frame, /--classic/);
     } finally {
         view.unmount();
     }

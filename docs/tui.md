@@ -1,14 +1,12 @@
 # Interface TUI (`frst`)
 
-La TUI est l'interface plein terminal de FranceStudent Code, construite avec React et Ink. Elle remplace l'affichage readline de `src/cli/ui.js` sans toucher à la logique métier : les modules de `src/` appellent le port `ui` de `src/ui-bridge.js`, et la TUI branche son propre backend sur ce port.
+La TUI est l'interface plein terminal de FranceStudent Code, construite avec React et Ink. Elle s'appuie sur le port `ui` de `src/ui-bridge.js` : les modules de `src/` l'appellent sans connaître le rendu, et la TUI branche son propre backend sur ce port.
 
 ## Lancement
 
-- `frst` (ou `npm run start:tui`) : TUI si le terminal est interactif et que `dist/tui.mjs` existe.
-- `frst --classic` ou `FRST_UI=classic frst` : ancien CLI readline.
-- `frstcli` (ou `npm start`) : ancien CLI, directement.
+- `frst` (ou `npm start`) : lance la TUI si le terminal est interactif et que `dist/tui.mjs` existe.
 
-`bin/frst.js` (`chooseInterface`) choisit l'interface classique dans ces cas : option `--classic`, `FRST_UI=classic`, entrée ou sortie qui ne sont pas des TTY, bundle absent. Si le chargement de la TUI échoue, il restaure le terminal (`restoreTerminal`) puis ouvre l'interface classique.
+`bin/frst.js` (`checkTui`) refuse de démarrer (code de sortie 1, message explicite) si l'entrée ou la sortie ne sont pas des TTY ou si le bundle est absent. Si le chargement de la TUI échoue, il restaure le terminal (`restoreTerminal`) et quitte avec une erreur.
 
 ## Fichiers
 
