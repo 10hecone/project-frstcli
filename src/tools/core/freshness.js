@@ -57,28 +57,28 @@ const handle = await fs.open(target, "r");
 }
 
 /**
- * Refuse de modifier un fichier que le modèle n'a pas lu, qui a changé
- * depuis la lecture (modification externe), ou qu'il n'a lu que partiellement
- * (sauf pour edit_file, qui remplace un texte exact).
+ * Raison pour laquelle le modèle ne connaît pas l'état actuel du fichier
+ * (jamais lu, modifié depuis la lecture, lu partiellement), ou null.
  */
-function assertFreshRead(rel, currentText, { allowPartial = false } = {}) {
+function freshProblem(rel, currentText, { allowPartial = false } = {}) {
     const known = memory.getFile(rel);
 
-    if (!known) {
-        throw new Error(`Lis d'abord ${rel} avec read_file avant de le modifier.`);
-    }
+    if (!known) return `${rel} n'avait pas encore été lu.`;
 
     if (known.hash !== memory.hash(currentText)) {
-        throw new Error(
-            `${rel} a changé depuis ta dernière lecture. Relis-le avant de le modifier.`
-        );
+        return `${rel} a changé depuis ta dernière lecture.`;
     }
 
     if (known.partial && !allowPartial) {
-        throw new Error(
-            `${rel} n'a été lu que partiellement : relis-le en entier ou utilise edit_file.`
-        );
+        return `${rel} n'avait été lu que partiellement.`;
     }
+
+    return null;
 }
 
-module.exports = { readTextFile, assertFreshRead };
+function assertFreshRead(rel, currentText, options) {
+    const problem = freshProblem(rel, currentText, options);
+    if (problem) throw new Error(`${problem} Relis-le avec read_file avant de le modifier.`);
+}
+
+module.exports = { readTextFile, assertFreshRead, freshProblem };

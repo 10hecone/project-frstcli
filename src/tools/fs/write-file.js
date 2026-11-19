@@ -11,7 +11,8 @@ const { resolveInWorkspace, assertRealInside } = require("../security");
 const memory = require("../../project/memory");
 const { newId, requireString } = require("../core/args");
 const { statOrNull, toRel, denied, firstMissingAncestor, ensureParent } = require("../core/fs-utils");
-const { readTextFile, assertFreshRead } = require("../core/freshness");
+const { readTextFile, freshProblem } = require("../core/freshness");
+const { readFile } = require("./read-file");
 const { finishMutation } = require("../core/journal");
 const { writeAtomic } = require("../core/atomic");
 const { workspace } = require("../../core/workspace");
@@ -40,7 +41,20 @@ async function writeFile(args = {}) {
         if (!existing.isFile()) throw new Error("Ce chemin est un dossier.");
 
         previous = await readTextFile(target);
-        assertFreshRead(rel, previous);
+
+        // Fichier existant non lu (ou modifié depuis) : on ne l'écrase pas à l'aveugle,
+        // mais on fait la lecture à la place du modèle, qui n'a plus qu'à relancer.
+        const problem = freshProblem(rel, previous);
+        if (problem) {
+            const read = await readFile({ path: rel, start_line: 1 });
+            return {
+                ...read,
+                changed: false,
+                written: false,
+                message: `${problem} Rien n'a été écrit. Voici son contenu actuel (lu automatiquement) : ` +
+                    "relance write_file pour le remplacer, ou utilise edit_file pour une modification ciblée."
+            };
+        }
 
         // Fichier Windows : on garde les fins de ligne CRLF.
         if (previous.includes("\r\n") && !content.includes("\r\n")) {

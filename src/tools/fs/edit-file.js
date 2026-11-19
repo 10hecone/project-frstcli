@@ -8,7 +8,7 @@ const { resolveInWorkspace, assertRealInside } = require("../security");
 const memory = require("../../project/memory");
 const { newId, requireString, optionalBool } = require("../core/args");
 const { statOrNull, denied } = require("../core/fs-utils");
-const { readTextFile, assertFreshRead } = require("../core/freshness");
+const { readTextFile } = require("../core/freshness");
 const { finishMutation } = require("../core/journal");
 const { writeAtomic } = require("../core/atomic");
 const { workspace } = require("../../core/workspace");
@@ -26,10 +26,6 @@ async function editFile(args = {}) {
         throw new Error("new_string doit être une chaîne.");
     }
 
-    if (args.old_string === args.new_string) {
-        throw new Error("old_string et new_string sont identiques.");
-    }
-
     const { rel, target } = await resolveInWorkspace(workspace.root, args.path);
 
     if (!(await statOrNull(target))) {
@@ -37,7 +33,19 @@ async function editFile(args = {}) {
     }
 
     const previous = await readTextFile(target);
-    assertFreshRead(rel, previous, { allowPartial: true });
+
+    // Pas de lecture préalable exigée : old_string doit correspondre au fichier actuel,
+    // ce qui garantit que le modèle modifie un texte qu'il connaît.
+    const known = memory.getFile(rel);
+    const knewWhole = !!known && !known.partial && known.hash === memory.hash(previous);
+
+    // Remplacement sans effet : pas une erreur si le texte est déjà là.
+    if (args.old_string === args.new_string) {
+        if (previous.includes(args.old_string) || findLoose(previous, args.old_string)) {
+            return { path: rel, changed: false, message: "Rien à modifier : le texte voulu est déjà présent." };
+        }
+        throw new Error("old_string et new_string sont identiques, et ce texte est introuvable dans le fichier.");
+    }
 
     let needle = args.old_string;
     let replacement = args.new_string;
@@ -113,9 +121,8 @@ async function editFile(args = {}) {
     await writeAtomic(target, updated, { expected: previous, read: readTextFile });
 
     // Après une édition, le modèle connaît le fichier tel qu'il est maintenant
-    // uniquement si sa lecture précédente était complète.
-    const wasPartial = memory.getFile(rel)?.partial ?? false;
-    memory.rememberFile(rel, updated, { partial: wasPartial });
+    // uniquement s'il en connaissait déjà la version complète et à jour.
+    memory.rememberFile(rel, updated, { partial: !knewWhole });
 
     await finishMutation(
         { kind: "edit", rel, backup, label: `fichier modifié : ${rel}` },

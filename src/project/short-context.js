@@ -35,7 +35,7 @@ function toolContract(hasMcp) {
         ...(CONFIG.optim ? [
             "- read_file d'un fichier déjà lu en entier et inchangé : contenu non renvoyé (lire une plage si besoin). edit_file renvoie un extrait numéroté : inutile de relire."
         ] : []),
-        "- read_file : lignes inclusives à partir de 1 (offset/limit acceptés). Lire avant de modifier : lecture partielle suffisante pour edit_file, complète pour écraser avec write_file. Le préfixe « N<tab> » n'est pas dans le fichier.",
+        "- read_file : lignes inclusives à partir de 1 (offset/limit acceptés). edit_file ne demande pas de lecture préalable (old_text exact suffit) ; write_file sur un fichier existant non lu en entier n'écrit rien et renvoie son contenu : relancer ensuite. Le préfixe « N<tab> » n'est pas dans le fichier.",
         `- search_files : regex insensible à la casse (A|B possible), 'literal:<texte>' pour un texte exact, 'files:<motif>' pour la liste des fichiers ; ${CONFIG.maxSearchResults} résultats au plus, réduire avec path/glob si tronqué.`,
         "- edit_file : old_text exact et unique (sinon replace_all) ; préférer à write_file pour un fichier existant. « [hook PostToolUse] » dans le résultat : contrôle de l'utilisateur (linter…), corriger ce qu'il signale.",
         "- Scripts jetables : dans .frst-tmp/ (nettoyé en fin de demande), jamais de livrable.",
