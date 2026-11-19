@@ -490,6 +490,7 @@ async function handleCommand(input) {
     case "/new":
       resetConversation();
       state.contextUsagePercent = state.contextDetails = null;
+      require("../core/todos").resetTodos();
       ui.info("Nouvelle conversation.");
       break;
 
@@ -504,7 +505,6 @@ async function handleCommand(input) {
       try {
         const result = await compactConversation({ instruction: unquote(value) });
         spin.stop();
-        ui.info(
         if (result.mode === "server") {
           const before = typeof result.before === "number" ? `${Math.round(result.before)} % → ` : "";
           const after = result.details ? `${Math.round(result.details.percent)} %` : "inconnu";
@@ -512,6 +512,7 @@ async function handleCommand(input) {
           break;
         }
         if (result.serverError) ui.warn(`Compaction serveur impossible (${result.serverError}) : résumé local.`);
+        ui.info(
           `Session compactée : résumé de ${result.chars} caractères. ` +
             "Il sera joint à ton prochain message, qui ouvre une nouvelle conversation.",
         );

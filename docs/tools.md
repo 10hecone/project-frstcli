@@ -20,7 +20,7 @@
   - `walk.js` : walkFiles(dir, relDir, {maxFiles}).
 - `command/` : run_command (index.js, parse.js, runner.js, program.js). program.js contient filterEnv, killTree et resolveProgram, sortis de runner.js. La sortie renvoyée au modèle est limitée à 16 000 caractères (moitié début, moitié fin, `output.js`). Les commandes en arrière-plan (`jobs.js`) se gèrent avec `/jobs`. `index.js` reconnaît aussi la commande virtuelle `mcp-call`, exécutée dans le processus (src/mcp/call.js), seule, sans enchaînement ni pipe ; sa question de confirmation vient de src/mcp/policy.js.
 
-Les anciens outils `delegate` et `todo_write` (`delegate.js`, `todo-write.js`) ont été retirés.
+Les anciens outils `delegate` et `todo_write` (`delegate.js`, `todo-write.js`) ont été retirés. La liste de tâches passe désormais par la commande virtuelle `todo` de run_command (`src/core/todos.js` : `todo set`, `add`, `start <n>`, `done <n>`, `remove`, `clear`, `list`), exécutée dans le processus et toujours autorisée.
 
 ## Serveurs MCP (src/mcp/)
 

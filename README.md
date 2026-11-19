@@ -205,7 +205,8 @@ Le CLI utilise les outils client natifs de l'API France Student (voir [docs/sdka
 - La sortie de `run_command` est limitée à 16 000 caractères : le début et la fin sont gardés. La même limite s'applique aux résultats de `mcp-call`.
 - L'API accepte 32 résultats au maximum par envoi : si le modèle demande plus d'appels en une fois, seuls les 32 premiers sont exécutés et un avertissement s'affiche.
 - Les écritures (`edit_file`, `write_file`) et les commandes non sûres demandent une confirmation en mode `default` ; en mode `acceptEdits`, seules les commandes non sûres en demandent une.
-- Les anciens outils (`glob`, `multi_edit`, `web_search`, `web_fetch`, `delegate`, `todo_write`…) et leurs variables (`FS_WEB`, `FS_SEARCH_*`, `FS_SUBAGENT_*`, `FS_AUTO_COMPACT`, `FS_COMPACT_THRESHOLD`) n'existent plus. La recherche web reste disponible en chat normal avec `/web on`.
+- Liste de tâches : le modèle la tient avec la commande virtuelle `todo` de `run_command` (`todo set "étape 1" "étape 2"`, `todo start <n>`, `todo done <n>`, `todo list`…). Elle s'affiche dans l'interface, ne demande aucune confirmation et est vidée par `/new`.
+- Les anciens outils (`glob`, `multi_edit`, `web_search`, `web_fetch`, `delegate`, `todo_write`…) et leurs variables (`FS_WEB`, `FS_SEARCH_*`, `FS_SUBAGENT_*`, `FS_COMPACT_THRESHOLD`) n'existent plus. La recherche web reste disponible en chat normal avec `/web on`.
 - Le mode agent séparé a été retiré : le modèle décide lui-même d'appeler ses outils. Une ancienne conversation « agent » reprise avec `/chat-id` continue comme une conversation normale.
 
 ## Serveurs MCP locaux

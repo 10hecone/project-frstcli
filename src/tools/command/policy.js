@@ -360,7 +360,7 @@ function judgePowerShell(name, list, base, root) {
 
 const BG_COMMANDS = new Set(["bg-run", "bg-output", "bg-stop"]);
 const JOB_ID_RE = /^job-\d+$/;
-const BG_NESTED = new Set([...BG_COMMANDS, "mcp-call", "cd"]);
+const BG_NESTED = new Set([...BG_COMMANDS, "mcp-call", "cd", "todo"]);
 
 /** bg-run <commande> : la commande lancée est jugée comme si elle était lancée directement. */
 function judgeBgRun(list, ctx) {
@@ -418,6 +418,8 @@ function judge({ file, args = [], cwd, workspace } = {}) {
     if (name === "mcp-call") return judgeMcpCall(list, { cwd: base, workspace: root });
     if (name === "bg-run") return judgeBgRun(list, { cwd, workspace: root });
     if (BG_COMMANDS.has(name)) return judgeBgJob(name, list);
+    // todo : liste de tâches en mémoire (core/todos.js), aucun fichier ni processus.
+    if (name === "todo") return safe("Liste de tâches de la session.");
     if (name === "powershell" || name === "pwsh") return judgePowerShell(name, list, base, root);
 
     for (const arg of list) {

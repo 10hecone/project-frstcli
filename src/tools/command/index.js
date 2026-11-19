@@ -48,7 +48,7 @@ const GIT_STATUS_TIMEOUT_MS = 10000;
 const isMcpCall = segment => !isCd(segment) && programName(segment.file) === "mcp-call";
 
 // Commandes virtuelles exécutées dans le processus : toujours seules sur la ligne.
-const VIRTUAL_COMMANDS = new Set(["mcp-call", "bg-run", "bg-output", "bg-stop"]);
+const VIRTUAL_COMMANDS = new Set(["mcp-call", "bg-run", "bg-output", "bg-stop", "todo"]);
 const isVirtual = segment => !isCd(segment) && VIRTUAL_COMMANDS.has(programName(segment.file));
 
 // Temps laissé à bg-run pour montrer les premières lignes (ou une erreur immédiate).
@@ -303,6 +303,10 @@ async function runCommand(toolArgs = {}) {
 
     if (virtualName === "bg-run") return startBackground(virtual, startCwd, description);
     if (virtualName === "bg-output" || virtualName === "bg-stop") return backgroundJob(virtualName, virtual, description);
+    if (virtualName === "todo") {
+        const { runTodo } = require("../../core/todos");
+        return { command: display, description, changed: false, ...runTodo(virtual.args) };
+    }
 
     if (toolArgs.background === true) {
         const { manager: jobManager } = require("./jobs");

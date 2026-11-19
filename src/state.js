@@ -16,6 +16,7 @@ const state = {
     contextUsagePercent: null, // contexte utilisé par la conversation chat (0 à 100), null si inconnu
     contextDetails: null, // détails de GET /chats/{id}/context (account.normalizeContext), null si inconnus
     compactSummary: null, // résumé de /compact, joint au premier message de la conversation suivante
+    todos: [],    // liste de tâches de la session (core/todos.js, commande virtuelle todo), vidée par /new
     pendingFiles: []     // ids Files v2 joints au prochain message (consommés une seule fois)
 };
 
