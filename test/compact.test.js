@@ -219,6 +219,129 @@ test("compactSession conserve la conversation si la demande de résumé échoue"
     }
 });
 
+/* ---------- Compaction serveur (POST /chats/{id}/context) ---------- */
+
+const account = require("../src/api/account");
+const { CONFIG } = require("../src/config");
+const { compactConversation, autoCompact } = require("../src/core/compact");
+
+/** Remplace account.compactChatContext ; renvoie la liste des chat-id compactés. */
+function mockServer({ error = null, percent = 12 } = {}) {
+    const calls = [];
+    account.compactChatContext = async chatId => {
+        calls.push(chatId);
+        if (error) throw error;
+        return { percent, measured: false, categories: [] };
+    };
+    return calls;
+}
+
+async function withServer(fn) {
+    const saved = saveState();
+    const savedDetails = state.contextDetails;
+    const original = account.compactChatContext;
+    const originalLimit = CONFIG.autoCompactPercent;
+    try {
+        await fn();
+    } finally {
+        account.compactChatContext = original;
+        CONFIG.autoCompactPercent = originalLimit;
+        state.contextDetails = savedDetails;
+        restoreState(saved);
+    }
+}
+
+test("compactConversation : compaction serveur, même conversation, pourcentage mis à jour", { concurrency: false }, () =>
+    withServer(async () => {
+        const history = prepare({ percent: 82 });
+        const calls = mockServer();
+        const requests = mockApi();
+
+        const result = await compactConversation();
+
+        assert.deepEqual(calls, ["chat-old"]);
+        assert.equal(requests.length, 0);
+        assert.equal(result.mode, "server");
+        assert.equal(result.before, 82);
+        assert.equal(state.chatIds.chat, "chat-old");
+        assert.equal(state.history, history);
+        assert.equal(state.contextUsagePercent, 12);
+        assert.equal(state.contextDetails.measured, false);
+        assert.equal(state.compactSummary, null);
+    })
+);
+
+test("compactConversation : repli sur le résumé local si le serveur refuse (403)", { concurrency: false }, () =>
+    withServer(async () => {
+        prepare();
+        mockServer({ error: Object.assign(new Error("HTTP 403 sur /chats/chat-old/context"), { status: 403 }) });
+        mockApi();
+
+        const result = await compactConversation();
+
+        assert.equal(result.mode, "local");
+        assert.match(result.serverError, /propriétaire/);
+        assert.equal(state.chatIds.chat, null);
+        assert.equal(state.compactSummary, "1. Objectif\nTester.");
+    })
+);
+
+test("compactConversation : une consigne passe directement par le résumé local", { concurrency: false }, () =>
+    withServer(async () => {
+        prepare();
+        const calls = mockServer();
+        const requests = mockApi();
+
+        const result = await compactConversation({ instruction: "garde les tests" });
+
+        assert.equal(calls.length, 0);
+        assert.equal(result.mode, "local");
+        assert.equal(result.serverError, null);
+        assert.match(requests[0].message, /garde les tests/);
+    })
+);
+
+test("autoCompact : seulement au-delà du seuil, sur une mesure réelle, sans lever d'erreur", { concurrency: false }, () =>
+    withServer(async () => {
+        prepare({ percent: 90 });
+        CONFIG.autoCompactPercent = 85;
+        const calls = mockServer();
+
+        // Pas de détails mesurés (seulement /usage) : rien.
+        state.contextDetails = null;
+        assert.equal(await autoCompact(), null);
+        state.contextDetails = { percent: 90, measured: false };
+        assert.equal(await autoCompact(), null);
+
+        // Sous le seuil : rien.
+        state.contextUsagePercent = 50;
+        state.contextDetails = { percent: 50, measured: true };
+        assert.equal(await autoCompact(), null);
+
+        // Désactivée : rien.
+        state.contextUsagePercent = 90;
+        state.contextDetails = { percent: 90, measured: true };
+        CONFIG.autoCompactPercent = 0;
+        assert.equal(await autoCompact(), null);
+        assert.equal(calls.length, 0);
+
+        // Au-delà du seuil : compaction serveur.
+        CONFIG.autoCompactPercent = 85;
+        const result = await autoCompact();
+        assert.equal(result.mode, "server");
+        assert.deepEqual(calls, ["chat-old"]);
+        assert.equal(state.contextUsagePercent, 12);
+
+        // Échec : null, et pas de nouvel essai avant la prochaine mesure.
+        state.contextUsagePercent = 95;
+        state.contextDetails = { percent: 95, measured: true };
+        mockServer({ error: new Error("panne") });
+        assert.equal(await autoCompact(), null);
+        assert.equal(state.contextDetails.measured, false);
+        assert.equal(state.chatIds.chat, "chat-old");
+    })
+);
+
 test("compactSession refuse un résumé vide ou l'absence de conversation", { concurrency: false }, async () => {
     const saved = saveState();
     try {

@@ -28,6 +28,9 @@ const CONFIG = {
     // Boucle d'outils client : 0 = sans limite, sinon confirmation toutes les N rondes.
     maxAgentTurns: envInt("FS_MAX_AGENT_TURNS", 0),
 
+    // Compaction automatique (POST /chats/{id}/context) dès ce % de contexte mesuré ; 0 = désactivée.
+    autoCompactPercent: envInt("FS_AUTO_COMPACT", 85),
+
     // Serveurs MCP locaux : délai de démarrage et délai d'un appel (10 minutes au plus, comme run_command).
     mcpTimeoutMs: Math.max(1000, envInt("FS_MCP_TIMEOUT_MS", 30_000)),
     mcpToolTimeoutMs: Math.min(600_000, Math.max(1000, envInt("FS_MCP_TOOL_TIMEOUT_MS", 120_000))),

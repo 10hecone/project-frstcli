@@ -494,17 +494,24 @@ async function handleCommand(input) {
       break;
 
     case "/compact": {
-      const { compactSession } = require("../core/compact");
+      const { compactConversation } = require("../core/compact");
       if (!state.chatIds.chat) {
         ui.info("Aucune conversation à résumer (/compact s'utilise après au moins un message).");
         break;
       }
 
-      const spin = ui.spinner("Résumé de la session");
+      const spin = ui.spinner("Compaction de la conversation");
       try {
-        const result = await compactSession({ instruction: unquote(value) });
+        const result = await compactConversation({ instruction: unquote(value) });
         spin.stop();
         ui.info(
+        if (result.mode === "server") {
+          const before = typeof result.before === "number" ? `${Math.round(result.before)} % → ` : "";
+          const after = result.details ? `${Math.round(result.details.percent)} %` : "inconnu";
+          ui.info(`Conversation compactée par le serveur (contexte : ${before}${after}). Même conversation conservée.`);
+          break;
+        }
+        if (result.serverError) ui.warn(`Compaction serveur impossible (${result.serverError}) : résumé local.`);
           `Session compactée : résumé de ${result.chars} caractères. ` +
             "Il sera joint à ton prochain message, qui ouvre une nouvelle conversation.",
         );
@@ -529,7 +536,12 @@ async function handleCommand(input) {
           `Résumé /compact en attente : ${state.compactSummary.length} caractères, joint au prochain message.`,
         );
       }
-      ui.info("Pas de compaction automatique : les fournisseurs compactent l'historique ; /compact repart d'une conversation neuve.");
+      const { autoCompactLimit } = require("../core/compact");
+      const limit = autoCompactLimit();
+      ui.info(
+        (limit ? `Compaction automatique dès ${limit} % (FS_AUTO_COMPACT=0 pour la désactiver)` : "Compaction automatique désactivée") +
+          " ; /compact compacte maintenant, /compact <consigne> repart d'un résumé local.",
+      );
       break;
     }
 

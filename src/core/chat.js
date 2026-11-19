@@ -307,6 +307,12 @@ async function send(input, { onDelta, onToolCalls, readOnly = false } = {}) {
     const usageBefore = { ...api.usage };
     const texts = [];
     let rounds = 0;
+    // Contexte presque plein (mesuré au tour précédent) : compaction serveur avant d'envoyer.
+    const auto = await compact.autoCompact();
+    if (auto) {
+        const after = auto.details ? ` → ${Math.round(auto.details.percent)} %` : "";
+        ui.info(`Contexte compacté automatiquement (${Math.round(auto.before)} %${after}).`);
+    }
     let failure = null;
 
     try {

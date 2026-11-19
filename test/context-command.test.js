@@ -34,7 +34,7 @@ function saveState() {
         contextUsagePercent: state.contextUsagePercent,
         compactSummary: state.compactSummary,
         find: conversations.find,
-        compactSession: compact.compactSession
+        compactConversation: compact.compactConversation
     };
 }
 
@@ -47,7 +47,7 @@ function restore(saved) {
     state.contextUsagePercent = saved.contextUsagePercent;
     state.compactSummary = saved.compactSummary;
     conversations.find = saved.find;
-    compact.compactSession = saved.compactSession;
+    compact.compactConversation = saved.compactConversation;
     setUiBackend(null);
 }
 
@@ -70,9 +70,8 @@ test("/context affiche le pourcentage, la conversation et les tours", { concurre
         assert.match(text, /Conversation : chat-42/);
         assert.match(text, /Tours \(session\) : 2/);
         assert.doesNotMatch(text, /en attente/);
-        // Plus de seuil de compaction automatique.
-        assert.match(text, /Pas de compaction automatique/);
-        assert.doesNotMatch(text, /à partir de \d+ %/);
+        // Seuil de compaction automatique (FS_AUTO_COMPACT, 85 % par défaut).
+        assert.match(text, /Compaction automatique (dès \d+ %|désactivée)/);
     } finally {
         restore(saved);
     }
@@ -144,7 +143,7 @@ test("/new vide la conversation chat et le pourcentage de contexte", { concurren
 test("/compact sans conversation chat : message, aucun appel", { concurrency: false }, async () => {
     const saved = saveState();
     let called = false;
-    compact.compactSession = async () => {
+    compact.compactConversation = async () => {
         called = true;
         return {};
     };
@@ -163,9 +162,9 @@ test("/compact sans conversation chat : message, aucun appel", { concurrency: fa
 test("/compact : consigne transmise, résumé joint au prochain message, ancienne conversation indiquée", { concurrency: false }, async () => {
     const saved = saveState();
     const received = [];
-    compact.compactSession = async (options) => {
+    compact.compactConversation = async (options) => {
         received.push(options);
-        return { summary: "x".repeat(42), chars: 42, previousChatId: "chat-old" };
+        return { mode: "local", summary: "x".repeat(42), chars: 42, previousChatId: "chat-old", serverError: null };
     };
     try {
         const lines = captureUi();
@@ -182,9 +181,53 @@ test("/compact : consigne transmise, résumé joint au prochain message, ancienn
     }
 });
 
+test("/compact : compaction serveur, même conversation, pourcentage avant et après", { concurrency: false }, async () => {
+    const saved = saveState();
+    compact.compactConversation = async () => ({
+        mode: "server",
+        chatId: "chat-old",
+        before: 82,
+        details: { percent: 12.4, measured: false }
+    });
+    try {
+        const lines = captureUi();
+        state.chatIds = { chat: "chat-old", agent: null };
+
+        await commands.handleCommand("/compact");
+        const text = lines.join("\n");
+        assert.match(text, /compactée par le serveur \(contexte : 82 % → 12 %\)/);
+        assert.match(text, /Même conversation conservée/);
+        assert.doesNotMatch(text, /Ancienne conversation/);
+    } finally {
+        restore(saved);
+    }
+});
+
+test("/compact : repli local signalé quand le serveur refuse", { concurrency: false }, async () => {
+    const saved = saveState();
+    compact.compactConversation = async () => ({
+        mode: "local",
+        summary: "abc",
+        chars: 3,
+        previousChatId: "chat-old",
+        serverError: "réservée au propriétaire de la conversation (HTTP 403)"
+    });
+    try {
+        const lines = captureUi();
+        state.chatIds = { chat: "chat-old", agent: null };
+
+        await commands.handleCommand("/compact");
+        const text = lines.join("\n");
+        assert.match(text, /Compaction serveur impossible \(réservée au propriétaire.*\) : résumé local/);
+        assert.match(text, /Session compactée : résumé de 3 caractères/);
+    } finally {
+        restore(saved);
+    }
+});
+
 test("/compact : un échec est signalé sans lever d'erreur", { concurrency: false }, async () => {
     const saved = saveState();
-    compact.compactSession = async () => {
+    compact.compactConversation = async () => {
         throw new Error("Résumé vide : la session n'a pas été compactée.");
     };
     try {

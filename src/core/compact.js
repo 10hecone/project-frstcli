@@ -1,15 +1,18 @@
 "use strict";
 
 /**
- * Pourcentage de contexte et compaction manuelle de la conversation (/compact).
+ * Pourcentage de contexte et compaction de la conversation (/compact).
  *
- * Pas de compaction automatique : l'API rejoue l'historique à chaque tour et les
- * fournisseurs le compactent eux-mêmes. /compact sert à repartir d'une conversation
- * neuve : le modèle résume la session, puis le résumé est joint au premier message
- * de la conversation suivante (core/chat.js, buildMessage), sans requête d'amorçage.
+ * - Compaction serveur (par défaut) : POST /chats/{id}/context fait résumer l'historique
+ *   par le fournisseur ; la conversation (et son id) est conservée.
+ * - Résumé local (repli, ou /compact <consigne>) : le modèle résume la session, puis le
+ *   résumé est joint au premier message d'une conversation neuve (core/chat.js, buildMessage).
+ * - Compaction automatique : avant un message, si le contexte mesuré atteint
+ *   CONFIG.autoCompactPercent (FS_AUTO_COMPACT, 0 = désactivée), compaction serveur seulement.
  */
 
 const { state, record, activateConversation, resetConversation } = require("../state");
+const { CONFIG } = require("../config");
 const api = require("../api/api");
 const account = require("../api/account");
 
@@ -130,6 +133,76 @@ async function compactSession({ instruction = "" } = {}) {
     return { summary, chars: summary.length, previousChatId };
 }
 
+/* ---------- Compaction serveur (POST /chats/{id}/context) ---------- */
+
+/**
+ * Fait compacter la conversation chat par le serveur. La conversation est conservée ;
+ * state.contextUsagePercent / contextDetails reçoivent l'occupation après compaction.
+ * Les erreurs (403 si l'utilisateur n'est pas propriétaire, panne…) sont propagées.
+ * Renvoie { mode: "server", chatId, before, details }.
+ */
+async function compactOnServer(chatId = state.chatIds.chat) {
+    if (!chatId) throw new Error("Aucune conversation à compacter.");
+    const before = state.contextUsagePercent;
+    const details = await account.compactChatContext(chatId);
+    if (state.chatIds.chat === chatId) {
+        state.contextUsagePercent = details ? details.percent : null;
+        state.contextDetails = details;
+    }
+    return { mode: "server", chatId, before, details };
+}
+
+/**
+ * /compact : compaction serveur d'abord ; repli sur le résumé local (nouvelle conversation)
+ * si elle échoue ou si une consigne de résumé est donnée (le serveur n'en accepte pas).
+ * Renvoie le résultat de compactOnServer, ou celui de compactSession avec
+ * { mode: "local", serverError } (serverError : message d'échec du serveur, ou null).
+ */
+async function compactConversation({ instruction = "" } = {}) {
+    activateConversation();
+    const chatId = state.chatIds.chat;
+    if (!chatId) throw new Error("Aucune conversation à résumer.");
+
+    let serverError = null;
+    if (!String(instruction || "").trim()) {
+        try {
+            return await compactOnServer(chatId);
+        } catch (error) {
+            serverError = error.status === 403
+                ? "réservée au propriétaire de la conversation (HTTP 403)"
+                : error.message;
+        }
+    }
+    const result = await compactSession({ instruction });
+    return { mode: "local", ...result, serverError };
+}
+
+/** Seuil de compaction automatique en %, ou 0 si désactivée. */
+function autoCompactLimit() {
+    const value = Number(CONFIG.autoCompactPercent);
+    return Number.isFinite(value) && value > 0 ? Math.min(100, value) : 0;
+}
+
+/**
+ * Compaction automatique, appelée avant l'envoi d'un message : seulement si le contexte a
+ * été mesuré par GET /context (state.contextDetails.measured) et atteint le seuil.
+ * Ne lève jamais d'erreur. Renvoie le résultat de compactOnServer, ou null.
+ */
+async function autoCompact() {
+    const limit = autoCompactLimit();
+    const chatId = state.chatIds.chat;
+    const details = state.contextDetails;
+    if (!limit || !chatId || !details || !details.measured) return null;
+    if (!(typeof state.contextUsagePercent === "number" && state.contextUsagePercent >= limit)) return null;
+    try {
+        return await compactOnServer(chatId);
+    } catch {
+        // Échec : on ne réessaie pas avant la prochaine mesure.
+        if (state.contextDetails === details) state.contextDetails = { ...details, measured: false };
+        return null;
+    }
+}
+
 /* ---------- Changement de modèle ---------- */
 
 // Consigne ajoutée à la demande de résumé : le lecteur est un autre modèle.
@@ -199,6 +272,10 @@ async function switchModel(agent) {
 module.exports = {
     refreshContextUsage,
     compactSession,
+    compactOnServer,
+    compactConversation,
+    autoCompact,
+    autoCompactLimit,
     switchModel,
     localSummary,
     buildCompactPrompt,

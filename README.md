@@ -190,9 +190,10 @@ Sans dossier (`frst --no-project`), les commandes liées au projet (`/tree`, `/r
 ### Contexte et compaction
 
 - Après chaque réponse, le CLI lit le pourcentage de contexte utilisé par la conversation. La barre d'état de la TUI l'affiche sous la forme `ctx 42 %` : couleur neutre sous 60 %, jaune de 60 à 80 %, rouge au-delà. Rien n'est affiché si la valeur est inconnue.
-- Pas de compaction automatique : l'API rejoue l'historique à chaque tour et les fournisseurs le compactent eux-mêmes.
-- `/context` affiche ce pourcentage, le chat ID de la conversation, le nombre de tours de la session et, s'il y en a un, le résumé `/compact` en attente.
-- `/compact [consigne]` demande au modèle un résumé structuré en français (objectif, décisions prises, fichiers modifiés, tâches restantes). Le résumé (20 000 caractères au maximum) est joint à ton prochain message, qui ouvre une nouvelle conversation : aucune requête supplémentaire n'est envoyée. La consigne facultative oriente le résumé, par exemple `/compact garde les chemins des tests`. L'ancienne conversation reste accessible avec `/chat-id`. Si l'opération échoue, la conversation en cours est conservée.
+- Compaction automatique : avant d'envoyer un message, si le contexte mesuré atteint 85 % (`FS_AUTO_COMPACT=N` pour changer le seuil, `0` pour la désactiver), le CLI demande au serveur de compacter la conversation (`POST /chats/{id}/context`). La conversation est conservée.
+- `/context` affiche ce pourcentage, le chat ID de la conversation, le nombre de tours de la session, le seuil de compaction automatique et, s'il y en a un, le résumé `/compact` en attente.
+- `/compact` demande au serveur de résumer l'historique de la conversation (`POST /chats/{id}/context`, réservé au propriétaire du chat) : même conversation, contexte réduit.
+- `/compact <consigne>`, ou si la compaction serveur échoue, demande au modèle un résumé structuré en français (objectif, décisions prises, fichiers modifiés, tâches restantes). Le résumé (20 000 caractères au maximum) est joint à ton prochain message, qui ouvre une nouvelle conversation : aucune requête supplémentaire n'est envoyée. La consigne oriente le résumé, par exemple `/compact garde les chemins des tests`. L'ancienne conversation reste accessible avec `/chat-id`. Si l'opération échoue, la conversation en cours est conservée.
 - Le journal local n'est pas touché : `/undo` et `/changes` fonctionnent toujours après une compaction.
 
 ### Outils du modèle

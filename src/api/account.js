@@ -8,9 +8,15 @@ const pct = n => `${(Math.round(Number(n || 0) * 10) / 10).toLocaleString("fr-FR
 const when = iso => (iso ? String(iso).slice(0, 16).replace("T", " ") : "?");
 
 /** GET JSON authentifié sur l'API (un seul nouvel essai après renouvellement du token sur 401). */
-async function getJson(path, retried = false) {
+const getJson = (path, retried = false) => requestJson("GET", path, retried);
+
+/** POST sans corps, réponse JSON (même authentification et même nouvel essai que getJson). */
+const postJson = (path, retried = false) => requestJson("POST", path, retried);
+
+async function requestJson(method, path, retried = false) {
     const token = await getAccessToken(retried);
     const response = await fetch(`${CONFIG.apiUrl}${path}`, {
+        method,
         headers: {
             Accept: "application/json",
             Authorization: `Bearer ${token}`,
@@ -21,10 +27,11 @@ async function getJson(path, retried = false) {
             Origin: CONFIG.origin,
             Referer: `${CONFIG.origin}/`
         },
-        signal: AbortSignal.timeout(15_000)
+        // La compaction (POST /context) fait résumer l'historique : délai plus long.
+        signal: AbortSignal.timeout(method === "GET" ? 15_000 : 120_000)
     });
 
-    if (response.status === 401 && !retried) return getJson(path, true);
+    if (response.status === 401 && !retried) return requestJson(method, path, true);
     if (!response.ok) {
         const error = new Error(`HTTP ${response.status} sur ${path}`);
         error.status = response.status;
@@ -108,6 +115,17 @@ async function getContextDetails(chatId) {
     }
 }
 
+/**
+ * POST /chats/{chatId}/context : le fournisseur résume tout l'historique de la conversation
+ * (réservé au propriétaire du chat). Renvoie l'occupation normalisée après compaction
+ * (measured=false jusqu'au prochain tour), ou null si la réponse est inexploitable.
+ * Les erreurs HTTP sont propagées (error.status).
+ */
+async function compactChatContext(chatId) {
+    if (!chatId) throw new Error("Aucune conversation à compacter.");
+    return normalizeContext(await postJson(`/chats/${encodeURIComponent(chatId)}/context`));
+}
+
 /** Volume de la session locale (compteurs de api.usage). */
 function describeSession(usage) {
     if (!usage || !usage.requests) return ["Session : aucune requête envoyée."];
@@ -148,6 +166,8 @@ function describeUserUsage(dto) {
 
 module.exports = {
     getJson,
+    postJson,
+    compactChatContext,
     fetchChatUsage,
     fetchUserUsage,
     fetchChatContext,

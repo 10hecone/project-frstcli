@@ -81,8 +81,7 @@ async function bootstrap(options = {}) {
  * par défaut (utilisé par le CLI pour son rendu).
  * Renvoie { exit } : true si la session doit s'arrêter.
  *
- * Pas de compaction automatique : les fournisseurs compactent eux-mêmes l'historique
- * rejoué par l'API. /compact reste disponible pour repartir d'un résumé.
+ * La compaction automatique (serveur) a lieu dans chat.send, avant l'envoi (core/compact.js).
  */
 async function handleInput(rawInput, { onChatDelta, sendChat } = {}) {
     const input = String(rawInput ?? "").trim();
