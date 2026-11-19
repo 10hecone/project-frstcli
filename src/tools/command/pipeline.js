@@ -315,6 +315,7 @@ module.exports = {
     executePipeline,
     changeDirectory,
     resolveStartDir,
+    resolveDirectory,
     isCd,
     isInside
 };

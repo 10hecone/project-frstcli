@@ -19,6 +19,8 @@
   - `journal.js` : journal des modifications et undoLast.
   - `walk.js` : walkFiles(dir, relDir, {maxFiles}).
 - `command/` : run_command (index.js, parse.js, runner.js, program.js). program.js contient filterEnv, killTree et resolveProgram, sortis de runner.js. La sortie renvoyée au modèle est limitée à 16 000 caractères (moitié début, moitié fin, `output.js`). Les commandes en arrière-plan (`jobs.js`) se gèrent avec `/jobs`. `index.js` reconnaît aussi la commande virtuelle `mcp-call`, exécutée dans le processus (src/mcp/call.js), seule, sans enchaînement ni pipe ; sa question de confirmation vient de src/mcp/policy.js.
+  - `shell.js` : vrai shell pour les lignes que parse.js refuse (CommandParseError), dans un dossier de confiance seulement. findShell (Git Bash, bash/zsh, PowerShell ; mode via FS_SHELL/FS_SHELL_PATH ou settings), lexShell et assessShell (run, ask ou deny, sans exécuter), runShell (script temporaire, dossier courant relu à la fin et ramené à la racine s'il sort du projet).
+  - `permissions.js` : règles mémorisées (/permissions) et règles `permissions.allow/deny` de settings.json (loadSettingsRules, deniedBy ; allow du projet ignoré). La lecture des settings.json est commune avec les hooks (`src/core/settings.js`).
 
 Les anciens outils `delegate` et `todo_write` (`delegate.js`, `todo-write.js`) ont été retirés. La liste de tâches passe désormais par la commande virtuelle `todo` de run_command (`src/core/todos.js` : `todo set`, `add`, `start <n>`, `done <n>`, `remove`, `clear`, `list`), exécutée dans le processus et toujours autorisée.
 

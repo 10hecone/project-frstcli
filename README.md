@@ -228,6 +228,28 @@ Comme dans Claude Code, une commande peut être lancée automatiquement après c
 - Pas de shell : la commande est découpée comme celles de `run_command` (pas de `&&`, `|` ni redirection) et les programmes interdits (`node -e`…) sont refusés.
 - Un hook du projet ne tourne que dans un dossier de confiance, après ton accord. La réponse est mémorisée (`hook-approvals.json`) et redemandée si la définition change.
 
+### Vrai shell pour `run_command`
+
+`run_command` découpe lui-même les lignes simples (`&&`, `||`, `;`, `|`, 8 segments au plus). Une ligne qu'il ne sait pas découper (`$VAR`, redirection vers un fichier, boucle…) passe, comme dans Claude Code, par un vrai shell, **seulement dans un dossier de confiance** :
+
+- Windows : Git Bash (installation de Git ou `bash.exe` du PATH, jamais celui de WSL), sinon PowerShell (`pwsh`, puis Windows PowerShell). Linux/macOS : `$SHELL` s'il s'agit de bash ou zsh, sinon `/bin/bash` ou `/bin/sh`.
+- Une ligne jugée sûre (lecture seule, sans variable ni écriture) part directement ; toute autre demande une confirmation (« Toujours » mémorise les préfixes des commandes).
+- Le dossier courant est conservé d'un appel à l'autre (un `cd` hors du projet ramène à la racine) ; les variables ne le sont pas.
+- Choix du shell : `FS_SHELL` (`auto`, `bash`, `powershell` ou `off`) et `FS_SHELL_PATH`, ou les clés `shell` et `shellPath` du `settings.json` utilisateur.
+
+Règles de permission, dans `settings.json` (même format que Claude Code) :
+
+```json
+{
+  "permissions": {
+    "allow": ["npm test", "Bash(npm run lint:*)"],
+    "deny": ["Bash(git push:*)"]
+  }
+}
+```
+
+- `deny` s'applique depuis le fichier utilisateur et `.frst/settings.json` du projet ; `allow` n'est lu que dans le fichier utilisateur (un dépôt ne peut pas s'autoriser lui-même). Les règles trop larges sont ignorées.
+
 ## Serveurs MCP locaux
 
 Le CLI peut utiliser des serveurs MCP installés sur ta machine. La configuration reprend le format de Claude Code (`mcpServers`) avec trois portées : `local` (par défaut, toi seul dans ce projet), `project` (`.mcp.json` partagé avec le dépôt) et `user` (tous tes projets).
@@ -263,6 +285,8 @@ Toutes sont facultatives. Un fichier `.env` à la racine est lu au démarrage.
 | `FS_API_URL`, `FS_ORIGIN` | Adresses de l'API et du site | API et site France Student |
 | `FS_MCP_TIMEOUT_MS` | Délai max de démarrage d'un serveur MCP | `30000` |
 | `FS_MCP_TOOL_TIMEOUT_MS` | Délai max d'un appel MCP (10 min au plus) | `120000` |
+| `FS_SHELL` | Shell de `run_command` : `auto`, `bash`, `powershell` ou `off` | `auto` |
+| `FS_SHELL_PATH` | Chemin explicite du shell | — |
 | `FS_DEBUG` | `1` : journaux de débogage | — |
 | `FRST_TUI_FULLSCREEN` | `1` : TUI en plein écran (en-tête fixe, défilement) | — |
 | `NO_COLOR` | Désactive les couleurs | — |

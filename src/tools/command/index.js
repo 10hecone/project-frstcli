@@ -11,10 +11,14 @@ const { judge, programName } = require("./policy");
 const { describeMcpCall, parseMcpArgs } = require("../../mcp/policy");
 const { runMcpCall } = require("../../mcp/call");
 const { splitPipeline, executePipeline, resolveStartDir, isCd } = require("./pipeline");
+const { CommandParseError } = require("./parse");
+const { activeShell, assessShell, runShell } = require("./shell");
 const { cleanOutput, snapshotChanges, diffSnapshots, sanitizeDescription } = require("./output");
 const {
     createStore,
     defaultFile,
+    loadSettingsRules,
+    deniedBy,
     decide,
     parseAnswer,
     suggestPrefix,
@@ -171,12 +175,18 @@ function runGitStatus(args) {
 // Vérifie chaque segment avant de lancer quoi que ce soit : un seul deny bloque toute la ligne.
 async function confirmSegments(segments, cwd) {
     const store = getPermissionStore();
-    const rules = store ? await store.rules() : [];
+    const settings = await loadSettingsRules(workspace.root);
+    const rules = [...(store ? await store.rules() : []), ...settings.allow];
     const pending = [];
     const several = segments.length > 1;
 
     for (const segment of segments) {
         if (isCd(segment)) continue;
+        const ruleDenied = deniedBy(settings.deny, segment.file, segment.args);
+        if (ruleDenied) {
+            const reason = `Refusé par la règle « ${ruleDenied.source} » (settings.json).`;
+            return { denied: true, message: several ? `${segment.display} : ${reason}` : reason };
+        }
         const verdict = judge({ file: segment.file, args: segment.args, cwd, workspace: workspace.root });
         const decision = decide({ verdict, rules, file: segment.file, args: segment.args });
         if (decision === "deny") {
@@ -267,6 +277,125 @@ async function backgroundJob(name, segment, description) {
     return { ...base, ...result, command: segment.display, description, changed: false, message: statusMessage(result) };
 }
 
+function startsWithVirtual(line) {
+    const first = String(line).trim().split(/\s+/)[0] || "";
+    return VIRTUAL_COMMANDS.has(programName(first));
+}
+
+// Question posée avant une ligne de shell : la commande et les raisons (3 au plus).
+async function confirmShell(line, shell, assessment, background) {
+    const store = getPermissionStore();
+    const prefixes = assessment.prefixes;
+    const prefixText = prefixes.map(formatPrefix).join(" ; ");
+    const reasons = [...new Set(assessment.reasons.filter(Boolean))].slice(0, 3).map(reason => `- ${reason}`);
+    const where = background ? " en arrière-plan" : "";
+    const question = [`Lancer dans ${shell.name}${where} ? "${line}"`, ...reasons].join("\n");
+    const answer = parseAnswer(await ui.askCommand(question, prefixText));
+    if (answer === "no") return false;
+    if (answer === "always" && prefixes.length && store) {
+        try {
+            for (const prefix of prefixes) await store.add(prefix);
+            ui.info(`Règle ajoutée : « ${prefixText} » (/permissions pour la gérer).`);
+        } catch (error) {
+            ui.warn(`Règle non enregistrée : ${error.message}`);
+        }
+    }
+    return true;
+}
+
+// Ligne lancée par le vrai shell (Git Bash, bash, zsh ou PowerShell) ; même forme de résultat.
+async function runInShell(line, shell, toolArgs, description) {
+    const startCwd = resolveStartDir(toolArgs.cwd, state.cwd, workspace.root);
+    const display = line.trim();
+    const base = { command: display, description, shell: shell.name, changed: false };
+
+    const store = getPermissionStore();
+    const settings = await loadSettingsRules(workspace.root);
+    const assessment = assessShell(line, {
+        kind: shell.kind,
+        cwd: startCwd,
+        workspace: workspace.root,
+        rules: [...(store ? await store.rules() : []), ...settings.allow],
+        denyRules: settings.deny,
+        acceptsEdits: require("../../core/permissions-mode").acceptsEdits()
+    });
+    if (assessment.level === "deny") return { ...base, denied: true, message: assessment.reason };
+    if (assessment.level === "ask" && !(await confirmShell(display, shell, assessment, toolArgs.background === true))) {
+        return { ...base, denied: true, message: "Action refusée par l'utilisateur. Ne la redemande pas." };
+    }
+
+    if (toolArgs.background === true) {
+        const { manager: jobManager } = require("./jobs");
+        const job = jobManager.start({
+            command: display,
+            description,
+            cwd: relativeCwd(startCwd),
+            launch: ({ onLine, signalHandle }) => runShell(line, {
+                shell,
+                cwd: startCwd,
+                workspace: workspace.root,
+                timeoutMs: toolArgs.timeout_ms ?? 600000,
+                onLine,
+                signalHandle
+            })
+        });
+        return {
+            ...base,
+            background: true,
+            job_id: job.id,
+            status: job.status,
+            cwd: job.cwd,
+            message: `Lancé en arrière-plan : ${job.id}. Suis-le avec /jobs, arrête-le avec /jobs stop ${job.id}.`
+        };
+    }
+
+    const before = await snapshotChanges(runGitStatus, workspace.root);
+    const signalHandle = { kill() {} };
+    const off = ui.onInterrupt(() => signalHandle.kill());
+    let run;
+    try {
+        run = await runShell(line, {
+            shell,
+            cwd: startCwd,
+            workspace: workspace.root,
+            timeoutMs: toolArgs.timeout_ms,
+            onLine: (text) => ui.commandLine(text),
+            signalHandle
+        });
+    } catch (error) {
+        return { ...base, denied: true, message: error.message };
+    } finally {
+        off();
+    }
+
+    // Seul le dossier courant est conservé (pas les variables).
+    state.cwd = run.cwd;
+
+    const after = before ? await snapshotChanges(runGitStatus, workspace.root) : null;
+    const filesChanged = diffSnapshots(before, after);
+    if (filesChanged) {
+        for (const rel of filesChanged) memory.dropPath(rel);
+    }
+
+    const cleaned = cleanOutput(run.output, { truncated: run.truncated });
+    const message = buildMessage({ ...run, output: cleaned.output });
+    return {
+        ...base,
+        changed: Array.isArray(filesChanged) && filesChanged.length > 0,
+        files_changed: filesChanged,
+        cwd: relativeCwd(run.cwd),
+        exit_code: run.exit_code,
+        signal: run.signal,
+        timed_out: run.timed_out,
+        interrupted: run.interrupted,
+        duration_ms: run.duration_ms,
+        truncated: cleaned.truncated,
+        error_lines: cleaned.error_lines,
+        output: cleaned.output,
+        message: run.cwd_note ? `${message} ${run.cwd_note}` : message
+    };
+}
+
 async function runCommand(toolArgs = {}) {
     if (!workspace.root) {
         throw new Error("Aucun projet sélectionné.");
@@ -275,8 +404,18 @@ async function runCommand(toolArgs = {}) {
     const line = resolveCommandLine(toolArgs);
     const description = sanitizeDescription(toolArgs.description);
 
-    // Les CommandParseError remontent telles quelles (message destiné à l'agent).
-    const segments = splitPipeline(line);
+    // Ligne que l'analyseur interne ne sait pas découper ($VAR, redirection vers un fichier...) :
+    // vrai shell dans un dossier de confiance, sinon la CommandParseError remonte telle quelle.
+    let segments;
+    try {
+        segments = splitPipeline(line);
+    } catch (error) {
+        const shell = error instanceof CommandParseError && !startsWithVirtual(line)
+            ? await activeShell(workspace.root)
+            : null;
+        if (!shell) throw error;
+        return runInShell(line, shell, toolArgs, description);
+    }
     const startCwd = resolveStartDir(toolArgs.cwd, state.cwd, workspace.root);
     const display = segments.length === 1 ? segments[0].display : line.trim();
 

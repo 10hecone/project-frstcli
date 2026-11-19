@@ -456,6 +456,8 @@ module.exports = {
     programName,
     isNodeEvalFlag,
     isWindowsSwitch,
+    pathCandidate,
+    checkPath,
     DENIED_PROGRAMS,
     SAFE_PROGRAMS
 };

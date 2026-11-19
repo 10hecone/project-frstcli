@@ -1,6 +1,5 @@
 "use strict";
 
-const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
 
@@ -11,6 +10,7 @@ const { judge } = require("../tools/command/policy");
 const { runProcess } = require("../tools/command/runner");
 const { cleanOutput } = require("../tools/command/output");
 const { makeGlobFilter } = require("../tools/fs/search-files");
+const { PROJECT_FILE, USER_FILE, projectFile, userFile, readJson } = require("./settings");
 
 /*
  * Hooks PostToolUse (comme Claude Code) : une commande lancée après un edit_file ou un
@@ -33,8 +33,6 @@ const { makeGlobFilter } = require("../tools/fs/search-files");
  * définition (fichier hook-approvals.json), et seulement dans un dossier de confiance.
  */
 
-const PROJECT_FILE = path.join(".frst", "settings.json");
-const USER_FILE = "settings.json";
 const APPROVALS_FILE = "hook-approvals.json";
 const EVENTS = ["PostToolUse"];
 const EDIT_TOOLS = ["edit_file", "write_file"];
@@ -48,15 +46,6 @@ const isObject = value => value !== null && typeof value === "object" && !Array.
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
-
-async function readJson(file) {
-    try {
-        return JSON.parse((await fs.readFile(file, "utf8")).replace(/^\uFEFF/, ""));
-    } catch (error) {
-        if (error.code === "ENOENT") return null;
-        throw new Error(`${file} illisible : ${error.message}`);
-    }
-}
 
 /** Valide une entrée ; renvoie la liste des hooks (forme plate) ou lève une erreur claire. */
 function normalizeEntry(entry, { event, scope, index }) {
@@ -119,9 +108,6 @@ function normalizeSettings(raw, scope) {
     if (list.length > MAX_HOOKS) throw new Error(`${list.length} hooks déclarés (maximum ${MAX_HOOKS}).`);
     return list;
 }
-
-const projectFile = root => path.join(root, PROJECT_FILE);
-const userFile = () => path.join(CONFIG.dataDir, USER_FILE);
 
 /** Hooks des deux fichiers : { hooks, errors }. Un fichier invalide est ignoré en entier. */
 async function loadHooks(root) {

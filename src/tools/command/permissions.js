@@ -168,11 +168,63 @@ function defaultFile() {
     return require("../../project/memory").projectPath(FILE_NAME);
 }
 
+// ---------------------------------------------------------------------------
+// Règles de settings.json : permissions.allow / permissions.deny
+// ---------------------------------------------------------------------------
+
+/**
+ * Une règle « npm run build », « Bash(npm test:*) » ou « run_command(git push) » devient un
+ * préfixe de mots. Les règles d'autres outils (Read(...), Edit(...)) et les jokers au milieu
+ * de la règle sont ignorés (null).
+ */
+function parseSettingsRule(raw) {
+    if (typeof raw !== "string") return null;
+    let text = raw.trim();
+    const wrapped = /^(?:Bash|run_command)\(([\s\S]*)\)$/.exec(text);
+    if (wrapped) text = wrapped[1].trim();
+    else if (/^[A-Za-z_]+\(/.test(text)) return null;
+    text = text.replace(/:\*$/, "").replace(/\*$/, "").trim();
+    if (!text || text.includes("*")) return null;
+    const prefix = normalizePrefix(text);
+    return prefix ? { prefix, source: raw.trim() } : null;
+}
+
+/**
+ * Règles des deux fichiers settings.json. Le fichier du projet est versionné (donc écrit par
+ * n'importe quel contributeur) : seules ses règles deny comptent, jamais ses règles allow.
+ */
+function settingsRules(settings) {
+    const pick = (scope, key) => {
+        const list = settings?.[scope]?.permissions?.[key];
+        return Array.isArray(list) ? list.map(parseSettingsRule).filter(Boolean) : [];
+    };
+    return {
+        allow: pick("user", "allow").filter(rule => !isTooBroad(rule.prefix)),
+        deny: [...pick("user", "deny"), ...pick("project", "deny")]
+    };
+}
+
+async function loadSettingsRules(root) {
+    const { loadSettings } = require("../../core/settings");
+    const settings = await loadSettings(root);
+    return { ...settingsRules(settings), errors: settings.errors };
+}
+
+/** Règle deny qui vise cette commande, ou null. */
+function deniedBy(rules, file, args = []) {
+    const tokens = tokensOf(file, args);
+    return (rules || []).find(rule => matchesPrefix(rule.prefix, tokens)) || null;
+}
+
 module.exports = {
     FILE_NAME,
     MAX_RULES,
     createStore,
     defaultFile,
+    parseSettingsRule,
+    settingsRules,
+    loadSettingsRules,
+    deniedBy,
     decide,
     parseAnswer,
     suggestPrefix,

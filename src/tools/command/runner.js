@@ -158,13 +158,15 @@ async function runProcess({
     captureStdout = false,
     discardStdout = false,
     discardStderr = false,
-    stderrToStdout = false
+    stderrToStdout = false,
+    extraEnv = null
 } = {}) {
     const MAX_PIPE_CHARS = 1000000;
     let stdoutText = "";
     if (typeof file !== "string" || !file) throw new Error("file doit être une chaîne non vide.");
 
-    const env = filterEnv();
+    // extraEnv : variables internes ajoutées après le filtrage (ex. FRST_CWD_FILE du shell).
+    const env = { ...filterEnv(), ...(extraEnv || {}) };
     const target = resolveProgram(file, args, cwd, env);
     const limit = clampTimeout(timeoutMs);
     const collector = createCollector(onLine);
