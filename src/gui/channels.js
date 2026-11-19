@@ -47,6 +47,11 @@ const CHANNELS = Object.freeze({
     MCP_CONNECT: "frst:mcp-connect",
     MCP_LOGIN: "frst:mcp-login",
 
+    // Fenêtre → processus principal : panneau Paramètres (préférences de settings.json)
+    SETTINGS_GET: "frst:settings-get",
+    SETTINGS_SAVE: "frst:settings-save",
+    SETTINGS_OPEN_FILE: "frst:settings-open-file",
+
     // Fenêtre → processus principal : intégration au système
     ATTENTION: "frst:attention",
     ZOOM: "frst:zoom",

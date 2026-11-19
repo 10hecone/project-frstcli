@@ -14,6 +14,16 @@ const { CHANNELS } = require("../src/gui/channels");
 const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 const ids = (list) => (Array.isArray(list) ? list.map((id) => String(id ?? "")).filter(Boolean) : []);
 
+/** Préférences à enregistrer : seulement des valeurs simples (texte, nombre, booléen, null). */
+function cleanPatch(patch) {
+    const out = {};
+    if (!patch || typeof patch !== "object") return out;
+    for (const [key, value] of Object.entries(patch)) {
+        if (value === null || ["string", "number", "boolean"].includes(typeof value)) out[String(key)] = value;
+    }
+    return out;
+}
+
 contextBridge.exposeInMainWorld("frst", {
     // ---- Session ----
     start: () => invoke(CHANNELS.START),
@@ -64,6 +74,11 @@ contextBridge.exposeInMainWorld("frst", {
     setMcpEnabled: (name, enabled) => invoke(CHANNELS.MCP_SET_ENABLED, String(name ?? ""), enabled === true),
     connectMcp: (name) => invoke(CHANNELS.MCP_CONNECT, String(name ?? "")),
     loginMcp: (name) => invoke(CHANNELS.MCP_LOGIN, String(name ?? "")),
+
+    // ---- Panneau Paramètres (préférences validées par le processus principal) ----
+    getSettings: () => invoke(CHANNELS.SETTINGS_GET),
+    saveSettings: (patch) => invoke(CHANNELS.SETTINGS_SAVE, cleanPatch(patch)),
+    openSettingsFile: () => invoke(CHANNELS.SETTINGS_OPEN_FILE),
     attention: (payload) =>
         invoke(CHANNELS.ATTENTION, {
             kind: String(payload?.kind ?? ""),

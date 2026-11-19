@@ -116,6 +116,8 @@ function createGuiHost({
             backend.banner();
             let result;
             try {
+                // Préférences de settings.json (pas en test) : avant la restauration de session.
+                if (!session) await require("../core/preferences").applyUserSettings();
                 result = await core.bootstrap();
             } catch (error) {
                 result = { ok: false, reason: errorMessage(error) };

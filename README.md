@@ -250,6 +250,25 @@ Règles de permission, dans `settings.json` (même format que Claude Code) :
 
 - `deny` s'applique depuis le fichier utilisateur et `.frst/settings.json` du projet ; `allow` n'est lu que dans le fichier utilisateur (un dépôt ne peut pas s'autoriser lui-même). Les règles trop larges sont ignorées.
 
+### Préférences (panneau Paramètres)
+
+L'interface graphique a un panneau **Paramètres** (barre d'activité) qui enregistre ces clés en haut niveau du `settings.json` utilisateur ; le CLI et l'interface graphique les appliquent au démarrage :
+
+| Clé | Valeurs | Variable prioritaire |
+| --- | --- | --- |
+| `model` | identifiant d'agent (modèle des nouvelles sessions) | `FS_AGENT_ID` |
+| `permissionMode` | `default`, `acceptEdits`, `plan` (mode au démarrage) | — |
+| `shell` | `auto`, `bash`, `powershell`, `off` | `FS_SHELL` |
+| `autoCompactPercent` | 0 à 95 (0 = désactivée) | `FS_AUTO_COMPACT` |
+| `maxAgentTurns` | 0 à 500 (0 = sans limite) | `FS_MAX_AGENT_TURNS` |
+| `firstByteTimeoutSeconds` / `idleTimeoutSeconds` | 10 à 300 | `FS_FIRST_BYTE_TIMEOUT_MS` / `FS_IDLE_TIMEOUT_MS` |
+| `mcpToolTimeoutSeconds` | 1 à 600 | `FS_MCP_TOOL_TIMEOUT_MS` |
+| `optim`, `includeLearnedTopics`, `resumeInProject` | `true` / `false` | `FS_OPTIM`, `FS_INCLUDE_LEARNED_TOPICS`, `FS_RESUME_IN_PROJECT` |
+
+- Une variable d'environnement définie a priorité : le réglage est alors verrouillé dans le panneau.
+- Les autres clés (`hooks`, `permissions`, `shellPath`…) sont conservées. Par sécurité, `shellPath` et les règles `allow`/`deny` sont seulement affichées : on les modifie dans le fichier (bouton « Ouvrir settings.json »).
+- Une valeur incorrecte est ignorée (valeur par défaut) ; un fichier JSON invalide n'est jamais écrasé.
+
 ## Serveurs MCP locaux
 
 Le CLI peut utiliser des serveurs MCP installés sur ta machine. La configuration reprend le format de Claude Code (`mcpServers`) avec trois portées : `local` (par défaut, toi seul dans ce projet), `project` (`.mcp.json` partagé avec le dépôt) et `user` (tous tes projets).

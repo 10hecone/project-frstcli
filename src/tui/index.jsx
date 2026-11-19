@@ -335,6 +335,9 @@ export async function start(options = launchOptions()) {
 
     let result;
     try {
+        // Préférences de settings.json (modèle, mode, délais…) : avant la restauration de session.
+        const prefErrors = await requireCjs("../src/core/preferences.js").applyUserSettings();
+        for (const message of prefErrors) backend.error(message);
         result = await session.bootstrap(bootstrapOptions(options));
     } catch (error) {
         result = { ok: false, reason: error && error.message ? error.message : String(error) };

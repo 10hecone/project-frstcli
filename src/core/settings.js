@@ -16,6 +16,9 @@ const { CONFIG } = require("../config");
  *     "permissions": { "allow": ["npm run build", "Bash(npm test:*)"], "deny": ["git push"] },
  *     "hooks": { ... }  (voir core/hooks.js)
  *   }
+ *
+ * Le fichier utilisateur porte aussi les préférences du panneau Paramètres (model,
+ * permissionMode, autoCompactPercent…) : voir core/preferences.js.
  */
 
 const PROJECT_FILE = path.join(".frst", "settings.json");

@@ -22,6 +22,9 @@
  * Serveurs MCP (mêmes règles) : listMcp() → { servers, warnings } ; setMcpEnabled(nom, actif),
  * connectMcp(nom), loginMcp(nom) → { ok, reason? }. Ni ajout, ni lecture de config, ni appel d'outil.
  *
+ * Paramètres : getSettings() → { file, fields, readonly, error } ; saveSettings({ clé: valeur | null })
+ * → même forme (rejet si invalide ou pendant une réponse) ; openSettingsFile() → { ok, reason? }.
+ *
  * Pour rebrancher l'interface sur un autre transport (WebSocket, serveur local,
  * tests), il suffit de fournir un objet qui respecte ce contrat.
  */
@@ -55,6 +58,11 @@ export const WORKSPACE_FALLBACKS = {
     setMcpEnabled: async () => ({ ok: false, reason: OFFLINE }),
     connectMcp: async () => ({ ok: false, reason: OFFLINE }),
     loginMcp: async () => ({ ok: false, reason: OFFLINE }),
+    getSettings: async () => ({ file: null, fields: [], readonly: { shellPath: "", allow: [], deny: [] }, error: OFFLINE }),
+    saveSettings: async () => {
+        throw new Error(OFFLINE);
+    },
+    openSettingsFile: async () => ({ ok: false, reason: OFFLINE }),
     onFolderRequested: () => () => {}
 };
 

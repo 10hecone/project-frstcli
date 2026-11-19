@@ -110,6 +110,18 @@ export function McpIcon({ size = 20 }) {
     );
 }
 
+/** Paramètres (barre d'activité) : trois curseurs. */
+export function SettingsIcon({ size = 20 }) {
+    return (
+        <svg {...base(size)}>
+            <path d="M2.5 4h1.6M6.9 4h6.6M2.5 8h6.6M11.9 8h1.6M2.5 12h3.1M8.4 12h5.1" />
+            <circle cx="5.5" cy="4" r="1.4" />
+            <circle cx="10.5" cy="8" r="1.4" />
+            <circle cx="7" cy="12" r="1.4" />
+        </svg>
+    );
+}
+
 export function RefreshIcon({ size = 14 }) {
     return (
         <svg {...base(size)}>

@@ -17,6 +17,7 @@ export function useWorkspace(client, status = {}) {
     const [usage, setUsage] = useState({ data: null, loading: false, error: null });
     const [skills, setSkills] = useState({ items: [], loading: false, error: null });
     const [mcp, setMcp] = useState({ items: [], warnings: [], loading: false, error: null });
+    const [settings, setSettings] = useState({ data: null, loading: false, error: null });
     const [recent, setRecent] = useState([]);
     const [sessions, setSessions] = useState({ path: null, items: [], loading: false, error: null });
     const [trust, setTrust] = useState(null);
@@ -118,6 +119,30 @@ export function useWorkspace(client, status = {}) {
         }
     }, [client]);
 
+    const loadSettings = useCallback(async () => {
+        setSettings((prev) => ({ ...prev, loading: true, error: null }));
+        try {
+            const data = await client.getSettings();
+            setSettings({ data: data || null, loading: false, error: null });
+        } catch (err) {
+            setSettings((prev) => ({ ...prev, loading: false, error: errorText(err) }));
+        }
+    }, [client]);
+
+    /** Enregistre des préférences ({ clé: valeur | null }) : { ok } ou { ok:false, reason }. */
+    const saveSettings = useCallback(
+        async (patch) => {
+            try {
+                const data = await client.saveSettings(patch);
+                setSettings({ data: data || null, loading: false, error: null });
+                return { ok: true };
+            } catch (err) {
+                return { ok: false, reason: errorText(err) };
+            }
+        },
+        [client]
+    );
+
     /** Exécute une action et transforme une exception en { ok:false, reason }. */
     const run = useCallback(async (fn) => {
         try {
@@ -129,6 +154,7 @@ export function useWorkspace(client, status = {}) {
         }, []);
 
     const openChat = useCallback((id) => run(() => client.openChat(id)), [client, run]);
+    const openSettingsFile = useCallback(() => run(() => client.openSettingsFile()), [client, run]);
     const newThread = useCallback(() => run(() => client.newThread()), [client, run]);
     const setModel = useCallback(
         async (id) => {
@@ -311,6 +337,10 @@ export function useWorkspace(client, status = {}) {
         setMcpEnabled,
         connectMcp,
         loginMcp,
+        settings,
+        loadSettings,
+        saveSettings,
+        openSettingsFile,
         pickFiles,
         pasteImage,
         loadFolders,

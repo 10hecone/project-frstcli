@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { relativeTime } from "../lib/format.js";
 import { FolderSwitcher } from "./FolderSwitcher.jsx";
+import { SettingsPanel } from "./SettingsPanel.jsx";
 
 const TABS = [
     { id: "chats", label: "Threads" },
     { id: "projects", label: "Projets en ligne" }
 ];
 
-const VIEW_TITLES = { threads: "Conversations", skills: "Skills", mcp: "Serveurs MCP" };
+const VIEW_TITLES = { threads: "Conversations", skills: "Skills", mcp: "Serveurs MCP", settings: "Paramètres" };
 
 /** Libellé et symbole de chaque état : l'état ne repose jamais sur la couleur seule. */
 const MCP_STATES = {
@@ -34,7 +35,7 @@ const errorText = (err) => (err && err.message ? err.message : String(err));
 export function Sidebar({ id, view = "threads", open = true, workspace, status = {}, busy = false }) {
     const [tab, setTab] = useState("chats");
     const [toast, setToast] = useState(null);
-    const { loadProjects, loadSkills, loadMcp } = workspace;
+    const { loadProjects, loadSkills, loadMcp, loadSettings } = workspace;
     // Dossiers : fournis par useWorkspace ; sans eux, la barre latérale garde l'ancien comportement.
     const folders = workspace.folders || null;
 
@@ -43,8 +44,10 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
         if (view === "skills") loadSkills();
         else if (view === "mcp") {
             if (loadMcp) loadMcp();
+        } else if (view === "settings") {
+            if (loadSettings) loadSettings();
         } else if (tab === "projects") loadProjects();
-    }, [open, view, tab, loadProjects, loadSkills, loadMcp]);
+    }, [open, view, tab, loadProjects, loadSkills, loadMcp, loadSettings]);
 
     useEffect(() => {
         if (!toast) return undefined;
@@ -74,6 +77,10 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
                     ) : view === "mcp" ? (
                         <p className="panel-hint">
                             Ajoute un serveur avec <kbd>/mcp add</kbd> dans la barre de chat.
+                        </p>
+                    ) : view === "settings" ? (
+                        <p className="panel-hint">
+                            Enregistrés dans settings.json. Une variable d'environnement définie a priorité.
                         </p>
                     ) : (
                         <>
@@ -136,6 +143,14 @@ export function Sidebar({ id, view = "threads", open = true, workspace, status =
                             onToggle={(server, enabled) => act(() => workspace.setMcpEnabled(server.name, enabled))}
                             onConnect={(server) => act(() => workspace.connectMcp(server.name))}
                             onLogin={(server) => act(() => workspace.loginMcp(server.name))}
+                        />
+                    ) : view === "settings" ? (
+                        <SettingsPanel
+                            settings={workspace.settings}
+                            disabled={busy}
+                            disabledReason={busyReason}
+                            onSave={(patch) => workspace.saveSettings(patch)}
+                            onOpenFile={() => act(workspace.openSettingsFile)}
                         />
                     ) : tab === "projects" ? (
                         <ProjectsPanel

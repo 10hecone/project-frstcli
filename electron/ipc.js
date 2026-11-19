@@ -15,6 +15,7 @@ const { createWorkspace } = require("../src/gui/workspace");
 const { createFolders } = require("../src/gui/folders");
 const { createChanges } = require("../src/gui/changes");
 const { createMcpPanel } = require("../src/gui/mcp");
+const { createSettingsPanel } = require("../src/gui/settings-panel");
 const { openWorkspacePath } = require("../src/gui/paths");
 const oauth = require("../src/mcp/oauth");
 const { nextZoom, zoomActionForInput } = require("../src/gui/window-state");
@@ -55,6 +56,7 @@ function registerIpc(win, { onExit = null, initialFolder = null } = {}) {
     });
     // Panneau MCP : mêmes refus pendant une réponse que les skills et les dossiers.
     const mcp = createMcpPanel({ isRunning: () => host.isRunning() });
+    const settingsPanel = createSettingsPanel({ isRunning: () => host.isRunning() });
     const attention = createAttention(win);
 
     // OAuth MCP : le navigateur s'ouvre via Electron. L'URL a déjà été validée par oauth.js
@@ -188,6 +190,13 @@ function registerIpc(win, { onExit = null, initialFolder = null } = {}) {
         [CHANNELS.MCP_SET_ENABLED]: (name, enabled) => mcp.setEnabled(name, enabled),
         [CHANNELS.MCP_CONNECT]: (name) => mcp.connect(name),
         [CHANNELS.MCP_LOGIN]: (name) => mcp.login(name),
+        [CHANNELS.SETTINGS_GET]: () => settingsPanel.get(),
+        [CHANNELS.SETTINGS_SAVE]: (patch) => settingsPanel.save(patch),
+        // Ouvre settings.json dans l'éditeur du système (seul fichier ouvert par ce canal).
+        [CHANNELS.SETTINGS_OPEN_FILE]: async () => {
+            const error = await shell.openPath(await settingsPanel.ensureFile());
+            return { ok: !error, reason: error || null };
+        },
         [CHANNELS.ATTENTION]: (payload) => ({ shown: attention.notify(payload) }),
         [CHANNELS.ZOOM]: (action) => applyZoom(action),
         [CHANNELS.APPEARANCE]: (options) => setAppearance(options)
