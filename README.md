@@ -183,7 +183,7 @@ Sans dossier (`frst --no-project`), les commandes liées au projet (`/tree`, `/r
 
 ### Contexte envoyé au modèle
 
-- Au premier message d'une conversation avec un projet ouvert, le CLI joint un contexte court (3 000 caractères au maximum) : nom du projet, système, branche Git, gestionnaire de paquets, commande de test et premier niveau de l'arborescence. Le contenu des fichiers n'est jamais joint : le modèle le lit avec les outils. Les `FRSTCLI.md` du dossier et de ses parents (instructions du projet, voir `/init` ; le plus proche en dernier) et le pré-prompt sont joints aussi. Les messages suivants partent seuls.
+- Au premier message d'une conversation avec un projet ouvert, le CLI joint un contexte court (4 000 caractères au maximum) : nom du projet, système, branche Git, gestionnaire de paquets, commande de test, premier niveau de l'arborescence et mode d'emploi des outils (les appeler directement, ne rien affirmer sans résultat, créer un vrai fichier pour une demande de fichier). Le contenu des fichiers n'est jamais joint : le modèle le lit avec les outils. Les `FRSTCLI.md` du dossier et de ses parents (instructions du projet, voir `/init` ; le plus proche en dernier) et le pré-prompt sont joints aussi. Les messages suivants partent seuls.
 - `RESUME.md` n'est plus généré à l'ouverture du projet ni envoyé au modèle. `/index` le génère à la demande (seuls les fichiers modifiés depuis le dernier résumé sont renvoyés à l'IA, `/index force` refait tout) et `/index show` l'affiche.
 - Pas de limite de rondes d'outils par défaut. Avec `FS_MAX_AGENT_TURNS=N` (N > 0), le CLI demande toutes les N rondes s'il faut continuer.
 

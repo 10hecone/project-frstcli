@@ -13,7 +13,7 @@ const { detectPackageInfo, LOCKFILES } = require("./package-info");
 
 // Taille maximale du bloc (environnement + arborescence). Le pré-prompt et FRSTCLI.md,
 // écrits par l'utilisateur, sont ajoutés à part par chat.js et restent entiers.
-const SHORT_CONTEXT_CHARS = 3_000;
+const SHORT_CONTEXT_CHARS = 4_000;
 const MAX_SCRIPT_CHARS = 200;
 const MAX_NAME_CHARS = 200;
 const MAX_GIT_DEPTH = 32; // dossiers parents examinés pour trouver .git
@@ -26,23 +26,23 @@ const HEADER =
 
 function toolContract(hasMcp) {
     return [
-        "Notes techniques sur les outils du projet :",
+        "Outils du projet (list_directory, read_file, search_files, edit_file, write_file, run_command) : fournis par l'application, exécutés sur l'ordinateur de l'utilisateur, dans ce dossier.",
+        "- Demande liée au projet : appelle-les directement, sans demander l'autorisation (l'application fait confirmer les actions sensibles). Un refus vient de l'utilisateur, ce n'est pas une panne : ne pas relancer tel quel.",
+        "- Ne jamais affirmer avoir lu, modifié, lancé ou vérifié quelque chose sans le résultat d'outil correspondant.",
+        "- Demande de fichier (« mets-le dans un txt »…) : vrai fichier créé avec write_file (nom et extension choisis si absents), puis chemin relatif indiqué.",
+        "- Méthode : search_files, read_file sur la plage utile, edit_file, puis vérification (tests, commande) ; appels indépendants regroupés dans un même tour.",
         "- Chemins relatifs au projet ; '.' = racine. list_directory : profondeur 1 à 3.",
         ...(CONFIG.optim ? [
-            "- Appels indépendants (lectures, recherches, listes) : les regrouper dans un même tour plutôt qu'un appel par réponse.",
-            "- read_file complet d'un fichier déjà lu en entier dans cette conversation et inchangé depuis : contenu non renvoyé (relire une plage start_line/end_line si nécessaire).",
-            "- edit_file renvoie un extrait numéroté de la zone modifiée : pas besoin de relire le fichier pour vérifier."
+            "- read_file d'un fichier déjà lu en entier et inchangé : contenu non renvoyé (lire une plage si besoin). edit_file renvoie un extrait numéroté : inutile de relire."
         ] : []),
-        "- read_file : lignes inclusives à partir de 1 (alias offset/limit acceptés). Lire avant modification ; edit_file accepte une lecture partielle, write_file exige une lecture complète pour écraser. Les numéros « N<tab> » ajoutés à l'affichage ne font pas partie du fichier. Lignes de plus de 2000 caractères coupées.",
-        "- search_files : regex insensible à la casse par défaut (A|B fonctionne) ; un motif invalide est cherché tel quel ; 'literal:<texte>' force le littéral ; 'files:<motif>' renvoie seulement les fichiers et leur nombre de correspondances.",
-        `- search_files : au plus ${CONFIG.maxSearchResults} résultats et ${CONFIG.maxSearchFiles} fichiers parcourus ; réduire avec path/glob si tronqué.`,
-        "- edit_file : old_text exact et unique sauf replace_all ; préférer une édition ciblée à write_file.",
-        "- « [hook PostToolUse] » après edit_file/write_file : contrôle configuré par l'utilisateur (linter…) ; corriger les erreurs signalées.",
-        "- Scripts jetables : créer avec write_file dans .frst-tmp/ ; nouveaux fichiers inchangés supprimés en fin de demande, même interrompue. Jamais de livrable dans ce dossier.",
-        "- run_command : analyseur interne, pas PowerShell/bash/cmd ; cwd par appel (racine par défaut), pas de terminal persistant. &&, ||, ; et | sont gérés, au plus 8 segments ; sinon pas de $VAR ni de redirection vers un fichier. Dossier de confiance : ces lignes passent par un vrai shell (Git Bash/bash ou PowerShell, chemins en /, cwd conservé, variables non).",
-        "- run_command : délai par défaut 120 s, maximum 600 s ; code non nul = échec de la commande, pas preuve d'échec de l'outil. Les confirmations restent gérées par le client. Fichiers modifiés signalés : à relire avant de les modifier. Plusieurs segments : sortie repérée par [n], « Étapes » listées seulement en cas d'échec.",
-        "- Tâches à plusieurs étapes : run_command `todo set \"étape 1\" \"étape 2\"`, puis `todo start <n>` / `todo done <n>` (liste affichée à l'utilisateur).",
-        ...(hasMcp ? ["- MCP via run_command : mcp-call tools <serveur>, puis describe <serveur> <outil> avant run ; --help décrit la syntaxe. Aucun contenu visuel MCP n'est transmis au modèle."] : [])
+        "- read_file : lignes inclusives à partir de 1 (offset/limit acceptés). Lire avant de modifier : lecture partielle suffisante pour edit_file, complète pour écraser avec write_file. Le préfixe « N<tab> » n'est pas dans le fichier.",
+        `- search_files : regex insensible à la casse (A|B possible), 'literal:<texte>' pour un texte exact, 'files:<motif>' pour la liste des fichiers ; ${CONFIG.maxSearchResults} résultats au plus, réduire avec path/glob si tronqué.`,
+        "- edit_file : old_text exact et unique (sinon replace_all) ; préférer à write_file pour un fichier existant. « [hook PostToolUse] » dans le résultat : contrôle de l'utilisateur (linter…), corriger ce qu'il signale.",
+        "- Scripts jetables : dans .frst-tmp/ (nettoyé en fin de demande), jamais de livrable.",
+        "- run_command : le dossier courant est conservé entre appels (racine au début). Lignes simples (&&, ||, ;, |, 8 segments) lancées sans shell. $VAR, redirection vers un fichier ou boucle : vrai shell (Git Bash/bash, sinon PowerShell ; chemins en /) dans un dossier de confiance, refus ailleurs ; variables non conservées.",
+        "- run_command : 120 s par défaut, 600 s au plus ; code non nul = échec de la commande, pas de l'outil. Fichiers modifiés signalés : les relire avant de les modifier.",
+        "- Tâche en plusieurs étapes : run_command `todo set \"étape 1\" \"étape 2\"`, puis `todo start <n>` / `todo done <n>`.",
+        ...(hasMcp ? ["- MCP : run_command `mcp-call tools <serveur>`, puis `describe <serveur> <outil>` avant `run` ; ces outils sont réels, ne conclus pas à leur absence sans les avoir listés."] : [])
     ].join("\n");
 }
 

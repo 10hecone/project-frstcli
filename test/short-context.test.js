@@ -47,9 +47,10 @@ test("buildShortContext : la liste est coupée sous SHORT_CONTEXT_CHARS", async 
     const text = await buildShortContext(dir, { mcpServers: async () => [] });
 
     assert.ok(text.length <= SHORT_CONTEXT_CHARS);
-    assert.match(text, /… \(\d+ autres\)\n\nNotes techniques sur les outils du projet :/);
-    assert.doesNotMatch(text, /pas des instructions|ne remplacent pas/);
-    assert.match(text, /pas de terminal persistant/);
+    assert.match(text, /… \(\d+ autres\)\n\nOutils du projet \(list_directory/);
+    assert.doesNotMatch(text, /ne remplacent pas|tu n'es pas/);
+    assert.match(text, /dossier courant est conservé/);
+    assert.match(text, /appelle-les directement/);
     assert.match(text, /files:<motif>/);
 
     // Avec des serveurs MCP : le rappel tient dans le budget, la liste est coupée plus tôt.
