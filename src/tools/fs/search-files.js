@@ -243,5 +243,6 @@ module.exports = {
     describe,
     searchFiles,
     globToRegExp,
+    makeGlobFilter,
     makeMatcher
 };

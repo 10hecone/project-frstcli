@@ -209,6 +209,25 @@ Le CLI utilise les outils client natifs de l'API France Student (voir [docs/sdka
 - Les anciens outils (`glob`, `multi_edit`, `web_search`, `web_fetch`, `delegate`, `todo_write`…) et leurs variables (`FS_WEB`, `FS_SEARCH_*`, `FS_SUBAGENT_*`, `FS_COMPACT_THRESHOLD`) n'existent plus. La recherche web reste disponible en chat normal avec `/web on`.
 - Le mode agent séparé a été retiré : le modèle décide lui-même d'appeler ses outils. Une ancienne conversation « agent » reprise avec `/chat-id` continue comme une conversation normale.
 
+### Hooks
+
+Comme dans Claude Code, une commande peut être lancée automatiquement après chaque `edit_file` ou `write_file` réussi (événement `PostToolUse`). Sa sortie est ajoutée au résultat de l'outil : le modèle voit par exemple les erreurs d'un linter et peut les corriger.
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "edit_file|write_file", "glob": "*.luau", "command": "selene {file}", "timeout": 30 }
+    ]
+  }
+}
+```
+
+- Fichiers : `.frst/settings.json` dans le projet, et `settings.json` dans le dossier de données (`~/.francestudent-cli/`). La forme imbriquée de Claude Code (`{ "matcher": ..., "hooks": [{ "type": "command", "command": ... }] }`) est aussi acceptée.
+- `matcher` : expression sur le nom de l'outil (tous les outils d'écriture si absent) ; `glob` : filtre sur le fichier ; `{file}` : chemin relatif du fichier modifié ; `timeout` en secondes (60 par défaut, 600 au maximum).
+- Pas de shell : la commande est découpée comme celles de `run_command` (pas de `&&`, `|` ni redirection) et les programmes interdits (`node -e`…) sont refusés.
+- Un hook du projet ne tourne que dans un dossier de confiance, après ton accord. La réponse est mémorisée (`hook-approvals.json`) et redemandée si la définition change.
+
 ## Serveurs MCP locaux
 
 Le CLI peut utiliser des serveurs MCP installés sur ta machine. La configuration reprend le format de Claude Code (`mcpServers`) avec trois portées : `local` (par défaut, toi seul dans ce projet), `project` (`.mcp.json` partagé avec le dépôt) et `user` (tous tes projets).

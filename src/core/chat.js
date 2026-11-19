@@ -11,6 +11,7 @@ const { instructionsBlock } = require("../project/instructions");
 const registry = require("../tools/registry");
 const { summarizeResult } = require("../tools/tools");
 const compact = require("./compact");
+const hooks = require("./hooks");
 const { workspace } = require("./workspace");
 const permissionsMode = require("./permissions-mode");
 
@@ -178,7 +179,13 @@ async function executeCalls(calls, allowed) {
                 outcome = { status: "rejected", reason: error };
             }
         }
-        results.push(report(call, outcome));
+        const entry = report(call, outcome);
+        if (outcome.status === "fulfilled" && !entry.isError) {
+            // Hooks PostToolUse (core/hooks.js) : leur sortie suit le résultat de l'outil.
+            const { text } = await hooks.runPostToolUse(call.name, outcome.value, { root: workspace.root, ui });
+            if (text) entry.output += `\n\n${text}`;
+        }
+        results.push(entry);
     }
 
     await flushReads();
@@ -300,6 +307,12 @@ function reportUsage(before) {
  */
 async function send(input, { onDelta, onToolCalls, readOnly = false } = {}) {
     activateConversation();
+    // Contexte presque plein (mesuré au tour précédent) : compaction serveur avant d'envoyer.
+    const auto = await compact.autoCompact();
+    if (auto) {
+        const after = auto.details ? ` → ${Math.round(auto.details.percent)} %` : "";
+        ui.info(`Contexte compacté automatiquement (${Math.round(auto.before)} %${after}).`);
+    }
     const hadChat = Boolean(state.chatIds.chat);
     const clientTools = toolsFor({ readOnly });
     const temporaryRoot = workspace.root;
@@ -307,12 +320,6 @@ async function send(input, { onDelta, onToolCalls, readOnly = false } = {}) {
     const usageBefore = { ...api.usage };
     const texts = [];
     let rounds = 0;
-    // Contexte presque plein (mesuré au tour précédent) : compaction serveur avant d'envoyer.
-    const auto = await compact.autoCompact();
-    if (auto) {
-        const after = auto.details ? ` → ${Math.round(auto.details.percent)} %` : "";
-        ui.info(`Contexte compacté automatiquement (${Math.round(auto.before)} %${after}).`);
-    }
     let failure = null;
 
     try {
